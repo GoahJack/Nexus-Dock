@@ -2,7 +2,7 @@
 
 Nexus 风格的 Windows 桌面美化工具：**位置可调的悬浮 Dock** + **音乐显示卡片**。
 
-- 技术栈：Electron 45 + React 19 + TypeScript 7 + Vite 8（electron-vite 构建）
+- 技术栈：Electron 44.7 + React 19 + TypeScript 7 + Vite 8（electron-vite 构建）
 - 平台：Windows 10 1809+ / Windows 11
 - 音乐数据：Windows 系统媒体会话（SMTC，任意播放器）+ 内置本地播放器
 
@@ -13,7 +13,7 @@ npm install
 npm run dev
 ```
 
-启动后：屏幕底部出现 Dock，右上出现音乐卡片。桌面时钟默认隐藏，点击 Dock 末端时钟按钮（或设置 →「时钟」）即可显示。右键 Dock →「Dock 设置」可打开设置面板。
+启动后：屏幕底部出现 Dock，右上出现音乐卡片。桌面时钟默认隐藏，点击 Dock 末端时钟按钮（或设置 →「时钟」）即可显示。右键 Dock →「Dock 设置」可打开设置面板。**系统托盘**有常驻图标（单击显示/隐藏 Dock、双击打开设置、右键完整菜单）。
 
 > 验收 / 日常使用请用安装版（自动安装到 `%LOCALAPPDATA%\NexusDock`，以正常权限运行）：
 >
@@ -21,6 +21,56 @@ npm run dev
 > npm run build
 > npm run install:local   # 或直接双击根目录「启动 Nexus Dock.cmd」
 > ```
+
+## v1.5 更新（2026-11-01）
+
+> 当前版本：**v1.5.0**（`package.json`）；口径：规格 §13、任务阶段 25、验收 `docs/verification.md` §v1.5。
+> 主题：**托盘找回入口 + 稳定性（日志/崩溃自愈/桥治理）+ 交互可访问性 + 工程化门禁**。共 21 个文件改动（+1,885/−271），9 个自动化验收项 + 5 个溢出压力项全部通过。
+
+### 新增：系统托盘（解决「关掉 Dock 就找不回」）
+
+- Dock 是主窗口（关掉即退出），且应用 `skipTaskbar` 不进任务栏；旧版本一旦窗口异常（设置窗跑到屏幕外、Dock 被「仅在桌面显示」隐掉），用户没有任何找回入口（FAQ Q6 只能建议删 `settings.json`）。
+- 托盘图标（`resources/tray-16/24/32/64.png`，含 1.5x/2x/4x 表示）：**单击 = 显示/隐藏 Dock**，**双击 = 打开设置**，右键菜单 = 打开设置 / 显示·隐藏 Dock / 吸附到最近屏幕边 / 重载 Dock / 音乐卡片 / 桌面时钟 / 锁定全部窗口 / 开机自启 / 版本 / 退出。
+- Dock 右键菜单同步新增「隐藏 Dock（托盘可恢复）」；隐藏走 `hide()` 而非关窗，不触发退出。
+- 图标缺失或托盘创建失败只记日志，不影响 Dock/音乐卡片（`src/main/tray.ts`）。
+
+### 修复：真实 bug（均有日志或复现证据）
+
+| 问题 | 根因 | 修复 |
+|---|---|---|
+| 删掉最后一个 Dock 图标，6 个内置应用全回来 | `sanitizeSettings` 把「合法空数组」当「数据缺失」回退默认值 | 区分 `undefined` 与 `[]`；空列表现在是合法状态 |
+| 音乐卡片累计 5 次崩溃后永久空白 | SMTC 桥重启计数只在「ready 且存活 >30s」时清零，实际永远活不到 30s | ready 即清零退避；新增 15s 看门狗兜底重拉 |
+| 桌面状态桥崩溃后无限 1s 级重启刷屏 | 无崩溃循环治理 | 60s 内 ≥5 次失败 → 60s 降级冷却，日志收敛 |
+| 渲染进程崩溃后 Dock/音乐卡片永久白屏、设置窗「点不开」 | `render-process-gone` 只打日志；设置窗只判 `isDestroyed()` | 四个窗口统一自愈重载（60s 内最多 3 次，之后 10s 慢重载）；设置窗崩溃即销毁重建 |
+| Dock 的「移回默认位置」在开启吸附时是空操作 | 复位只写 `freeX/freeY`，但吸附模式完全忽略它们 | 复位改为「先关吸附、再置 edge=bottom/along=50/freeX/freeY=-1」两步 |
+| `window.nexus.dock.snap()` 必定 reject | 契约与 preload 都声明了 `dock:snap`，主进程从没注册 handler | 补上 handler（托盘菜单「吸附到最近屏幕边」也用它） |
+| 开机自启指向 portable 临时解包目录，重启后失效 | 用 `process.execPath`，portable stub 解包目录退出即删 | 优先使用 `PORTABLE_EXECUTABLE_FILE` |
+| 选「本地音频」会偷偷改掉来源 | 弹框后被动写入 `source:'local'` | 先切来源再弹框，取消也有提示，控件与真实配置始终一致 |
+| 设置加载失败 → 永久空白透明 Dock | `settings.get()` 无 `.catch`，`settings` 永远是 null | 加载失败显示可读错误卡片 + 重试；三个渲染入口加 ErrorBoundary |
+| 滑块每拖一像素发一次 IPC | `onChange` 直接 `await patch()` | 乐观更新 + 120ms 合并落盘；保存失败在设置页顶部提示并可重试 |
+
+### 交互与可访问性
+
+- **Dock 溢出可用**：图标多/尺寸大时主进程把窗口夹紧到工作区，渲染层 `.dock-items` 改内部滚动（隐藏滚动条 + 滚轮驱动 + 两端渐隐），末端音乐/时钟开关始终可见；拖拽落点已计入 `scrollLeft`，支持拖到边缘自动滚动（25 图标 × iconSize 80 压力验证：窗口 1684px ≤ 工作区，maxScroll 1293px）。
+- **键盘可用**：方向键在图标间移动焦点（roving tabindex）、`ContextMenu` / `Shift+F10` 打开应用菜单（旧版只能右键鼠标）；空列表显示「添加应用」空状态。
+- **命中区**：Dock 末端开关最小 24px（原 18px），圆角/指示点按 `--dock-icon-size` 比例派生；音乐卡片选文件按钮 20→24px。
+- **对比度**：`--nx-text-faint` 0.38 → 0.55（11px 提示文字 ~3.3:1 → ~4.6:1）。
+- **音乐卡片**：新增浅色主题（`data-theme`，与 Dock/时钟同套令牌，schemaVersion 7→8 迁移零丢失）；空闲态不再无限扫光（只有「播放中且时长未知」才扫）；环形进度样式不再丢失 seek 能力；进度条给读屏完整 `aria-valuetext`（原来是裸毫秒数）且不再被移出 Tab 序；媒体控制/选文件/切来源失败在卡片内提示。
+- **设置面板**：锁定总开关显示 `/3` 三态、「恢复默认图标」正名为**「恢复默认应用列表」**并明确破坏性、排序/移除有成功反馈且移除有二次确认、亚克力开关文案说明 Win11 22H2+ 限制、Dock 主题浅色下的次要文字一并提亮。
+
+### 工程化
+
+- **最小自动化门禁**：`npm test` = 12 个 `node --test` 纯函数契约测试（设置夹紧/枚举回退/空列表/深合并/schema 幂等/IPC 通道唯一性/托盘图标资源合法性），不需要 Electron；`npm run check` = typecheck + test。
+- **`scripts/v15-verify.mjs`**：安装版 + CDP 的 9 项验收（版本/迁移/托盘/渲染层/键盘/命中区/`dock:snap`/音乐卡片/设置面板/日志轮转），产物 `docs/verification/v1.5/v15-report.json` + 截图。
+- **`scripts/v15-overflow-check.mjs`**：25 图标溢出压力测试（夹紧/滚动/末端可达/还原），产物 `overflow-report.json`。
+- **`scripts/install-local.ps1` 修正**：旧版只同步 `out/`，新增的 `resources/`（托盘图标、桥脚本）和 `package.json` 版本号永远不会装进去 → 现在一并同步；manifest 改为**无 BOM** UTF-8 写入（带 BOM 会让 Electron 解析 package.json 失败并静默退出）。
+- **窗口加固**：四个窗口统一拦截导航 / `window.open` / `<webview>`，本地页面之外一律拒绝（纵深防御）。
+- **日志轮转**：`logs/*.log` 单文件 1MB 上限，超限轮转为 `.log.1`（只留 1 个备份）。
+- **启动错峰**：`hydrateIcons` / `probeEnvironment` / `cleanupErrorDialogs`（各会拉起 1–2 个 PowerShell）推迟到界面首帧之后执行，减少启动抢 CPU。
+- **版本控制**：仓库此前没有 git（改坏无法回滚），现已初始化并提交 v1.4.1 基线 + v1.5.0。
+
+**已知未做（本轮范围外，按证据登记）**：Dock 自动隐藏、应用搜索/全局热键、拖拽 `.exe/.lnk` 入 Dock、UWP 应用图标与运行指示、启动链路去 UIA 提效、多显示器选屏。详见 `docs/verification.md` §v1.5.4。
+
 
 ## v1.4.1 修复（2026-11-01）
 
@@ -123,26 +173,33 @@ powershell -File scripts/mem-probe.ps1 -Label low-end -EnvPairs 'NEXUS_LOW_END=1
 | `npm run dev` | 开发模式（入口 `scripts/dev.ps1`：清宿主环境变量 + `--noSandbox` + 远程调试 9222） |
 | `npm run build` | 构建到 `out/` |
 | `npm run typecheck` | 全量类型检查 |
-| `npm run dist` | 打包 NSIS 安装包（**验收通过后**使用） |
+| `npm test` | 共享契约单元测试（Node 内置 test runner，12 项，不需要 Electron） |
+| `npm run check` | `typecheck` + `test`（提交前门禁） |
+| `npm run dist` | 打包 Windows 便携版到 `dist/`（electron-builder 配置为 **portable** 单文件 exe；如需 NSIS 安装包请先在 `package.json` 的 `build.win.target` 增加 `nsis`） |
 | `powershell -File scripts/start.ps1` | 启动已构建产物（试用/验收），可加 `-DebugPort 9222` |
 
-## 当前状态（v1.4.1，开发态）
+## 当前状态（v1.5.0，开发态）
 
 - ✅ Dock：玻璃质感、四边停靠、沿边位置、悬停放大（1.30×，邻项递减）、拖拽排序、右键菜单、图标提取
 - ✅ Dock 自身图标：点击打开设置面板并前置；`.lnk` / `aumid` 指向自身同样识别（v1.4.1）
 - ✅ Dock 手感：按压回弹、涟漪光晕、启动弹跳、悬停柔光、指示点呼吸、FLIP 排序过渡、入场动画
-- ✅ 音乐卡片：Windows SMTC 实时显示任意播放器的曲目/进度，卡片按钮可真实控制播放器；空状态；本地播放器；控件按压/图标形变/进度跟手
+- ✅ Dock 溢出：图标多时窗口夹紧 + 内部滚动 + 两端渐隐；末端开关始终可达（v1.5）
+- ✅ Dock 键盘：方向键移动焦点、`ContextMenu`/`Shift+F10` 打开应用菜单、空列表引导（v1.5）
+- ✅ 系统托盘：单击显隐 Dock / 双击设置 / 右键完整菜单（v1.5）
+- ✅ 音乐卡片：Windows SMTC 实时显示任意播放器的曲目/进度，卡片按钮可真实控制播放器；空状态；本地播放器；控件按压/图标形变/进度跟手；深浅主题（v1.5）
 - ✅ 桌面时钟：可开关、24/12 小时制、显示秒/日期、字号/透明度/主题、拖动吸附开关与位置记忆
-- ✅ 设置面板：Dock / 音乐 / 时钟 / 应用 / 外观 / 系统 / 关于 七页；**共性项统一在「系统」页折叠栏管理**，窗口页只留独有特性
+- ✅ 设置面板：Dock / 音乐 / 时钟 / 应用 / 外观 / 系统 / 关于 七页；**共性项统一在「系统」页折叠栏管理**，窗口页只留独有特性；保存失败/加载失败均有可见提示（v1.5）
 - ✅ 窗口共性能力：吸附 / 始终置顶 / 仅在桌面显示 / 位置锁定 / 移回默认位置，三窗口一致且统一入口
 - ✅ 外观与动效：强度三档、减少动效、点击音效、效果预览
-- ✅ 开机自启：安装版写入 HKCU 登录项，状态以系统为准、失败回滚；开发模式安全禁用
+- ✅ 开机自启：安装版写入 HKCU 登录项，状态以系统为准、失败回滚；portable 版使用 `PORTABLE_EXECUTABLE_FILE` 写入真实路径（v1.5）
+- ✅ 稳定性：桥崩溃循环治理 + 桥看门狗 + 渲染进程崩溃自愈 + 日志轮转 + 窗口导航加固（v1.5）
 - ✅ 窗口行为准则：`docs/window-conventions.md`（新窗口强制能力清单与验收契约）
 - ✅ 内存轻量化（v1.4）：常驻桥按需启停 + 原生 `desktop-state.exe`、时钟去 React、隐藏窗口降频；工作集 656.0 → 473.4MB（低配模式 421.1MB）
-- ⏳ 待人工验证：Dock/音乐/时钟真实拖动吸附手感、锁定后鼠标不可拖、仅在桌面显示在真实最大化/全屏下的表现、开机自启实际登录行为、动效主观手感
-- ⏳ 待验收后打包：NSIS 安装包
+- ✅ 自动化门禁：`npm run check`（typecheck + 12 个契约测试）+ `scripts/v15-verify.mjs` + `scripts/v15-overflow-check.mjs`（v1.5）
+- ⏳ 待人工验证（只能靠真人，脚本无法替代）：托盘图标在你自己任务栏的**视觉与单击/双击手感**、Dock/音乐/时钟真实拖动吸附手感、锁定后鼠标不可拖、开机自启在真实登录后的行为、动效主观手感
+- ⏳ 待验收后打包：便携版单文件 exe（`npm run dist`）
 
-验收证据见 [docs/verification.md](docs/verification.md)；本机宿主环境限制见 [操作指南.md](操作指南.md) 末节。
+验收证据见 [docs/verification.md](docs/verification.md) §v1.5（9/9 + 5/5 通过，报告与截图在 `docs/verification/v1.5/`）；本机宿主环境限制见 [操作指南.md](操作指南.md) 末节。
 
 ## 文档
 
@@ -153,8 +210,8 @@ powershell -File scripts/mem-probe.ps1 -Label low-end -EnvPairs 'NEXUS_LOW_END=1
 | [docs/window-conventions.md](docs/window-conventions.md) | 窗口行为准则：所有悬浮窗口的强制能力（吸附开关/位置记忆/位置锁定等）、接入清单与验收契约（**新窗口必读**） |
 | [docs/motion-spec.md](docs/motion-spec.md) | 动效设计规范（令牌/曲线/组件矩阵/降级，v1.0 唯一视觉真源） |
 | [docs/plan.md](docs/plan.md) | 技术方案与架构、IPC 契约（SDD 阶段 2，§12 为 v1.0 方案，§16、§17 为补丁方案） |
-| [docs/tasks.md](docs/tasks.md) | 任务分解与状态（SDD 阶段 3，阶段 9–11 为 v1.0 任务，阶段 24 为 v1.4.1 任务） |
-| [docs/verification.md](docs/verification.md) | 逐条 AC 验收记录与截图 |
+| [docs/tasks.md](docs/tasks.md) | 任务分解与状态（SDD 阶段 3，阶段 9–11 为 v1.0 任务，阶段 24 为 v1.4.1，阶段 25 为 v1.5） |
+| [docs/verification.md](docs/verification.md) | 逐条 AC 验收记录与截图（§v1.5 = 9/9 + 5/5 通过） |
 
 ## 目录结构
 
@@ -162,18 +219,21 @@ powershell -File scripts/mem-probe.ps1 -Label low-end -EnvPairs 'NEXUS_LOW_END=1
 src/
   shared/types.ts      # IPC 契约 + 配置模型（唯一真源）
   main/                # 主进程：窗口/位置引擎、设置、应用、媒体桥
+    tray.ts            # 系统托盘（v1.5 新增）
+    logger.ts          # 统一文件日志 + 1MB 轮转（v1.5 新增）
   preload/index.ts     # contextBridge 白名单 API
   renderer/dock/       # Dock 界面
   renderer/music/      # 音乐卡片
   renderer/clock/      # 桌面时钟（v1.1 新增）
   renderer/settings/   # 设置面板
-  renderer/shared/     # 设计系统与通用 hooks
-resources/             # 桥脚本与原生助手（smtc-bridge.ps1 / desktop-state.ps1 / desktop-state.cs + .exe）
-scripts/               # 验收辅助脚本（截屏等）
+  renderer/shared/     # 设计系统、通用 hooks、ErrorBoundary（v1.5）
+resources/             # 桥脚本与原生助手（smtc-bridge.ps1 / desktop-state.ps1 / desktop-state.cs + .exe）+ 托盘图标 tray-*.png
+tests/                 # 共享契约单元测试（node --test，v1.5 新增）
+scripts/               # 验收辅助脚本（截屏、CDP 验收、溢出压力测试等）
 ```
 
 ## 配置与日志
 
-- 设置：`%APPDATA%\nexus-dock\settings.json`（删除即恢复默认）
+- 设置：`%APPDATA%\nexus-dock\settings.json`（删除即恢复默认；`schemaVersion` 当前 **8**）
 - 图标缓存：`%APPDATA%\nexus-dock\icons\`
 - 日志：`%APPDATA%\nexus-dock\logs\`

@@ -1,0 +1,64 @@
+{
+  "version": "1.5.0",
+  "cdpPort": 9333,
+  "startedAt": "2026-11-01T13:02:41.068Z",
+  "durationMs": 5001,
+  "passed": 9,
+  "failed": 0,
+  "results": [
+    {
+      "id": "AC-25.1",
+      "title": "版本 1.5.0 且设置 v7→v8 迁移零丢失",
+      "ok": true,
+      "detail": "version=1.5.0 schema=8 musicTheme=dark apps=11（迁移前 11）"
+    },
+    {
+      "id": "AC-25.2",
+      "title": "托盘图标创建成功",
+      "ok": true,
+      "detail": "主进程日志确认"
+    },
+    {
+      "id": "AC-25.3",
+      "title": "Dock 渲染层：上限注入 + roving tabindex + 菜单语义",
+      "ok": true,
+      "detail": "items=11/11 maxW=1682px roving=1 haspopup=11 scrollable=null"
+    },
+    {
+      "id": "AC-25.5",
+      "title": "末端开关点击区 ≥24px",
+      "ok": true,
+      "detail": "[{\"w\":32,\"h\":32},{\"w\":32,\"h\":32}]"
+    },
+    {
+      "id": "AC-25.4",
+      "title": "方向键在 Dock 图标间移动焦点",
+      "ok": true,
+      "detail": "bottom ArrowRight: NexusDockApp → 文件资源管理器"
+    },
+    {
+      "id": "AC-25.7",
+      "title": "音乐卡片 data-theme 生效且空闲态不扫光",
+      "ok": true,
+      "detail": "{\"found\":true,\"theme\":\"dark\",\"empty\":false,\"sweeping\":false,\"hasProgress\":true}"
+    },
+    {
+      "id": "AC-25.6",
+      "title": "dock:snap 死通道已修复（不再 reject）",
+      "ok": true,
+      "detail": "返回 true"
+    },
+    {
+      "id": "AC-25.8",
+      "title": "设置面板：7 分组/无错误条/锁定 x/3/恢复默认应用列表/音乐主题",
+      "ok": true,
+      "detail": "{\"navCount\":7,\"hasErrorBanner\":false,\"labels\":[\"Dock\",\"音乐\",\"时钟\",\"应用\",\"外观\",\"系统\",\"关于\"],\"systemLockLabel\":true,\"systemLockTriStateHint\":true,\"resetAppList\":true,\"musicTheme\":true,\"version\":\"Nexus Dock v1.5.0\"}"
+    },
+    {
+      "id": "AC-25.9",
+      "title": "日志单文件 ≤1MB（轮转生效）",
+      "ok": true,
+      "detail": "{\"main.log\":264,\"desktop.log\":31010,\"media.log\":557426,\"launch.log\":61623}"
+    }
+  ]
+}

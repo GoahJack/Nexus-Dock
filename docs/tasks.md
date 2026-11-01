@@ -291,3 +291,40 @@
 | T24.4 | 验收脚本 `scripts/v141-verify.mjs`：真实鼠标左键点击打开设置并聚焦 / 已存在则前置不重复创建 / 右键「打开」/ `.lnk` 与 aumid 指向自身 / 非自身不误判 / 二次启动单实例 | [x] | 见 `docs/verification.md` §v1.4.1 |
 | T24.5 | 构建门禁：`npm run typecheck` 0 错误、`npm run build` 成功；安装版更新至 v1.4.1 | [x] | 见 `docs/verification.md` §v1.4.1「构建与安装门禁」 |
 | T24.6 | 文档与版本：spec §12、plan §17、tasks v1.4.1、README、`docs/verification.md` §v1.4.1、`package.json` 1.4.1 | [x] | README「v1.4.1 修复」段与文档表交叉引用 |
+
+
+---
+
+## v1.5 迭代（2026-11-01 用户确认：稳定性 / 交互打磨 / 工程化 + 托盘图标）
+
+> 用户决策：四个方向全选（稳定性优先、交互与视觉打磨、工程化与可维护性、补齐核心功能），功能只做「托盘图标 + 右键菜单」；交付方式 = 重建 + 重装 + 重启真机验证。
+> 验收：`docs/verification.md` §v1.5（自动化 9/9 + 溢出压力 5/5）。
+
+### 阶段 25 — v1.5 交付
+
+| # | 任务 | 归属 | 文件 | 状态 |
+|---|---|---|---|---|
+| 25.1 | 基线纳入版本控制（此前无 git，改坏无法回滚） | lead | `.gitignore` / 基线提交 | ✅ |
+| 25.2 | 托盘图标资源（16/24/32/64，含 HiDPI 表示） | lead | `resources/tray-*.png` | ✅ |
+| 25.3 | 托盘 + 右键菜单（单击显隐 Dock / 双击设置 / 完整菜单 / 失败降级） | lead | `src/main/tray.ts`、`src/main/index.ts` | ✅ |
+| 25.4 | Dock 显隐 API + 宽度夹紧 + 渲染进程崩溃自愈 + 设置窗崩溃重建 | lead | `src/main/windowManager.ts` | ✅ |
+| 25.5 | 窗口加固（拦截导航 / window.open / webview） | lead | `src/main/windowManager.ts` | ✅ |
+| 25.6 | `dock:snap` 死通道补 handler + Dock 右键菜单「隐藏 Dock」 | lead | `src/main/ipc.ts` | ✅ |
+| 25.7 | 开机自启改用 `PORTABLE_EXECUTABLE_FILE` | lead | `src/main/autostart.ts` | ✅ |
+| 25.8 | 渲染层兜底：设置加载失败卡片 + 重试 + ErrorBoundary + 乐观补丁/120ms 合并落盘 | lead | `src/renderer/shared/hooks.ts`、`ErrorBoundary.tsx`、三个 `main.tsx`、`SettingsApp.tsx` | ✅ |
+| 25.9 | 设置保存/加载失败提示条样式 | lead | `src/renderer/settings/settings.css` | ✅ |
+| 25.10 | 桥稳定性：统一日志（1MB 轮转）+ 桌面状态桥崩溃循环冷却 + SMTC 桥 ready 清零/看门狗 | main-hardening | `src/main/logger.ts`、`desktopState.ts`、`media/smtcBridge.ts`、`apps.ts` | ✅ |
+| 25.11 | Dock 渲染层：溢出滚动 + 空状态 + 键盘菜单/roving + 命中区 + 对比度 + 加载失败卡片 | dock-ui | `Dock.tsx`、`DockItemView.tsx`、`dock.css`、`theme.css` | ✅ |
+| 25.12 | 音乐卡片：浅色主题（schemaVersion 7→8）+ 空闲不扫光 + aria/键盘 + ring seek + 失败提示 + 空列表修复 + 选文件来源顺序 | music-ui | `MusicCard.tsx`、`music.css`、`LocalPlayer.ts`、`types.ts`、`MusicSection.tsx` | ✅ |
+| 25.13 | 设置面板：Dock 复位空操作、锁定三态 x/3、恢复默认应用列表改名、排序/移除反馈与二次确认、亚克力文案 | settings-ux | `SystemSection.tsx`、`AppsSection.tsx`、`DockSection.tsx` | ✅ |
+| 25.14 | 工程化：`npm test`（12 项契约单测）、`npm run check`、版本号 1.5.0、dist 脚本与 portable 对齐 | lead | `tests/`、`package.json` | ✅ |
+| 25.15 | 安装脚本修正：同步 `resources/`（托盘图标）与 app manifest，manifest 无 BOM | lead | `scripts/install-local.ps1` | ✅ |
+| 25.16 | 自动化验收脚本（CDP 9 项 + 溢出压力 5 项） | lead | `scripts/v15-verify.mjs`、`scripts/v15-overflow-check.mjs` | ✅ |
+| 25.17 | 文档：README v1.5、操作指南（托盘/FAQ/参数表校正）、verification §v1.5、本任务表 | lead | `README.md`、`操作指南.md`、`docs/verification.md`、`docs/tasks.md` | ✅ |
+
+### 验收结论与遗留
+
+- 自动化：9/9（版本/迁移/托盘/渲染层/键盘/命中区/dock:snap/音乐卡片/设置面板/日志轮转）+ 5/5（溢出夹紧/滚动/末端可达/还原）。
+- 真机：安装版已重装并重启，用户配置零丢失（11 应用 / 三窗口锁定 / Dock 自由坐标全保留，仅 `music.theme` 补默认值、schema 7→8）。
+- 需人工确认：托盘图标视觉与单击/双击手感、拖动吸附手感、锁定不可拖、开机自启真实登录行为、动效主观手感。
+- 明确不做（登记在 verification.md §v1.5.6）：Dock 自动隐藏、应用搜索/全局热键、拖拽添加应用、UWP 图标与运行点、启动链路去 UIA、多显示器选屏。

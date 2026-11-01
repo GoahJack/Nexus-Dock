@@ -1,64 +1,66 @@
 {
-    "name":  "nexus-dock",
-    "version":  "1.4.1",
-    "private":  true,
-    "description":  "Nexus 椋庢牸 Windows 妗岄潰缇庡寲锛氫綅缃彲璋?Dock + 闊充箰鏄剧ず",
-    "main":  "./out/main/index.js",
-    "license":  "MIT",
-    "scripts":  {
-                    "dev":  "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/dev.ps1",
-                    "dev:raw":  "electron-vite dev",
-                    "build":  "electron-vite build",
-                    "preview":  "electron-vite preview",
-                    "typecheck":  "tsc --noEmit",
-                    "install:local":  "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/install-local.ps1",
-                    "dist":  "electron-vite build \u0026\u0026 electron-builder --win nsis"
-                },
-    "devDependencies":  {
-                            "@types/node":  "^24.9.2",
-                            "@types/react":  "^19.2.0",
-                            "@types/react-dom":  "^19.2.0",
-                            "@vitejs/plugin-react":  "^6.1.2",
-                            "electron":  "44.7.0",
-                            "electron-builder":  "^26.18.0",
-                            "electron-vite":  "^6.0.0",
-                            "react":  "^19.3.1",
-                            "react-dom":  "^19.3.1",
-                            "typescript":  "^7.0.2",
-                            "vite":  "^8.3.5"
-                        },
-    "build":  {
-                  "appId":  "com.nexus.dock",
-                  "productName":  "Nexus Dock",
-                  "directories":  {
-                                      "output":  "dist"
-                                  },
-                  "files":  [
-                                "out/**/*",
-                                "package.json"
-                            ],
-                  "extraResources":  [
-                                         {
-                                             "from":  "resources",
-                                             "to":  "resources"
-                                         }
-                                     ],
-                  "asar":  true,
-                  "win":  {
-                              "target":  [
-                                             {
-                                                 "target":  "portable",
-                                                 "arch":  [
-                                                              "x64"
-                                                          ]
-                                             }
-                                         ],
-                              "signAndEditExecutable":  false,
-                              "artifactName":  "NexusDock-${version}-portable.${ext}"
-                          },
-                  "portable":  {
-                                   "artifactName":  "NexusDock-${version}-portable.${ext}"
-                               }
-              },
-    "author":  "Nexus Dock"
+  "name": "nexus-dock",
+  "version": "1.5.0",
+  "private": true,
+  "description": "Nexus 风格 Windows 桌面美化：位置可调 Dock + 音乐显示",
+  "main": "./out/main/index.js",
+  "license": "MIT",
+  "scripts": {
+    "dev": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/dev.ps1",
+    "dev:raw": "electron-vite dev",
+    "build": "electron-vite build",
+    "preview": "electron-vite preview",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test --disable-warning=MODULE_TYPELESS_PACKAGE_JSON \"tests/*.test.mjs\"",
+    "check": "npm run typecheck && npm test",
+    "install:local": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/install-local.ps1",
+    "dist": "electron-vite build && electron-builder --win"
+  },
+  "devDependencies": {
+    "@types/node": "^24.9.2",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "@vitejs/plugin-react": "^6.1.2",
+    "electron": "44.7.0",
+    "electron-builder": "^26.18.0",
+    "electron-vite": "^6.0.0",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.5"
+  },
+  "build": {
+    "appId": "com.nexus.dock",
+    "productName": "Nexus Dock",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "out/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "resources",
+        "to": "resources"
+      }
+    ],
+    "asar": true,
+    "win": {
+      "target": [
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "signAndEditExecutable": false,
+      "artifactName": "NexusDock-${version}-portable.${ext}"
+    },
+    "portable": {
+      "artifactName": "NexusDock-${version}-portable.${ext}"
+    }
+  },
+  "author": "Nexus Dock"
 }

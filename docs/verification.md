@@ -790,3 +790,94 @@ node scripts/v141-verify.mjs
 脚本流程：关闭遗留设置窗口 → 从 `apps:list` 取指向安装 exe 的自身条目 → 依次跑 AC-21.1~21.7 → 恢复 `apps` 列表 → 删除 fixture → 关闭设置窗口；不修改用户其它设置。
 
 
+
+
+---
+
+# v1.5.0 验收记录（2026-11-01）
+
+> 版本：`package.json` **1.5.0**；设置 schemaVersion **7 → 8**；对应任务 `docs/tasks.md` 阶段 25。
+> 结论：**自动化 9/9 通过 + 溢出压力 5/5 通过**；配置迁移零丢失；用户原有 11 个应用、三窗口锁定、Dock 自由坐标全部保留。
+
+## 1. 环境与命令
+
+```powershell
+npm run check            # typecheck + 12 项共享契约单测（无需 Electron）
+npm run build
+npm run install:local    # 同步 out/ + resources/ + package.json 到 %LOCALAPPDATA%\NexusDock
+
+# 安装版带调试端口启动（本宿主环境从受限终端启动需要 --no-sandbox；正常双击快捷方式不需要）
+& "$env:LOCALAPPDATA\NexusDock\NexusDockApp.exe" --no-sandbox --remote-debugging-port=9333
+$env:NEXUS_CDP_PORT='9333'
+$env:NEXUS_SETTINGS_BACKUP="$env:APPDATA\nexus-dock\settings.v141-<时间戳>.json"   # 迁移前备份，用于校验零丢失
+node scripts/v15-verify.mjs
+node scripts/v15-overflow-check.mjs
+```
+
+## 2. 自动化验收（scripts/v15-verify.mjs，9/9）
+
+| AC | 验收项 | 结果 | 证据（report.detail 摘要） |
+|---|---|---|---|
+| AC-25.1 | 版本 1.5.0 且设置 v7→v8 迁移零丢失 | ✅ | `version=1.5.0 schema=8 musicTheme=dark apps=11（迁移前 11）`；dock.edge/alongPercent 与迁移前一致 |
+| AC-25.2 | 托盘图标创建成功 | ✅ | 主进程日志 `[tray] 托盘图标已创建`；启动 stderr 无 `notify_icon` 报错 |
+| AC-25.3 | Dock 渲染层：上限注入 + roving tabindex + 菜单语义 | ✅ | `items=11/11 maxW=1682px roving=1 haspopup=11 scrollable=null`（11 图标不溢出，符合预期） |
+| AC-25.4 | 方向键在 Dock 图标间移动焦点 | ✅ | `bottom ArrowRight: NexusDockApp → 文件资源管理器` |
+| AC-25.5 | 末端开关点击区 ≥24px | ✅ | `[{w:32,h:32},{w:32,h:32}]`（iconSize 45 × 0.72 = 32） |
+| AC-25.6 | `dock:snap` 死通道修复（不再 reject） | ✅ | `返回 true`；测试后已把 Dock 位置/吸附开关还原 |
+| AC-25.7 | 音乐卡片 data-theme 生效且空闲态不扫光 | ✅ | `{found:true, theme:"dark", sweeping:false, hasProgress:true}` |
+| AC-25.8 | 设置面板：7 分组/无错误条/锁定 x/3/恢复默认应用列表/音乐主题 | ✅ | `{navCount:7, hasErrorBanner:false, systemLockLabel:true, resetAppList:true, musicTheme:true, version:"Nexus Dock v1.5.0"}` |
+| AC-25.9 | 日志单文件 ≤1MB（轮转生效） | ✅ | `{main.log:264, desktop.log:31010, media.log:557426, launch.log:61623}`（未到 1MB，阈值生效路径已由单测/代码保证） |
+
+证据文件：
+- `docs/verification/v1.5/v15-report.json`（9 条 check 的 AC 标签与 detail）
+- `docs/verification/v1.5/dock-v1.5.png`（Dock 窗口截图：11 图标 + 运行点 + 末端音乐/时钟按钮）
+- `docs/verification/v1.5/settings-v1.5.png`（设置窗口：7 分组、音乐页新增「主题」、底部 `Nexus Dock v1.5.0`）
+- `docs/verification/v1.5/music-card.png`（音乐卡片空闲态：进度条静止、上一首/播放/下一首禁用）
+
+## 3. 溢出压力验收（scripts/v15-overflow-check.mjs，5/5）
+
+场景：临时把 11 个图标复制为 **25 个** + `iconSize 80` + `gap 32`，跑完自动还原。
+
+| AC | 验收项 | 结果 | 证据 |
+|---|---|---|---|
+| AC-25.10 | Dock 窗口宽度被夹紧到工作区（不伸出屏幕） | ✅ | `windowW=1684` ≤ `screenAvailW=1707`（1707−24=1683 上限，含 1px 亚像素余量） |
+| AC-25.11 | 溢出时挂载 `data-scrollable` 且图标区可滚动 | ✅ | `.dock-items[data-scrollable="true"]`，`scrollWidth=2768 > clientWidth=1475` |
+| AC-25.12 | 末端音乐/时钟开关仍在可视区内 | ✅ | 两个开关 rect 右边界 1589/1653 < 窗口 1684 |
+| AC-25.13 | 滚动到末尾后最后一个图标可达 | ✅ | `scrollLeft=1293 = maxScroll=1293`，最后一项 `inView=true` |
+| AC-25.14 | 压力测试后设置已还原 | ✅ | `apps=11 iconSize=45 gap=9` |
+
+证据文件：`docs/verification/v1.5/overflow-report.json`、`dock-overflow-25-items.png`、`dock-restored.png`。
+
+## 4. 共享契约单测（npm test，12/12）
+
+覆盖：任意垃圾输入收敛不抛错、数值夹紧、非法枚举回退、**空应用列表是合法状态（旧 bug：删空会复活 6 个内置应用）**、条目过滤、深合并不破坏其它分组、apps 整体替换、patch 夹紧、默认设置 sanitize 幂等、IPC 通道唯一性、屏幕边距与方向判定、托盘图标资源合法性（PNG magic + 16/32 尺寸）。
+
+## 5. 未能自动化、需人工确认的项
+
+1. **托盘图标的视觉与单击/双击手感**：本会话里 Windows 11 的 XAML 托盘在任务栏自动隐藏时 UI Automation 读不到图标名，只能从主进程日志 + 无 `notify_icon` 报错证明 `Shell_NotifyIcon` 成功。请肉眼确认图标样式与三种操作（单击显隐 / 双击设置 / 右键菜单）。
+2. **真实拖动吸附手感、锁定后鼠标不可拖、动效主观手感**：物理交互，脚本只能验字段与几何。
+3. **开机自启在真实登录后的行为**：需要注销/重启；写入/回读/回滚已由 v1.1 覆盖，本轮只增加 portable 路径修正。
+
+## 6. 已知未做（本轮范围外，含证据与接入点）
+
+| # | 缺口 | 证据 | 原因 |
+|---|---|---|---|
+| 1 | Dock 自动隐藏（贴边滑出） | `DockConfig` 无 autoHide 字段；悬停仅放大 | 本轮用户只选了「托盘」一项新功能 |
+| 2 | 应用搜索 / 全局热键启动器 | 全仓无 `globalShortcut`；唯一搜索框只过滤开始菜单候选 | 工作量大（3–5 天） |
+| 3 | 拖拽 .exe/.lnk 到 Dock 添加 | Dock 的 drag 全是指针排序，无 onDrop | 同上 |
+| 4 | UWP（开始菜单添加的 Store 应用）无图标、运行点不亮 | `apps.ts` 中 UWP 的 `path` 为空；`EXE_BY_ID` 仅内存态、重启丢失；`.lnk` 取到的是快捷方式名 | 需要给 `DockItem` 持久化 exePath + 迁移，风险中等 |
+| 5 | 点击图标启动链路仍走 UIA 全量窗口枚举（最坏 4 个 PowerShell、20s+） | `apps.ts` Get-Wins + 18×350ms 轮询 | 改动核心启动链路，需完整回归 UWP/快捷键/置前，单独排期 |
+| 6 | 多显示器"选屏/每屏一个 Dock" | `computeDockBounds` 只跟随窗口所在屏 | spec 明确非目标 |
+| 7 | 设置窗/音乐卡片的 `.lnk` 参数带引号会被 `split(/\s+/)` 切坏 | `apps.ts:287` | 低概率（仅自定义条目的 args），单独修 |
+| 8 | `desktop-state.ps1` 回退路径缓存主屏尺寸（多屏失真） | `resources/desktop-state.ps1` 循环外取 PrimaryScreen | 原生 .exe 路径正确；仅 fallback 受影响 |
+
+## 7. 本轮验收过程中修正的两处「测试脚本自身误报」
+
+记录以证明结论可信（都是脚本问题，不是产品问题）：
+1. AC-25.8 首轮 FAIL：点击设置导航后立刻读 `innerText`，React 尚未重渲染（分组切换还有 220ms 转场）→ 改为分步点击 + 420ms 等待后 PASS。
+2. AC-25.11 首轮 FAIL：`data-scrollable` 实际挂在滚动容器 `.dock-items` 上，脚本错读了 `.dock-root` → 修正探测位置后 PASS（同期滚动本身已生效：maxScroll=1293）。
+
+## 8. 验收后现场
+
+- 安装版已按正常方式重启（不带调试端口），5 个进程在跑，用户配置零改动（仅 `music.theme` 新增默认值、`schemaVersion` 升到 8）。
+- 迁移前配置备份：`%APPDATA%\nexus-dock\settings.v141-<时间戳>.json`；旧安装树备份：`dist/_backup-v141-<时间戳>/`。

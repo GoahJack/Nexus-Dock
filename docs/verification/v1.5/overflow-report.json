@@ -1,0 +1,73 @@
+{
+  "version": "1.5.0",
+  "at": "2026-11-01T13:03:34.780Z",
+  "passed": 5,
+  "total": 5,
+  "checks": [
+    {
+      "id": "AC-25.10",
+      "title": "Dock 窗口宽度被夹紧到工作区（不伸出屏幕）",
+      "ok": true,
+      "detail": {
+        "windowW": 1684,
+        "screenAvailW": 1707
+      }
+    },
+    {
+      "id": "AC-25.11",
+      "title": "溢出时挂载 data-scrollable 且图标区可滚动",
+      "ok": true,
+      "detail": {
+        "scrollableRoot": null,
+        "scrollableItems": "true",
+        "scrollableBar": null,
+        "scrollAttr": "true",
+        "listScrollW": 2768,
+        "listClientW": 1475
+      }
+    },
+    {
+      "id": "AC-25.12",
+      "title": "末端音乐/时钟开关仍在可视区内",
+      "ok": true,
+      "detail": [
+        {
+          "left": 1531,
+          "right": 1589,
+          "top": 40,
+          "bottom": 98,
+          "w": 58,
+          "h": 58
+        },
+        {
+          "left": 1595,
+          "right": 1653,
+          "top": 40,
+          "bottom": 98,
+          "w": 58,
+          "h": 58
+        }
+      ]
+    },
+    {
+      "id": "AC-25.13",
+      "title": "滚动到末尾后最后一个图标可达",
+      "ok": true,
+      "detail": {
+        "scrollLeft": 1293.3333740234375,
+        "maxScroll": 1293,
+        "inView": true
+      }
+    },
+    {
+      "id": "AC-25.14",
+      "title": "压力测试后设置已还原",
+      "ok": true,
+      "detail": {
+        "apps": 11,
+        "iconSize": 45,
+        "gap": 9
+      }
+    }
+  ]
+}
