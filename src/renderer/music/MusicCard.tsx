@@ -20,6 +20,8 @@ const RING_CIRCUMFERENCE = 2 * Math.PI * RING_RADIUS
 const NUDGE_CLEAR_MS = 260
 /** 封面交叉淡入的兜底卸载延迟：正常由新图 animationend 触发，这里只防动画被中断后旧层残留 */
 const ART_CLEANUP_FALLBACK_MS = 900
+/** 卡片内轻量提示的停留时长：足够读完一行错误，又不至于长期遮挡控件 */
+const NOTICE_MS = 3600
 
 function IconPrev(): JSX.Element {
   return (
@@ -177,6 +179,13 @@ interface NudgeState {
   seq: number
 }
 
+/** 卡片内轻量提示（失败反馈）；seq 用于连续触发时重启动画 */
+interface NoticeState {
+  kind: 'ok' | 'err'
+  text: string
+  seq: number
+}
+
 export function MusicCard(): JSX.Element {
   const { settings, patch } = useSettings()
   const [systemState, setSystemState] = useState<MediaState>({ ...DEFAULT_MEDIA_STATE })
@@ -184,14 +193,27 @@ export function MusicCard(): JSX.Element {
   const [dragging, setDragging] = useState(false)
   const [dragMs, setDragMs] = useState(0)
   const [nudge, setNudge] = useState<NudgeState>({ dir: null, seq: 0 })
+  const [notice, setNotice] = useState<NoticeState | null>(null)
   const nudgeTimer = useRef<number | null>(null)
+  const noticeTimer = useRef<number | null>(null)
   const playerRef = useRef<LocalPlayer | null>(null)
   const sourceRef = useRef<MediaSource>('system')
   const previousSourceRef = useRef<MediaSource>('system')
 
+  /** 卡片内轻量提示：自动消失；连续触发时用 seq 重启动画 */
+  const notify = useCallback((kind: NoticeState['kind'], text: string) => {
+    if (noticeTimer.current !== null) window.clearTimeout(noticeTimer.current)
+    setNotice((prev) => ({ kind, text, seq: (prev?.seq ?? 0) + 1 }))
+    noticeTimer.current = window.setTimeout(() => {
+      noticeTimer.current = null
+      setNotice(null)
+    }, NOTICE_MS)
+  }, [])
+
   const music = settings?.music
   const width = music?.width ?? 330
   const progressStyle = music?.progressStyle ?? 'bar'
+  const theme = music?.theme ?? 'dark'
   const source: MediaSource = music?.source ?? 'system'
   const isLocal = source === 'local'
   /** v1.1 位置锁定（US-14）：锁定后整卡拖动区失效，关闭 / 播放 / 进度等控件仍可操作 */
@@ -203,7 +225,8 @@ export function MusicCard(): JSX.Element {
   const canPrev = isLocal ? localState.canPrev : systemState.canPrev
   const canNext = isLocal ? localState.canNext : systemState.canNext
   const durationMs = state.durationMs
-  const durationUnknown = durationMs <= 0
+  /** 时长未知：<=0 或非有限值（部分播放器上报 NaN）；此时进度条只能显示已播时间 */
+  const durationUnknown = !Number.isFinite(durationMs) || durationMs <= 0
 
   // 进度插值：duration 未知时依然按真实 position 锚定，但不做上限钳制、不参与除法
   // trackKey 变化才重置；同曲目暂停再播放不会被播放器的「位置归零」带回去
@@ -220,12 +243,14 @@ export function MusicCard(): JSX.Element {
     playerRef.current = player
     setLocalState(player.getState())
     const unsubscribe = player.onState((next) => setLocalState(next))
+    const unsubscribeError = player.onError((message) => notify('err', message))
     return () => {
       unsubscribe()
+      unsubscribeError()
       player.destroy()
       if (playerRef.current === player) playerRef.current = null
     }
-  }, [])
+  }, [notify])
 
   /* ------------------------------- 系统媒体状态 ------------------------------ */
   useEffect(() => {
@@ -282,39 +307,53 @@ export function MusicCard(): JSX.Element {
     return off
   }, [])
 
-  // 卸载时清理切歌微动定时器
+  // 卸载时清理切歌微动 / 提示定时器
   useEffect(
     () => () => {
       if (nudgeTimer.current !== null) window.clearTimeout(nudgeTimer.current)
+      if (noticeTimer.current !== null) window.clearTimeout(noticeTimer.current)
     },
     []
   )
 
   /* -------------------------------- 交互逻辑 -------------------------------- */
-  const controlSystem = useCallback((action: MediaAction, positionMs?: number) => {
-    void window.nexus.media.control(action, positionMs).catch(() => {
-      /* 播放器不支持该操作时忽略，不崩溃 */
-    })
-  }, [])
+  const controlSystem = useCallback(
+    (action: MediaAction, positionMs?: number) => {
+      void window.nexus.media
+        .control(action, positionMs)
+        .then((result) => {
+          // 主进程在无 SMTC 会话 / 本地来源下返回 ok:false：不再静默，给出卡片内提示
+          if (!result?.ok) notify('err', '当前播放器不支持该操作')
+        })
+        .catch(() => notify('err', '媒体控制失败，请重试'))
+    },
+    [notify]
+  )
 
   const pickLocalFiles = useCallback(async () => {
     try {
       const tracks = await window.nexus.media.pickFiles()
-      if (tracks.length > 0) playerRef.current?.loadPlaylist(tracks, true)
+      if (tracks.length === 0) {
+        notify('ok', '未选择音频文件')
+        return
+      }
+      // 主进程 pickFiles 成功后已把来源切到本地并广播 media:tracks，这里只做兜底加载 + 提示
+      playerRef.current?.loadPlaylist(tracks, true)
+      notify('ok', `已加载 ${tracks.length} 首本地音频`)
     } catch {
-      /* 用户取消或对话框失败：忽略 */
+      notify('err', '选择本地音频失败，请重试')
     }
-  }, [])
+  }, [notify])
 
   const toggleSource = useCallback(() => {
     const next: MediaSource = source === 'local' ? 'system' : 'local'
-    void patch({ music: { source: next } }).catch(() => {})
-  }, [source, patch])
+    void patch({ music: { source: next } }).catch(() => notify('err', '切换来源失败，请重试'))
+  }, [source, patch, notify])
 
   // 卡片右上角关闭按钮：只隐藏音乐卡片，设置面板 / Dock 音符按钮负责重新打开
   const closeCard = useCallback(() => {
-    void window.nexus.settings.update({ music: { visible: false } }).catch(() => {})
-  }, [])
+    void window.nexus.settings.update({ music: { visible: false } }).catch(() => notify('err', '关闭失败，请重试'))
+  }, [notify])
 
   const togglePlay = useCallback(() => {
     if (empty) return
@@ -383,13 +422,13 @@ export function MusicCard(): JSX.Element {
 
   const msFromPointer = (clientX: number, element: HTMLElement): number => {
     const rect = element.getBoundingClientRect()
-    if (rect.width <= 0 || durationMs <= 0) return 0
+    if (rect.width <= 0 || durationUnknown) return 0
     const position = (clientX - rect.left) / rect.width
     return Math.round(Math.min(1, Math.max(0, position)) * durationMs)
   }
 
   const onProgressPointerDown = (event: ReactPointerEvent<HTMLDivElement>): void => {
-    if (durationMs <= 0) return
+    if (durationUnknown) return
     event.currentTarget.setPointerCapture(event.pointerId)
     const value = msFromPointer(event.clientX, event.currentTarget)
     setDragging(true)
@@ -414,7 +453,7 @@ export function MusicCard(): JSX.Element {
   }
 
   const onProgressKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>): void => {
-    if (durationMs <= 0) return
+    if (durationUnknown) return
     if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return
     event.preventDefault()
     const delta = event.key === 'ArrowLeft' ? -5000 : 5000
@@ -431,6 +470,7 @@ export function MusicCard(): JSX.Element {
       ref={ref}
       className="music-card nx-glass"
       data-locked={musicLocked ? 'true' : undefined}
+      data-theme={theme}
       title={musicLocked ? '位置已锁定（设置 → 系统 解锁）' : undefined}
       style={{ width }}
     >
@@ -498,27 +538,28 @@ export function MusicCard(): JSX.Element {
       </div>
 
       <div className="music-bottom">
-        {progressStyle === 'bar' ? (
-          <div
-            className={`music-progress nx-no-drag${dragging ? ' is-dragging' : ''}${durationUnknown ? ' is-unknown' : ''}`}
-            role="slider"
-            tabIndex={durationUnknown ? -1 : 0}
-            title={durationUnknown ? '当前播放器未向 Windows 上报总时长，这里只显示已播时间' : undefined}
-            aria-label="播放进度"
-            aria-valuemin={0}
-            aria-valuemax={durationMs}
-            aria-valuenow={Math.round(shownMs)}
-            aria-valuetext={durationUnknown ? `${formatTime(shownMs)} / --:--` : undefined}
-            onPointerDown={onProgressPointerDown}
-            onPointerMove={onProgressPointerMove}
-            onPointerUp={onProgressPointerUp}
-            onPointerCancel={onProgressPointerCancel}
-            onKeyDown={onProgressKeyDown}
-          >
-            <div className="music-progress-fill" style={{ width: `${ratio * 100}%` }} />
-            <div className="music-progress-thumb" style={{ left: `${ratio * 100}%` }} />
-          </div>
-        ) : null}
+        {/* 进度条在 bar / ring 两种样式下都渲染：环只是装饰，seek 必须始终可达（点击/拖拽/方向键） */}
+        <div
+          className={`music-progress nx-no-drag${dragging ? ' is-dragging' : ''}${durationUnknown ? ' is-unknown' : ''}${
+            durationUnknown && playing && !empty ? ' is-sweeping' : ''
+          }${progressStyle === 'ring' ? ' is-ring' : ''}`}
+          role="slider"
+          tabIndex={0}
+          title={durationUnknown ? '当前播放器未上报总时长，无法拖动定位；进度条只显示已播时间' : undefined}
+          aria-label="播放进度"
+          aria-valuemin={0}
+          aria-valuemax={durationUnknown ? 0 : Math.round(durationMs)}
+          aria-valuenow={durationUnknown ? 0 : Math.round(shownMs)}
+          aria-valuetext={`${formatTime(shownMs)} / ${durationUnknown ? '未知' : formatTime(durationMs)}`}
+          onPointerDown={onProgressPointerDown}
+          onPointerMove={onProgressPointerMove}
+          onPointerUp={onProgressPointerUp}
+          onPointerCancel={onProgressPointerCancel}
+          onKeyDown={onProgressKeyDown}
+        >
+          <div className="music-progress-fill" style={{ width: `${ratio * 100}%` }} />
+          <div className="music-progress-thumb" style={{ left: `${ratio * 100}%` }} />
+        </div>
 
         <div className="music-controls">
           <div className="music-buttons">
@@ -571,6 +612,12 @@ export function MusicCard(): JSX.Element {
           </div>
         </div>
       </div>
+
+      {notice ? (
+        <div key={notice.seq} className={`music-toast is-${notice.kind}`} role="status" aria-live="polite">
+          {notice.text}
+        </div>
+      ) : null}
     </div>
   )
 }

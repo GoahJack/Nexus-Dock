@@ -105,7 +105,7 @@ export function DockSection({ settings, patch }: Props): JSX.Element {
         />
         <Switch
           label="系统亚克力"
-          hint="Win11 22H2+；开启后为矩形玻璃，可能覆盖圆角"
+          hint="仅 Win11 22H2+ 生效；Win10 或被系统策略禁用时开关仍可打开，但没有视觉效果。开启后为矩形玻璃，可能盖住圆角"
           checked={d.acrylic}
           onChange={(acrylic) => void patch({ dock: { acrylic } })}
         />

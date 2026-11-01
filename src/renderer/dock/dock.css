@@ -93,6 +93,44 @@ body,
   padding: var(--dock-room) 0 var(--dock-room) var(--dock-room);
 }
 
+/* ---------------------- 超出屏幕时的布局上限（v1.6） ---------------------- */
+/* 图标很多 / 尺寸很大时，主进程会把 Dock 窗口夹紧到屏幕工作区；这里让内容先一步
+   收缩到「窗口上限」内，从而交给 .dock-items 内部滚动，而不是让尾部图标与
+   音乐 / 时钟开关跑出屏幕。
+
+   为什么用常量 --dock-max-w/h 而不是 100vw/100vh：
+   - .dock-root 的尺寸由 shared/hooks.ts 的 useContentSize 量出并回报给主进程
+     （ceil(rect)+1px）。若 root 宽度派生自视口，就会形成正反馈：
+     root=W → 上报 W+1 → 窗口变 W+1 → root=W+1 → … 窗口每帧长 1px；
+   - 改用「屏幕工作区 - 边距」这个常量后，root 宽度 = min(内容, 常量)，上报值
+     一次到位，主进程夹紧后即稳定（--dock-max-w/h 由 Dock.tsx 用 screen.availWidth/
+     availHeight 注入，横边夹宽、竖边夹高）。 */
+.dock-root[data-edge='bottom'],
+.dock-root[data-edge='top'] {
+  max-width: var(--dock-max-w, 100vw);
+}
+
+.dock-root[data-edge='left'],
+.dock-root[data-edge='right'] {
+  max-height: var(--dock-max-h, 100vh);
+}
+
+/* 底条宽度上限 = root 上限扣掉两侧放大预留（root 的左右 padding 都是 --dock-room） */
+.dock-root[data-edge='bottom'] .dock-bar,
+.dock-root[data-edge='top'] .dock-bar {
+  max-width: calc(var(--dock-max-w, 100vw) - 2 * var(--dock-room));
+  min-width: 0;
+}
+
+/* 竖排：高度上限扣掉上下两侧放大预留，同时给一个宽度上限，防止极端图标尺寸横向出界 */
+.dock-root[data-edge='left'] .dock-bar,
+.dock-root[data-edge='right'] .dock-bar {
+  max-height: calc(var(--dock-max-h, 100vh) - 2 * var(--dock-room));
+  max-width: calc(var(--dock-max-w, 100vw) - 2 * var(--dock-room));
+  min-height: 0;
+  min-width: 0;
+}
+
 /* 启动弹跳方向：朝屏幕内侧（Dock 贴着屏幕边），距离统一用 --nx-hop */
 .dock-root[data-edge='bottom'] {
   --nx-hop-y: calc(-1 * var(--nx-hop));
@@ -118,7 +156,9 @@ body,
   justify-content: center;
   gap: 4px;
   padding: var(--dock-padding);
-  border-radius: 18px;
+  /* 圆角随图标尺寸缩放（原固定 18px）：默认 48px 图标 → 0.375 × 48 = 18px，观感不变；
+     调大/调小图标时底条圆角与图标圆角保持同一比例。 */
+  border-radius: calc(var(--dock-icon-size) * 0.375);
   background:
     linear-gradient(
       160deg,
@@ -219,15 +259,21 @@ body,
     transform var(--nx-dur-base) var(--nx-spring);
 }
 
-/* 尺寸随 Dock 图标尺寸缩放（由 Dock.tsx 内联注入，缺省 34px 与 v1.0 一致） */
+/* 尺寸随 Dock 图标尺寸缩放（由 Dock.tsx 内联注入，缺省 34px 与 v1.0 一致）；
+   min-* 兜底：可点击命中区不小于 24×24（WCAG 2.5.8 目标尺寸），
+   即使用户把图标尺寸调到很小也不会退化成难以点中的小圆点。 */
 .dock-music-toggle {
   width: var(--dock-music-size, 34px);
   height: var(--dock-music-size, 34px);
+  min-width: 24px;
+  min-height: 24px;
 }
 
 .dock-clock-toggle {
   width: var(--dock-clock-size, 34px);
   height: var(--dock-clock-size, 34px);
+  min-width: 24px;
+  min-height: 24px;
 }
 
 .dock-music-toggle svg,
@@ -300,8 +346,13 @@ body,
   display: flex;
   align-items: center;
   gap: var(--dock-gap);
-  flex: 0 0 auto;
+  flex: 0 1 auto;
+  min-width: 0;
+  min-height: 0;
+  overscroll-behavior: contain;
   -webkit-app-region: no-drag;
+  /* 两端渐隐宽度：随图标尺寸缩放（默认 48px → 24px） */
+  --dock-fade: calc(var(--dock-icon-size) * 0.5);
 }
 
 .dock-root[data-edge='bottom'] .dock-items,
@@ -311,6 +362,175 @@ body,
 .dock-root[data-edge='left'] .dock-items,
 .dock-root[data-edge='right'] .dock-items {
   flex-direction: column;
+}
+
+/* --------------------------- 超宽 / 超高滚动 --------------------------- */
+/* 图标多 / 尺寸大时窗口被主进程夹紧，底条 max-width 生效 → 列表收缩到可视宽度，
+   这里开滚动容器（原 flex: 0 0 auto 会让列表顶开底条、尾部跑到屏幕外）。
+   data-scrollable 由 Dock.tsx 实测「内容主尺寸 > 可视主尺寸」后挂上：
+   未溢出时保持 overflow: visible —— 悬停放大 / 入场/弹跳动画都不被裁切，默认观感零变化。 */
+.dock-root[data-edge='bottom'] .dock-items[data-scrollable='true'],
+.dock-root[data-edge='top'] .dock-items[data-scrollable='true'] {
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+}
+
+.dock-root[data-edge='left'] .dock-items[data-scrollable='true'],
+.dock-root[data-edge='right'] .dock-items[data-scrollable='true'] {
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: none;
+}
+
+/* 隐藏滚动条（Chromium）：容器可滚 + 可滚轮驱动，但不占位、不画条 */
+.dock-items[data-scrollable='true']::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+  display: none;
+}
+
+/* 滚动容器会裁切子元素：用「内边距 + 等量负边距」在放大方向撑出裁切盒。
+   内边距让悬停放大（朝屏幕内侧生长 + 8px 上浮）有地方画，负边距把 margin 盒
+   抵消回原尺寸，所以底条高度、图标位置、窗口尺寸都不受影响。 */
+.dock-root[data-edge='bottom'] .dock-items[data-scrollable='true'] {
+  padding-top: var(--dock-room);
+  margin-top: calc(-1 * var(--dock-room));
+}
+
+.dock-root[data-edge='top'] .dock-items[data-scrollable='true'] {
+  padding-bottom: var(--dock-room);
+  margin-bottom: calc(-1 * var(--dock-room));
+}
+
+.dock-root[data-edge='left'] .dock-items[data-scrollable='true'] {
+  padding-right: var(--dock-room);
+  margin-right: calc(-1 * var(--dock-room));
+}
+
+.dock-root[data-edge='right'] .dock-items[data-scrollable='true'] {
+  padding-left: var(--dock-room);
+  margin-left: calc(-1 * var(--dock-room));
+}
+
+/* 两端渐隐：提示「这个方向还有内容」。用 mask 而不是覆盖层，
+   不拦截指针事件，也不会和涟漪 / 拖拽 / FLIP 图层互相遮挡。
+   data-scroll = start | end | both（由 Dock.tsx 按滚动位置维护）。 */
+.dock-root[data-edge='bottom'] .dock-items[data-scroll='start'],
+.dock-root[data-edge='top'] .dock-items[data-scroll='start'] {
+  -webkit-mask-image: linear-gradient(to right, transparent 0, #000 var(--dock-fade));
+  mask-image: linear-gradient(to right, transparent 0, #000 var(--dock-fade));
+}
+
+.dock-root[data-edge='bottom'] .dock-items[data-scroll='end'],
+.dock-root[data-edge='top'] .dock-items[data-scroll='end'] {
+  -webkit-mask-image: linear-gradient(to left, transparent 0, #000 var(--dock-fade));
+  mask-image: linear-gradient(to left, transparent 0, #000 var(--dock-fade));
+}
+
+.dock-root[data-edge='bottom'] .dock-items[data-scroll='both'],
+.dock-root[data-edge='top'] .dock-items[data-scroll='both'] {
+  -webkit-mask-image: linear-gradient(
+    to right,
+    transparent 0,
+    #000 var(--dock-fade),
+    #000 calc(100% - var(--dock-fade)),
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    to right,
+    transparent 0,
+    #000 var(--dock-fade),
+    #000 calc(100% - var(--dock-fade)),
+    transparent 100%
+  );
+}
+
+.dock-root[data-edge='left'] .dock-items[data-scroll='start'],
+.dock-root[data-edge='right'] .dock-items[data-scroll='start'] {
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 var(--dock-fade));
+  mask-image: linear-gradient(to bottom, transparent 0, #000 var(--dock-fade));
+}
+
+.dock-root[data-edge='left'] .dock-items[data-scroll='end'],
+.dock-root[data-edge='right'] .dock-items[data-scroll='end'] {
+  -webkit-mask-image: linear-gradient(to top, transparent 0, #000 var(--dock-fade));
+  mask-image: linear-gradient(to top, transparent 0, #000 var(--dock-fade));
+}
+
+.dock-root[data-edge='left'] .dock-items[data-scroll='both'],
+.dock-root[data-edge='right'] .dock-items[data-scroll='both'] {
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    transparent 0,
+    #000 var(--dock-fade),
+    #000 calc(100% - var(--dock-fade)),
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    to bottom,
+    transparent 0,
+    #000 var(--dock-fade),
+    #000 calc(100% - var(--dock-fade)),
+    transparent 100%
+  );
+}
+
+/* ------------------------------ 空状态引导 ------------------------------ */
+/* apps 为空时图标区只放一个「添加应用」按钮（点击 → 打开设置）。
+   高度对齐图标尺寸，底条高度与有图标时一致，窗口尺寸不会跳变。 */
+.dock-empty {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: calc(var(--dock-icon-size) * 0.14);
+  height: var(--dock-icon-size);
+  padding: 0 calc(var(--dock-icon-size) * 0.34);
+  border: 1px dashed rgba(255, 255, 255, 0.24);
+  border-radius: calc(var(--dock-icon-size) * 0.24);
+  color: var(--nx-text-dim);
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 500;
+  letter-spacing: 0.2px;
+  white-space: nowrap;
+  cursor: pointer;
+  -webkit-app-region: no-drag;
+  transition:
+    color var(--nx-dur-fast) var(--nx-ease-out),
+    border-color var(--nx-dur-fast) var(--nx-ease-out),
+    background-color var(--nx-dur-fast) var(--nx-ease-out);
+}
+
+.dock-empty:hover {
+  color: var(--nx-text);
+  border-color: rgba(110, 168, 254, 0.55);
+  background: var(--nx-accent-soft);
+}
+
+.dock-empty:active {
+  transform: scale(var(--nx-press-scale));
+}
+
+.dock-empty:focus-visible {
+  outline: 2px solid var(--nx-accent);
+  outline-offset: 2px;
+}
+
+.dock-empty-plus {
+  font-size: calc(var(--dock-icon-size) * 0.3);
+  line-height: 1;
+  color: var(--nx-accent);
+}
+
+/* 浅色主题：虚线描边改冷灰，避免白底上过亮 */
+.dock-root[data-theme='light'] .dock-empty {
+  border-color: rgba(20, 24, 38, 0.24);
+}
+
+.dock-root[data-theme='light'] .dock-empty:hover {
+  border-color: rgba(47, 111, 228, 0.5);
+  background: rgba(47, 111, 228, 0.1);
 }
 
 .dock-item {
@@ -453,11 +673,14 @@ body,
 }
 
 /* --------------------------- 运行状态指示点 --------------------------- */
-/* AC-2.6：4px 圆点，横排在下、竖排在右，运行中高亮 --nx-accent */
+/* AC-2.6：4px 圆点（按图标尺寸派生：48px 图标 → 0.084 × 48 ≈ 4px），横排在下、竖排在右，
+   运行中高亮 --nx-accent */
 .dock-indicator {
   position: absolute;
-  width: 4px;
-  height: 4px;
+  width: calc(var(--dock-icon-size) * 0.084);
+  height: calc(var(--dock-icon-size) * 0.084);
+  min-width: 3px;
+  min-height: 3px;
   border-radius: 50%;
   background: rgba(255, 255, 255, 0.3);
   pointer-events: none;
@@ -485,14 +708,15 @@ body,
 .dock-root[data-edge='bottom'] .dock-indicator,
 .dock-root[data-edge='top'] .dock-indicator {
   left: 50%;
-  bottom: -7px;
+  /* 与图标边的间距同样按图标尺寸派生：48px 图标 → 约 7px */
+  bottom: calc(var(--dock-icon-size) * -0.146);
   transform: translateX(-50%);
 }
 
 .dock-root[data-edge='left'] .dock-indicator,
 .dock-root[data-edge='right'] .dock-indicator {
   top: 50%;
-  right: -7px;
+  right: calc(var(--dock-icon-size) * -0.146);
   transform: translateY(-50%);
 }
 
@@ -704,6 +928,7 @@ body,
   .dock-item-inner,
   .dock-indicator,
   .dock-toast,
+  .dock-empty,
   .dock-music-toggle,
   .dock-clock-toggle {
     transition-duration: 0.01ms;

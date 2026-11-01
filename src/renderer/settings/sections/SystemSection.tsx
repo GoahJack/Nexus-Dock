@@ -42,6 +42,8 @@ export function SystemSection({ settings, patch }: Props): JSX.Element {
     settings.lock.music ? '音乐卡片' : null,
     settings.lock.clock ? '桌面时钟' : null
   ].filter((name): name is string => name !== null)
+  /** 锁定总开关是「三者全锁」的推导值，标签与提示必须显式带出 x/3，避免单独锁 2 个时显示为「关」 */
+  const lockCount = lockedNames.length
 
   /** 写系统登录项并回读校验；失败时展示原因，开关回到返回的实际状态 */
   const changeAutoStart = async (next: boolean): Promise<void> => {
@@ -96,13 +98,25 @@ export function SystemSection({ settings, patch }: Props): JSX.Element {
       w.locked ? '已锁定' : '未锁定'
     ].join(' · ')
 
+  /**
+   * 按顺序应用复位步骤。Dock 必须两步：主进程在「吸附 true→false」时会把当前窗口坐标
+   * 固化为 freeX/freeY（onSettingsChanged），单次 patch 里写的 freeX/freeY=-1 会被这次
+   * 固化覆盖、且不触发重新布局 —— 所以先关吸附，再单独写底部居中坐标让 applyDockLayout 生效。
+   */
+  const applyReset = async (steps: DeepPartial<Settings>[]): Promise<void> => {
+    for (const step of steps) {
+      await patch(step)
+    }
+  }
+
   const windows: Array<{
     key: WindowKey
     snap: boolean
     alwaysOnTop: boolean
     onlyOnDesktop: boolean
     locked: boolean
-    reset: DeepPartial<Settings>
+    /** 复位步骤按顺序 patch（Dock 需要先关吸附再写坐标，见 applyReset 注释） */
+    reset: DeepPartial<Settings>[]
     resetHint: string
   }> = [
     {
@@ -111,8 +125,12 @@ export function SystemSection({ settings, patch }: Props): JSX.Element {
       alwaysOnTop: settings.dock.alwaysOnTop,
       onlyOnDesktop: settings.dock.onlyOnDesktop,
       locked: settings.lock.dock,
-      reset: { dock: { freeX: -1, freeY: -1 } },
-      resetHint: '恢复为底部居中'
+      // 吸附开启时 computeDockBounds 完全忽略 freeX/freeY，复位必须同时关闭吸附并重置停靠边/沿边位置
+      reset: [
+        { dock: { snapToEdge: false } },
+        { dock: { edge: 'bottom', alongPercent: 50, freeX: -1, freeY: -1 } }
+      ],
+      resetHint: '关闭吸附并恢复为底部居中'
     },
     {
       key: 'music',
@@ -120,7 +138,7 @@ export function SystemSection({ settings, patch }: Props): JSX.Element {
       alwaysOnTop: settings.music.alwaysOnTop,
       onlyOnDesktop: settings.music.onlyOnDesktop,
       locked: settings.lock.music,
-      reset: { music: { anchor: 'dock', freeX: -1, freeY: -1 } },
+      reset: [{ music: { anchor: 'dock', freeX: -1, freeY: -1 } }],
       resetHint: '恢复为跟随 Dock'
     },
     {
@@ -129,7 +147,7 @@ export function SystemSection({ settings, patch }: Props): JSX.Element {
       alwaysOnTop: settings.clock.alwaysOnTop,
       onlyOnDesktop: settings.clock.onlyOnDesktop,
       locked: settings.lock.clock,
-      reset: { clock: { freeX: -1, freeY: -1 } },
+      reset: [{ clock: { freeX: -1, freeY: -1 } }],
       resetHint: '恢复为主屏右上角'
     }
   ]
@@ -167,15 +185,21 @@ export function SystemSection({ settings, patch }: Props): JSX.Element {
         desc="吸附、始终置顶、仅在桌面显示、位置锁定是所有窗口共有的行为，统一在这里管理；点击窗口名展开单独设置，各窗口独有的选项仍留在对应页面。"
       >
         <Switch
-          label="锁定全部窗口位置"
-          hint="勾选 = 三个窗口全部锁定；取消 = 全部解锁，展开下方窗口可再单独调整"
+          label={`锁定全部窗口位置（${lockCount}/3）`}
+          hint={
+            lockCount === 3
+              ? '当前 3/3 全部锁定；点一下 = 全部解锁，展开下方窗口可再单独调整'
+              : lockCount === 0
+                ? '当前 0/3 未锁定；点一下 = 全部锁定，展开下方窗口可再单独调整'
+                : `当前 ${lockCount}/3 已锁定（部分锁定）；点一下 = 全部锁定，已全锁后再点 = 全部解锁`
+          }
           checked={allLocked}
           onChange={(next) => void patch({ lock: { dock: next, music: next, clock: next } })}
         />
-        <div className={`nx-lock-state${lockedNames.length > 0 ? ' is-locked' : ''}`} role="status">
+        <div className={`nx-lock-state${lockCount > 0 ? ' is-locked' : ''}`} role="status">
           <span className="nx-lock-state-label">当前锁定</span>
           <span className="nx-lock-state-value">
-            {lockedNames.length === 0 ? '无窗口锁定' : `${lockedNames.join('、')}（${lockedNames.length}/3）`}
+            {lockCount === 0 ? '0/3 · 无窗口锁定' : `${lockedNames.join('、')}（${lockCount}/3）`}
           </span>
         </div>
 
@@ -226,7 +250,7 @@ export function SystemSection({ settings, patch }: Props): JSX.Element {
                     }
                   />
                   <div className="nx-inline-actions">
-                    <Button size="sm" onClick={() => void patch(w.reset)}>
+                    <Button size="sm" onClick={() => void applyReset(w.reset)}>
                       移回默认位置
                     </Button>
                     <span className="nx-hint-text">{w.resetHint}</span>

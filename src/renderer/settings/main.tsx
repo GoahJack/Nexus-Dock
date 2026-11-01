@@ -4,12 +4,15 @@ import '@renderer/shared/theme.css'
 import '@renderer/shared/ui.css'
 import './settings.css'
 import { SettingsApp } from './SettingsApp'
+import { ErrorBoundary } from '@renderer/shared/ErrorBoundary'
 
 const container = document.getElementById('root')
 if (!container) throw new Error('设置窗口缺少 #root 挂载点')
 
 createRoot(container).render(
   <StrictMode>
-    <SettingsApp />
+    <ErrorBoundary name="设置面板">
+      <SettingsApp />
+    </ErrorBoundary>
   </StrictMode>
 )

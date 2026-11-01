@@ -87,6 +87,8 @@ export interface MusicConfig {
   alwaysOnTop: boolean
   /** 仅在桌面显示：前台窗口最大化/全屏时自动隐藏（v1.3，默认 false 以保留旧行为） */
   onlyOnDesktop: boolean
+  /** 卡片主题（v1.4，默认深色以保持既有观感；与 Dock/时钟同一套 ThemeMode） */
+  theme: ThemeMode
 }
 
 /** v1.1 桌面时钟配置（v1.2 起所有悬浮窗口都必须提供 snapToEdge 吸附开关，见 docs/window-conventions.md） */
@@ -270,7 +272,7 @@ export const DEFAULT_APPS: DockItem[] = [
 ]
 
 export const DEFAULT_SETTINGS: Settings = {
-  schemaVersion: 7,
+  schemaVersion: 8,
   dock: {
     edge: 'bottom',
     alongPercent: 50,
@@ -303,7 +305,9 @@ export const DEFAULT_SETTINGS: Settings = {
     progressStyle: 'bar',
     // v1.3 共性项：默认置顶（保持旧行为）、不参与仅在桌面显示（保持旧行为）
     alwaysOnTop: true,
-    onlyOnDesktop: false
+    onlyOnDesktop: false,
+    // v1.4 主题：默认深色（沿用 v1.3 的深色玻璃观感）
+    theme: 'dark'
   },
   clock: {
     visible: false,
@@ -398,7 +402,8 @@ export function sanitizeSettings(raw: unknown): Settings {
     width: clamp(r.music?.width as number, 240, 520, d.music.width),
     progressStyle: pick(r.music?.progressStyle, ['bar', 'ring'] as const, d.music.progressStyle),
     alwaysOnTop: typeof r.music?.alwaysOnTop === 'boolean' ? r.music.alwaysOnTop : d.music.alwaysOnTop,
-    onlyOnDesktop: typeof r.music?.onlyOnDesktop === 'boolean' ? r.music.onlyOnDesktop : d.music.onlyOnDesktop
+    onlyOnDesktop: typeof r.music?.onlyOnDesktop === 'boolean' ? r.music.onlyOnDesktop : d.music.onlyOnDesktop,
+    theme: pick(r.music?.theme, ['dark', 'light'] as const, d.music.theme)
   }
   const clock: ClockConfig = {
     visible: typeof r.clock?.visible === 'boolean' ? r.clock.visible : d.clock.visible,
@@ -428,7 +433,9 @@ export function sanitizeSettings(raw: unknown): Settings {
       typeof r.appearance?.reducedMotion === 'boolean' ? r.appearance.reducedMotion : d.appearance.reducedMotion,
     clickSound: typeof r.appearance?.clickSound === 'boolean' ? r.appearance.clickSound : d.appearance.clickSound
   }
-  const apps = Array.isArray(r.apps)
+  // 关键：区分「字段缺失」与「空数组」——空数组是合法的用户意图（在设置里删光所有应用），
+  // 只有 r.apps 根本不是数组时才回退默认应用；否则删到最后一个应用会复活 6 个内置项。
+  const apps: DockItem[] | null = Array.isArray(r.apps)
     ? (r.apps as DockItem[])
         .filter(
           (a) =>
@@ -446,7 +453,7 @@ export function sanitizeSettings(raw: unknown): Settings {
           icon: typeof a.icon === 'string' ? a.icon : '',
           source: pick(a.source, ['builtin', 'startmenu', 'custom'] as const, 'custom')
         }))
-    : d.apps
+    : null
   return {
     schemaVersion: d.schemaVersion,
     dock,
@@ -455,7 +462,7 @@ export function sanitizeSettings(raw: unknown): Settings {
     lock,
     system,
     appearance,
-    apps: apps.length > 0 ? apps : d.apps
+    apps: apps ?? d.apps
   }
 }
 

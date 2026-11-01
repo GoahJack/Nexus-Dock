@@ -1227,3 +1227,43 @@
   padding: 7px 0;
 }
 
+
+/* ------------------------- v1.5 设置保存/加载失败提示条 ------------------------- */
+/* 旧实现把 IPC 失败吞进 console，控件会静默弹回原值；这里给用户明确的错误与重试入口 */
+.settings-error-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 12px;
+  padding: 9px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 124, 124, 0.42);
+  background: rgba(255, 96, 96, 0.12);
+  color: var(--nx-text);
+  font-size: var(--nx-font-sm);
+  animation: nx-fade-in var(--nx-dur-base) var(--nx-ease-out) both;
+}
+
+.settings-error-text {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  line-height: 1.45;
+}
+
+.settings-error-retry {
+  flex: none;
+  padding: 3px 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--nx-text);
+  font: inherit;
+  font-size: var(--nx-font-xs);
+  cursor: pointer;
+  transition: background var(--nx-dur-fast) var(--nx-ease-out);
+}
+
+.settings-error-retry:hover {
+  background: rgba(255, 255, 255, 0.18);
+}

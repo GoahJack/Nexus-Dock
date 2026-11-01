@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import type { JSX } from 'react'
-import type { DeepPartial, MediaSource, MusicAnchor, ProgressStyle, Settings } from '@shared/types'
+import type { DeepPartial, MediaSource, MusicAnchor, ProgressStyle, Settings, ThemeMode } from '@shared/types'
 import { Button, Section, Segmented, Slider, Switch } from '@renderer/shared/ui'
 
 interface Props {
@@ -23,22 +23,38 @@ const PROGRESS_OPTIONS: { value: ProgressStyle; label: string }[] = [
   { value: 'ring', label: '环形' }
 ]
 
+const THEME_OPTIONS: { value: ThemeMode; label: string }[] = [
+  { value: 'dark', label: '深色' },
+  { value: 'light', label: '浅色' }
+]
+
 /** 音乐分组：卡片显隐/布局/进度样式 + 本地音频选择 */
 export function MusicSection({ settings, patch }: Props): JSX.Element {
   const m = settings.music
   const [picking, setPicking] = useState(false)
   const [notice, setNotice] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null)
 
+  /** 分区内所有设置保存都走这里：失败时在同页提示，避免「点了没反应」 */
+  const apply = (p: DeepPartial<Settings>): void => {
+    void patch(p).catch((err) => {
+      setNotice({ kind: 'err', text: `设置保存失败：${err instanceof Error ? err.message : String(err)}` })
+    })
+  }
+
   const pickLocal = async (): Promise<void> => {
     if (picking) return
     setPicking(true)
     setNotice(null)
     try {
+      // 先切来源再弹选择框：保证「来源」控件显示与真实配置始终一致，
+      // 不会出现「弹完框后控件自己变了」的事后追认（主进程 pickFiles 成功后也会写 source）。
+      if (m.source !== 'local') await patch({ music: { source: 'local' } })
       // pickFiles 由主进程负责把曲目广播给音乐卡片
       const tracks = await window.nexus.media.pickFiles()
       if (tracks.length > 0) {
-        await patch({ music: { source: 'local' } })
         setNotice({ kind: 'ok', text: `已发送 ${tracks.length} 首到音乐卡片，来源已切到本地` })
+      } else {
+        setNotice({ kind: 'ok', text: '未选择文件，来源已切换到本地播放器' })
       }
     } catch (err) {
       setNotice({ kind: 'err', text: `选择本地音频失败：${err instanceof Error ? err.message : String(err)}` })
@@ -49,18 +65,24 @@ export function MusicSection({ settings, patch }: Props): JSX.Element {
 
   return (
     <div className="nx-sections">
+      {/* 提示放在页首：主题 / 布局等分组保存失败也看得到（不只是本地音频选择） */}
+      {notice ? (
+        <div className={`nx-notice ${notice.kind === 'ok' ? 'is-ok' : 'is-err'}`} role="status">
+          {notice.text}
+        </div>
+      ) : null}
       <Section title="音乐卡片" desc="桌面悬浮的音乐信息窗，可跟随 Dock 或自由摆放。">
         <Switch
           label="显示音乐卡片"
           hint="关闭后卡片隐藏，Dock 不受影响"
           checked={m.visible}
-          onChange={(visible) => void patch({ music: { visible } })}
+          onChange={(visible) => apply({ music: { visible } })}
         />
         <Segmented
           label="卡片位置"
           value={m.anchor}
           options={ANCHOR_OPTIONS}
-          onChange={(anchor) => void patch({ music: { anchor } })}
+          onChange={(anchor) => apply({ music: { anchor } })}
         />
         <Slider
           label="卡片宽度"
@@ -69,13 +91,19 @@ export function MusicSection({ settings, patch }: Props): JSX.Element {
           step={1}
           value={m.width}
           format={(v) => `${Math.round(v)} px`}
-          onChange={(width) => void patch({ music: { width } })}
+          onChange={(width) => apply({ music: { width } })}
         />
         <Segmented
           label="进度样式"
           value={m.progressStyle}
           options={PROGRESS_OPTIONS}
-          onChange={(progressStyle) => void patch({ music: { progressStyle } })}
+          onChange={(progressStyle) => apply({ music: { progressStyle } })}
+        />
+        <Segmented
+          label="主题"
+          value={m.theme}
+          options={THEME_OPTIONS}
+          onChange={(theme) => apply({ music: { theme } })}
         />
       </Section>
 
@@ -84,7 +112,7 @@ export function MusicSection({ settings, patch }: Props): JSX.Element {
           label="来源"
           value={m.source}
           options={SOURCE_OPTIONS}
-          onChange={(source) => void patch({ music: { source } })}
+          onChange={(source) => apply({ music: { source } })}
         />
         <div className="nx-inline-actions">
           <Button size="sm" variant="primary" disabled={picking} onClick={() => void pickLocal()}>
@@ -92,11 +120,6 @@ export function MusicSection({ settings, patch }: Props): JSX.Element {
           </Button>
           <span className="nx-hint-text">支持 mp3 / wav / flac / m4a / ogg</span>
         </div>
-        {notice ? (
-          <div className={`nx-notice ${notice.kind === 'ok' ? 'is-ok' : 'is-err'}`} role="status">
-            {notice.text}
-          </div>
-        ) : null}
       </Section>
 
       <p className="nx-hint-text">窗口共性行为（吸附、置顶、仅在桌面、锁定、位置复位）已统一到「系统」页管理。</p>

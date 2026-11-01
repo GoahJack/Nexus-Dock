@@ -1,5 +1,6 @@
 /* Nexus Dock — 音乐卡片（复用 shared/theme.css 的玻璃材质与主题变量）
    v1.0 精细化动效：控件按压/涟漪、播放图标 morph、切歌微动、进度条跟手、封面交叉淡入
+   v1.4：浅色主题（data-theme）、ring 模式可拖动细进度条、空闲不扫光、卡片内失败提示
    动效细则见 docs/motion-spec.md §3.2。
    ⚠ .music-card 是被 useContentSize 测量的根节点：禁止在它上面做 transform/scale，
    入场只做 opacity 淡入，位移/缩放全部作用在子元素上，避免窗口尺寸抖动。 */
@@ -280,8 +281,9 @@ body,
   flex: none;
   display: grid;
   place-items: center;
-  width: 20px;
-  height: 20px;
+  /* 命中区 ≥24×24（原 20×20 在悬浮小窗里太难点中） */
+  width: 24px;
+  height: 24px;
   border-radius: 6px;
   color: var(--nx-text-dim);
   background: transparent;
@@ -427,7 +429,7 @@ body,
   box-shadow: 0 1px 6px rgba(0, 0, 0, 0.45), 0 0 16px rgba(110, 168, 254, 0.75);
 }
 
-/* 总时长未知（durationMs<=0，如酷狗不上报 EndTime）：不确定态，不显示填充/拖拽点 */
+/* 时长未知（durationMs<=0，如酷狗不上报 EndTime）：不确定态，不显示填充/拖拽点 */
 .music-progress.is-unknown {
   cursor: default;
   overflow: hidden;
@@ -441,6 +443,18 @@ body,
 .music-progress.is-unknown:hover .music-progress-thumb,
 .music-progress.is-unknown:focus-visible .music-progress-thumb {
   opacity: 0;
+}
+
+/* ring 模式只把环当装饰，seek 由这条更细的进度条承担（保持视觉风格，不再「形似可拖实际不可拖」）。
+   点击/拖拽/方向键与其他模式共用同一套 handlers。 */
+.music-progress.is-ring::before,
+.music-progress.is-ring .music-progress-fill {
+  height: 3px;
+}
+
+.music-progress.is-ring:hover::before,
+.music-progress.is-ring:hover .music-progress-fill {
+  height: 5px;
 }
 
 .music-controls {
@@ -558,8 +572,48 @@ body,
   color: var(--nx-text-faint);
 }
 
-/* 时长未知：进度条用低频扫光提示「仍在播放」，避免看起来像坏掉的空条 */
-.music-progress.is-unknown::after {
+/* --------------------------- 卡片内轻量提示（失败反馈） --------------------------- */
+/* 悬浮在卡片底部、不参与布局（避免窗口测量尺寸抖动），只做淡入 + 上移；
+   操作失败（媒体控制 / 选文件 / 设置保存 / 本地播放）时出现，自动消失。 */
+.music-toast {
+  position: absolute;
+  left: 14px;
+  right: 14px;
+  bottom: 8px;
+  z-index: 3;
+  padding: 6px 10px;
+  border-radius: 10px;
+  font-size: 11.5px;
+  line-height: 1.35;
+  text-align: center;
+  color: #ffe3e3;
+  background: rgba(40, 14, 18, 0.94);
+  border: 1px solid rgba(255, 107, 107, 0.45);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
+  pointer-events: none;
+  animation: music-toast-in var(--nx-dur-slow) var(--nx-ease-out) both;
+}
+
+.music-toast.is-ok {
+  color: #d7f7e3;
+  background: rgba(12, 36, 24, 0.94);
+  border-color: rgba(74, 222, 128, 0.45);
+}
+
+@keyframes music-toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* 仅在「真正在播放 + 时长未知」时扫光（is-sweeping）：空闲/暂停时保持静止，
+   否则空状态下进度条一直扫，看起来像一直在缓冲。 */
+.music-progress.is-sweeping::after {
   content: '';
   position: absolute;
   inset: 0;
@@ -578,15 +632,191 @@ body,
   }
 }
 
+/* ------------------------------- 浅色主题 ------------------------------- */
+/* 与 Dock / 时钟同一套冷灰蓝替换变量，保证白底上的对比度；
+   .nx-glass 默认是深色玻璃底，浅色主题整体换一套亮底与低对比阴影。 */
+.music-card[data-theme='light'] {
+  color-scheme: light;
+  /* 变量在本节点重定义后，color 必须在本节点取值，否则会继承 body 上的深色文字 */
+  color: var(--nx-text);
+  --nx-text: #1a1d26;
+  --nx-text-dim: rgba(26, 29, 38, 0.62);
+  --nx-text-faint: rgba(26, 29, 38, 0.42);
+  --nx-border: rgba(20, 24, 38, 0.12);
+  --nx-border-strong: rgba(20, 24, 38, 0.22);
+  --nx-accent: #2f6fe4;
+  --nx-accent-soft: rgba(47, 111, 228, 0.14);
+}
+
+.music-card[data-theme='light'].nx-glass {
+  background: linear-gradient(
+    160deg,
+    rgba(255, 255, 255, 0.95),
+    rgba(255, 255, 255, 0.66) 45%,
+    rgba(240, 244, 252, 0.82)
+  );
+  border-color: rgba(20, 24, 38, 0.14);
+  box-shadow:
+    0 16px 42px rgba(26, 34, 58, 0.2),
+    0 2px 8px rgba(26, 34, 58, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    inset 0 -1px 0 rgba(20, 24, 38, 0.06);
+}
+
+.music-card[data-theme='light'] .music-close {
+  color: rgba(26, 29, 38, 0.55);
+  background: rgba(20, 24, 38, 0.06);
+  border-color: rgba(20, 24, 38, 0.12);
+  box-shadow: 0 1px 3px rgba(26, 34, 58, 0.18);
+  --music-press-shadow: 0 1px 1px rgba(26, 34, 58, 0.14);
+}
+
+.music-card[data-theme='light'] .music-close:hover {
+  color: #7d1d25;
+  background: rgba(217, 58, 70, 0.14);
+  border-color: rgba(200, 60, 70, 0.4);
+}
+
+.music-card[data-theme='light'] .music-art {
+  background: linear-gradient(145deg, rgba(110, 168, 254, 0.3), rgba(180, 140, 255, 0.22));
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.7),
+    0 4px 12px rgba(26, 34, 58, 0.16);
+}
+
+.music-card[data-theme='light'] .music-art-placeholder {
+  color: rgba(26, 29, 38, 0.55);
+  background: linear-gradient(145deg, rgba(110, 168, 254, 0.36), rgba(180, 140, 255, 0.26));
+}
+
+.music-card[data-theme='light'] .music-ring-track {
+  stroke: rgba(20, 24, 38, 0.14);
+}
+
+.music-card[data-theme='light'] .music-ring-value {
+  filter: drop-shadow(0 0 4px rgba(47, 111, 228, 0.35));
+}
+
+.music-card[data-theme='light'] .music-badge {
+  color: #1d4fae;
+  border-color: rgba(47, 111, 228, 0.36);
+  box-shadow: 0 1px 2px rgba(26, 34, 58, 0.12);
+  --music-press-shadow: 0 1px 1px rgba(26, 34, 58, 0.12);
+}
+
+.music-card[data-theme='light'] .music-badge:hover {
+  background: rgba(47, 111, 228, 0.2);
+  border-color: rgba(47, 111, 228, 0.55);
+}
+
+.music-card[data-theme='light'] .music-pick {
+  box-shadow: 0 1px 2px rgba(26, 34, 58, 0.1);
+}
+
+.music-card[data-theme='light'] .music-pick:hover {
+  background: rgba(20, 24, 38, 0.08);
+}
+
+.music-card[data-theme='light'] .music-progress::before {
+  background: rgba(20, 24, 38, 0.14);
+}
+
+.music-card[data-theme='light'] .music-progress:hover::before {
+  background: rgba(20, 24, 38, 0.2);
+}
+
+.music-card[data-theme='light'] .music-progress-fill {
+  background: linear-gradient(90deg, #2f6fe4, #7a5cf0);
+}
+
+.music-card[data-theme='light'] .music-progress:hover .music-progress-fill {
+  box-shadow: 0 0 10px rgba(47, 111, 228, 0.3);
+}
+
+.music-card[data-theme='light'] .music-progress.is-dragging .music-progress-fill {
+  box-shadow:
+    0 0 12px rgba(47, 111, 228, 0.45),
+    0 0 3px rgba(122, 92, 240, 0.4);
+}
+
+.music-card[data-theme='light'] .music-progress-thumb {
+  background: #2f6fe4;
+  box-shadow: 0 1px 4px rgba(26, 34, 58, 0.35);
+}
+
+.music-card[data-theme='light'] .music-progress:hover .music-progress-thumb {
+  box-shadow:
+    0 1px 4px rgba(26, 34, 58, 0.3),
+    0 0 10px rgba(47, 111, 228, 0.5);
+}
+
+.music-card[data-theme='light'] .music-progress.is-dragging .music-progress-thumb {
+  box-shadow:
+    0 1px 6px rgba(26, 34, 58, 0.3),
+    0 0 16px rgba(47, 111, 228, 0.6);
+}
+
+.music-card[data-theme='light'] .music-progress.is-sweeping::after {
+  background: linear-gradient(90deg, transparent, rgba(20, 24, 38, 0.22), transparent);
+}
+
+.music-card[data-theme='light'] .music-ctrl {
+  color: var(--nx-text);
+  background: rgba(20, 24, 38, 0.05);
+  border-color: rgba(20, 24, 38, 0.1);
+  box-shadow: 0 2px 6px rgba(26, 34, 58, 0.14);
+  --music-press-shadow: 0 1px 2px rgba(26, 34, 58, 0.14);
+}
+
+.music-card[data-theme='light'] .music-ctrl:hover:not(:disabled) {
+  background: rgba(20, 24, 38, 0.12);
+}
+
+.music-card[data-theme='light'] .music-ctrl.is-main {
+  color: #1c4fae;
+  background: rgba(47, 111, 228, 0.14);
+  border-color: rgba(47, 111, 228, 0.36);
+  box-shadow: 0 3px 12px rgba(47, 111, 228, 0.18);
+  --music-press-shadow: 0 1px 3px rgba(26, 34, 58, 0.14);
+}
+
+.music-card[data-theme='light'] .music-ctrl.is-main:hover:not(:disabled) {
+  background: rgba(47, 111, 228, 0.22);
+  box-shadow: 0 4px 16px rgba(47, 111, 228, 0.24);
+}
+
+.music-card[data-theme='light'] .music-time-sep {
+  color: rgba(26, 29, 38, 0.36);
+}
+
+.music-card[data-theme='light'] .music-toast.is-err {
+  color: #7d1d25;
+  background: rgba(255, 246, 246, 0.97);
+  border-color: rgba(200, 60, 70, 0.4);
+  box-shadow: 0 8px 22px rgba(26, 34, 58, 0.18);
+}
+
+.music-card[data-theme='light'] .music-toast.is-ok {
+  color: #14603a;
+  background: rgba(240, 252, 245, 0.97);
+  border-color: rgba(34, 150, 90, 0.35);
+  box-shadow: 0 8px 22px rgba(26, 34, 58, 0.18);
+}
+
 /* --------------------------- 可访问性降级补充 --------------------------- */
 /* 全局 motion.css 已把时长收敛到 0.01ms；这里补两件事：
-   1) 未知时长扫光改为静态提示；
+   1) 未知时长扫光改为静态提示（减少动效时不播无限动画）；
    2) 入场错峰延迟归零，避免「减少动效」时子元素先隐身再弹出。 */
 @media (prefers-reduced-motion: reduce) {
-  .music-progress.is-unknown::after {
+  .music-progress.is-sweeping::after {
     animation: none;
+    transform: none;
     opacity: 0.25;
     width: 100%;
+  }
+
+  .music-toast {
+    animation: none;
   }
 
   .music-card,
@@ -598,4 +828,16 @@ body,
 :root[data-reduced-motion='true'] .music-card,
 :root[data-reduced-motion='true'] .music-card * {
   animation-delay: 0ms !important;
+}
+
+/* 用户强制减少动效（与系统偏好等价）：扫光静止、提示不做入场动画 */
+:root[data-reduced-motion='true'] .music-progress.is-sweeping::after {
+  animation: none;
+  transform: none;
+  opacity: 0.25;
+  width: 100%;
+}
+
+:root[data-reduced-motion='true'] .music-toast {
+  animation: none;
 }

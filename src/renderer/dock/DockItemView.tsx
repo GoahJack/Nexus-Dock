@@ -52,6 +52,13 @@ interface DockItemViewProps {
   pressed: boolean
   /** 启动弹跳令牌：>0 表示正在播乐观反馈，值变化用于重新触发动画 */
   launchToken: number
+  /**
+   * Roving tabindex：工具栏内同一时刻只有一项 tabIndex=0（其余 -1），
+   * Tab 进出工具栏只停一次，图标之间用方向键移动焦点（见 Dock.tsx 的 handleListKeyDown）。
+   */
+  tabIndex: number
+  /** 图标获得焦点时上报 id，供 Dock 维护 roving tabindex 的「当前项」 */
+  onFocus: (id: string) => void
   onPointerDown: (event: ReactPointerEvent<HTMLDivElement>, index: number) => void
   onPointerEnter: (index: number) => void
   onPointerLeave: (index: number) => void
@@ -130,14 +137,16 @@ export function DockItemView(props: DockItemViewProps): JSX.Element {
     <div
       className="dock-item nx-ripple-glow-host"
       role="button"
-      tabIndex={0}
+      tabIndex={props.tabIndex}
       aria-label={item.name}
+      aria-haspopup="menu"
       title={item.name}
       style={itemStyle}
       data-dock-id={item.id}
       data-dragging={dragging ? 'true' : undefined}
       data-pressed={pressed ? 'true' : undefined}
       data-running={running ? 'true' : undefined}
+      onFocus={() => props.onFocus(item.id)}
       onPointerDown={(event) => {
         // AC-9.3 跟手：按下瞬间就从点击点扩散光晕（独立图层，pointer-events:none，不影响拖拽判定）
         // 仅左键：右键会弹原生菜单，不应有按压缩放/光晕

@@ -33,10 +33,11 @@ function UwpBadge(): JSX.Element {
   )
 }
 
-/** 应用分组：排序 / 移除 / 添加 / 开始菜单选择 / 恢复默认图标 */
+/** 应用分组：排序 / 移除 / 添加 / 开始菜单选择 / 恢复默认应用列表 */
 export function AppsSection({ settings, patch }: Props): JSX.Element {
   const [order, setOrder] = useState<string[] | null>(null)
   const [confirmReset, setConfirmReset] = useState(false)
+  const [confirmRemove, setConfirmRemove] = useState<DockItem | null>(null)
   const [dialogBusy, setDialogBusy] = useState(false)
   const [panelOpen, setPanelOpen] = useState(false)
   const [scanning, setScanning] = useState(false)
@@ -102,6 +103,7 @@ export function AppsSection({ settings, patch }: Props): JSX.Element {
       try {
         const res = await window.nexus.apps.reorder(ids)
         if (Array.isArray(res) && res.length > 0) setOrder(res.map((item) => item.id))
+        setNotice({ kind: 'ok', text: '顺序已保存' })
       } catch (err) {
         setOrder(null)
         fail(err, '调整顺序失败')
@@ -111,11 +113,13 @@ export function AppsSection({ settings, patch }: Props): JSX.Element {
   )
 
   const remove = useCallback(
-    async (id: string): Promise<void> => {
-      setOrder(list.filter((item) => item.id !== id).map((item) => item.id))
+    async (app: DockItem): Promise<void> => {
+      setConfirmRemove(null)
+      setOrder(list.filter((item) => item.id !== app.id).map((item) => item.id))
       try {
-        const res = await window.nexus.apps.remove(id)
+        const res = await window.nexus.apps.remove(app.id)
         if (Array.isArray(res)) setOrder(res.map((item) => item.id))
+        setNotice({ kind: 'ok', text: `已移除「${app.name}」` })
       } catch (err) {
         setOrder(null)
         fail(err, '移除应用失败')
@@ -123,6 +127,12 @@ export function AppsSection({ settings, patch }: Props): JSX.Element {
     },
     [list, fail]
   )
+
+  /** 移除是破坏性操作：先弹本页统一的确认条，确认后才真正调用 IPC */
+  const requestRemove = (app: DockItem): void => {
+    setConfirmReset(false)
+    setConfirmRemove(app)
+  }
 
   const addByDialog = useCallback(async (): Promise<void> => {
     if (dialogBusy) return
@@ -178,6 +188,7 @@ export function AppsSection({ settings, patch }: Props): JSX.Element {
 
   const restoreDefaults = useCallback(async (): Promise<void> => {
     setConfirmReset(false)
+    setConfirmRemove(null)
     setOrder(null)
     await patch({ apps: DEFAULT_APPS })
   }, [patch])
@@ -200,13 +211,29 @@ export function AppsSection({ settings, patch }: Props): JSX.Element {
 
         {confirmReset ? (
           <div className="nx-confirm-bar">
-            <span>恢复默认图标会替换当前应用列表（6 个内置应用），确定继续？</span>
+            <span>恢复默认应用列表将删除你添加的全部应用，只保留 6 个内置应用，确定继续？</span>
             <div className="nx-confirm-actions">
               <Button size="sm" onClick={() => setConfirmReset(false)}>
                 取消
               </Button>
               <Button size="sm" variant="danger" onClick={() => void restoreDefaults()}>
                 确认恢复
+              </Button>
+            </div>
+          </div>
+        ) : null}
+
+        {confirmRemove ? (
+          <div className="nx-confirm-bar">
+            <span>
+              从 Dock 移除「{confirmRemove.name}」？只会从 Dock 列表移除，不会卸载该应用。
+            </span>
+            <div className="nx-confirm-actions">
+              <Button size="sm" onClick={() => setConfirmRemove(null)}>
+                取消
+              </Button>
+              <Button size="sm" variant="danger" onClick={() => void remove(confirmRemove)}>
+                确认移除
               </Button>
             </div>
           </div>
@@ -220,8 +247,15 @@ export function AppsSection({ settings, patch }: Props): JSX.Element {
             从开始菜单选择
           </Button>
           <span className="nx-apps-toolbar-spacer" />
-          <Button size="sm" variant="ghost" className="nx-text-danger" onClick={() => setConfirmReset(true)}>
-            恢复默认图标
+          <Button
+            size="sm"
+            variant="danger"
+            onClick={() => {
+              setConfirmRemove(null)
+              setConfirmReset(true)
+            }}
+          >
+            恢复默认应用列表
           </Button>
         </div>
 
@@ -276,7 +310,7 @@ export function AppsSection({ settings, patch }: Props): JSX.Element {
                     onPointerDown={(event) =>
                       spawnRipple(event.currentTarget, event, { color: 'rgba(255, 124, 124, 0.5)' })
                     }
-                    onClick={() => void remove(app.id)}
+                    onClick={() => requestRemove(app)}
                   >
                     ✕
                   </button>

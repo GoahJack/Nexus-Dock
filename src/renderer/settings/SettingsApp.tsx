@@ -111,7 +111,7 @@ function LoadingSkeleton(): JSX.Element {
 }
 
 export function SettingsApp(): JSX.Element {
-  const { settings, patch, reset } = useSettings()
+  const { settings, error, retry, patch, reset } = useSettings()
   const [tab, setTab] = useState<TabKey>('dock')
   const [resetOpen, setResetOpen] = useState(false)
   const [resetClosing, setResetClosing] = useState(false)
@@ -138,7 +138,7 @@ export function SettingsApp(): JSX.Element {
     }, 160)
   }, [resetting])
 
-  // IPC 失败只降级为控制台告警，不打断界面操作
+  // IPC 失败不再静默：hooks 层已把失败原因放进 error，这里只负责呈现
   const safePatch = useCallback(
     async (p: DeepPartial<Settings>): Promise<void> => {
       try {
@@ -245,6 +245,20 @@ export function SettingsApp(): JSX.Element {
         </nav>
 
         <main className="settings-content">
+          {/* v1.5：设置加载/保存失败必须可见（旧实现只 console.warn，用户只看到控件弹回） */}
+          {error ? (
+            <div className="settings-error-banner" role="alert">
+              <span className="settings-error-text">{error}</span>
+              <button
+                type="button"
+                className="settings-error-retry nx-ripple-host"
+                onPointerDown={(event) => spawnRipple(event.currentTarget, event)}
+                onClick={retry}
+              >
+                重试
+              </button>
+            </div>
+          ) : null}
           {/* key=tab：切换分组时重挂载，触发 220ms 淡入位移转场 */}
           <div key={tab} className="settings-page">
             {renderContent()}

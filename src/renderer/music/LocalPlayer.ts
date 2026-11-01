@@ -9,6 +9,8 @@
 import { DEFAULT_MEDIA_STATE, type LocalTrack, type MediaState, type PlaybackStatus } from '@shared/types'
 
 type LocalStateListener = (state: MediaState) => void
+/** 播放/加载/定位失败上报：卡片据此显示轻量提示（不再静默吞错） */
+type LocalErrorListener = (message: string) => void
 
 function displayTitle(track: LocalTrack): string {
   const provided = typeof track.title === 'string' ? track.title.trim() : ''
@@ -31,6 +33,7 @@ export class LocalPlayer {
   private positionMs = 0
   private durationMs = 0
   private listeners = new Set<LocalStateListener>()
+  private errorListeners = new Set<LocalErrorListener>()
   private destroyed = false
 
   constructor() {
@@ -48,6 +51,14 @@ export class LocalPlayer {
     this.listeners.add(listener)
     return () => {
       this.listeners.delete(listener)
+    }
+  }
+
+  /** 订阅失败事件（播放被拒 / 文件加载失败 / 无法定位）；返回取消订阅函数 */
+  onError(listener: LocalErrorListener): () => void {
+    this.errorListeners.add(listener)
+    return () => {
+      this.errorListeners.delete(listener)
     }
   }
 
@@ -93,6 +104,7 @@ export class LocalPlayer {
         if (this.destroyed) return
         this.status = 'paused'
         this.emit()
+        this.reportError('本地音频播放失败：文件可能已被移动、删除或格式不受支持')
       })
     }
   }
@@ -126,6 +138,7 @@ export class LocalPlayer {
       this.audio.currentTime = target / 1000
     } catch {
       /* 元数据未就绪时忽略 */
+      this.reportError('无法定位进度：音频尚未加载完成')
     }
     this.positionMs = Math.round(target)
     this.emit()
@@ -135,6 +148,7 @@ export class LocalPlayer {
     if (this.destroyed) return
     this.destroyed = true
     this.listeners.clear()
+    this.errorListeners.clear()
     this.audio.removeEventListener('loadedmetadata', this.handleLoadedMetadata)
     this.audio.removeEventListener('durationchange', this.handleLoadedMetadata)
     this.audio.removeEventListener('timeupdate', this.handleTimeUpdate)
@@ -236,6 +250,17 @@ export class LocalPlayer {
     }
   }
 
+  /** 广播失败信息：单个监听器异常不影响播放 */
+  private reportError(message: string): void {
+    for (const listener of [...this.errorListeners]) {
+      try {
+        listener(message)
+      } catch {
+        /* 忽略 */
+      }
+    }
+  }
+
   private handleLoadedMetadata = (): void => {
     if (this.destroyed) return
     const duration = this.audio.duration
@@ -286,5 +311,6 @@ export class LocalPlayer {
     console.warn('[music] 本地音频加载失败', this.audio.src, this.audio.error?.message ?? '')
     this.status = 'paused'
     this.emit()
+    this.reportError('本地音频加载失败：文件可能已被移动、删除或格式不受支持')
   }
 }

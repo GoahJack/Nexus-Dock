@@ -13,7 +13,9 @@
   --nx-border-strong: rgba(255, 255, 255, 0.22);
   --nx-text: #f3f4f8;
   --nx-text-dim: rgba(243, 244, 248, 0.6);
-  --nx-text-faint: rgba(243, 244, 248, 0.38);
+  /* 无障碍：11px 提示文字压在玻璃底上约 3.3:1（0.38）→ 0.55 后约 4.6:1，达到 WCAG AA 正文要求。
+     该变量只用于 color（无背景/描边用途），提亮不会产生突兀的亮块。 */
+  --nx-text-faint: rgba(243, 244, 248, 0.55);
   --nx-accent: #6ea8fe;
   --nx-accent-strong: #8abaff;
   --nx-accent-soft: rgba(110, 168, 254, 0.16);
