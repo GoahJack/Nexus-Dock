@@ -79,6 +79,15 @@ function migrate(settings: Settings, fromVersion: number): Settings {
     }
   }
 
+  // v7 → v8（v1.5）：音乐卡片新增「主题」（默认深色，保持旧观感）。
+  // 其余新字段（如托盘相关）不落配置；由 sanitizeSettings 统一补默认值，旧配置零丢失。
+  if (fromVersion < 8) {
+    next = {
+      ...next,
+      music: { ...next.music, theme: next.music.theme ?? 'dark' }
+    }
+  }
+
   return sanitizeSettings({ ...next, schemaVersion: DEFAULT_SETTINGS.schemaVersion })
 }
 

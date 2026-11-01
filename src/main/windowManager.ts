@@ -13,6 +13,7 @@ import {
 } from '@shared/types'
 import { getSettings, subscribeSettings, updateSettings } from './settingsStore'
 import type { DesktopState } from './desktopState'
+import { logToFile } from './logger'
 
 type Rect = { x: number; y: number; width: number; height: number }
 
@@ -57,7 +58,83 @@ let musicMoveTimer: NodeJS.Timeout | null = null
 let clockMoveTimer: NodeJS.Timeout | null = null
 let unsubscribers: Array<() => void> = []
 
+/**
+ * v1.5：用户通过托盘菜单 / Dock 右键菜单主动隐藏 Dock。
+ * 与「仅在桌面显示」的临时隐藏分开记录，避免托盘开关与最大化检测互相覆盖。
+ */
+let dockHiddenByUser = false
+
+/**
+ * v1.5：渲染进程崩溃自愈的限流表。
+ * `render-process-gone` 后 BrowserWindow 仍然「存活」（isDestroyed() 为 false），
+ * 旧实现只打日志 → Dock/音乐卡片永久白屏、设置窗「点不开」。
+ */
+const rendererReloads = new Map<BrowserWindow, { count: number; firstAt: number }>()
+const RENDERER_RELOAD_WINDOW_MS = 60_000
+const RENDERER_RELOAD_MAX = 3
+const RENDERER_RELOAD_SLOW_MS = 10_000
+
 const clamp = (value: number, min: number, max: number): number => Math.min(max, Math.max(min, value))
+
+/**
+ * v1.5 窗口加固（纵深防御，非已知漏洞）：
+ * 1) 只允许四个本地页面在自身 URL 内活动，任何导航一律拦截；
+ * 2) 禁止 window.open / target=_blank 生成子窗口（子窗口会继承 preload → 暴露 window.nexus）；
+ * 3) 禁止 <webview> 挂载。
+ * 这样即使渲染层出现注入点，远程页面也拿不到 IPC 桥。
+ */
+function hardenWindow(win: BrowserWindow): void {
+  const wc = win.webContents
+  const devUrl = isDev ? process.env['ELECTRON_RENDERER_URL'] : undefined
+  wc.on('will-navigate', (event, url) => {
+    const allowed = url.startsWith('file://') || (!!devUrl && url.startsWith(devUrl))
+    if (allowed) return
+    event.preventDefault()
+    logToFile('main', `[security] 已阻止窗口导航：${url.slice(0, 200)}`)
+  })
+  wc.setWindowOpenHandler(({ url }) => {
+    logToFile('main', `[security] 已阻止新窗口：${url.slice(0, 200)}`)
+    return { action: 'deny' }
+  })
+  wc.on('will-attach-webview', (event) => {
+    event.preventDefault()
+    logToFile('main', '[security] 已阻止 webview 挂载')
+  })
+}
+
+/**
+ * v1.5 渲染进程崩溃自愈：60 秒内最多重载 3 次；超过则退化为每 10 秒一次慢重载，
+ * 既不会永久白屏，也不会陷入重载风暴。Dock 窗口不销毁（销毁等于退出应用）。
+ */
+function installRendererSelfHeal(win: BrowserWindow, target: WindowTarget): void {
+  win.webContents.on('render-process-gone', (_event, details) => {
+    if (win.isDestroyed() || details.reason === 'clean-exit') return
+    logToFile('main', `[${target}] 渲染进程退出 reason=${details.reason} exitCode=${String(details.exitCode)}，开始自愈`)
+    const now = Date.now()
+    const entry = rendererReloads.get(win)
+    const withinWindow = !!entry && now - entry.firstAt <= RENDERER_RELOAD_WINDOW_MS
+    const count = withinWindow && entry ? entry.count + 1 : 1
+    rendererReloads.set(win, { count, firstAt: withinWindow && entry ? entry.firstAt : now })
+    if (count > RENDERER_RELOAD_MAX) {
+      rendererReloads.delete(win)
+      logToFile('main', `[${target}] 60s 内第 ${count} 次崩溃，改为 ${RENDERER_RELOAD_SLOW_MS}ms 后慢重载`)
+      setTimeout(() => {
+        if (win.isDestroyed()) return
+        logToFile('main', `[${target}] 慢重载渲染层`)
+        win.webContents.reload()
+      }, RENDERER_RELOAD_SLOW_MS)
+      return
+    }
+    try {
+      win.webContents.reload()
+    } catch (error) {
+      logToFile('main', `[${target}] 自愈重载失败：${String(error)}`)
+    }
+  })
+  win.on('closed', () => {
+    rendererReloads.delete(win)
+  })
+}
 
 function loadRenderer(win: BrowserWindow, page: WindowTarget): void {
   if (isDev && process.env['ELECTRON_RENDERER_URL']) {
@@ -133,9 +210,8 @@ export function createDockWindow(): BrowserWindow {
   win.on('closed', () => {
     dockWin = null
   })
-  win.webContents.on('render-process-gone', (_event, details) => {
-    console.error('[dock] 渲染进程退出：', details.reason)
-  })
+  hardenWindow(win)
+  installRendererSelfHeal(win, 'dock')
   return win
 }
 
@@ -315,6 +391,8 @@ export function createMusicWindow(): BrowserWindow {
   win.on('closed', () => {
     musicWin = null
   })
+  hardenWindow(win)
+  installRendererSelfHeal(win, 'music')
   if (!settings.music.visible) win.hide()
   return win
 }
@@ -508,9 +586,8 @@ export function createClockWindow(): BrowserWindow {
   win.on('closed', () => {
     clockWin = null
   })
-  win.webContents.on('render-process-gone', (_event, details) => {
-    console.error('[clock] 渲染进程退出：', details.reason)
-  })
+  hardenWindow(win)
+  installRendererSelfHeal(win, 'clock')
   if (!settings.clock.visible) win.hide()
   return win
 }
@@ -615,9 +692,22 @@ export function getSettingsWindow(): BrowserWindow | null {
 export function openSettingsWindow(): BrowserWindow {
   const existing = getSettingsWindow()
   if (existing) {
-    existing.show()
-    existing.focus()
-    return existing
+    // v1.5：渲染进程崩溃后窗口对象仍存活，旧的 show()+focus() 会聚焦一个死窗口
+    // （用户表现为「设置打不开」）。检测到崩溃直接销毁重建。
+    if (existing.webContents.isCrashed()) {
+      logToFile('main', '[settings] 检测到渲染进程已崩溃，销毁并重建设置窗口')
+      try {
+        existing.destroy()
+      } catch {
+        /* 已销毁 */
+      }
+      settingsWin = null
+    } else {
+      if (!existing.isVisible()) existing.show()
+      existing.show()
+      existing.focus()
+      return existing
+    }
   }
   const win = new BrowserWindow({
     width: 580,
@@ -649,6 +739,8 @@ export function openSettingsWindow(): BrowserWindow {
   win.on('closed', () => {
     settingsWin = null
   })
+  hardenWindow(win)
+  installRendererSelfHeal(win, 'settings')
   return win
 }
 
@@ -656,7 +748,15 @@ export function openSettingsWindow(): BrowserWindow {
 
 export function setContentSize(target: WindowTarget, size: Size): void {
   if (target !== 'dock' && target !== 'music' && target !== 'clock') return
-  const next: Size = { width: Math.max(1, Math.round(size.width)), height: Math.max(1, Math.round(size.height)) }
+  let next: Size = { width: Math.max(1, Math.round(size.width)), height: Math.max(1, Math.round(size.height)) }
+  if (target === 'dock') {
+    // v1.5：图标数量/尺寸让内容超过工作区时，把窗口夹到工作区内（渲染层据此改为内部滚动）。
+    // 旧实现只夹紧坐标、从不夹宽度 → Dock 会伸出屏幕，尾部图标与末端开关点不到。
+    const display = screen.getDisplayMatching(getDockWindow()?.getBounds() ?? screen.getPrimaryDisplay().bounds)
+    const maxWidth = Math.max(160, display.workArea.width - MARGIN * 2)
+    const maxHeight = Math.max(96, display.workArea.height - MARGIN * 2)
+    next = { width: Math.min(next.width, maxWidth), height: Math.min(next.height, maxHeight) }
+  }
   const prev = contentSizes[target]
   if (prev.width === next.width && prev.height === next.height) {
     // 时钟首次回报的尺寸即使与初始值相同，也要触发一次布局以完成首次显示
@@ -679,6 +779,38 @@ export function allWindows(): BrowserWindow[] {
   return [getDockWindow(), getMusicWindow(), getClockWindow(), getSettingsWindow()].filter(
     (win): win is BrowserWindow => win !== null
   )
+}
+
+/* ------------------------- Dock 显隐（托盘 / 右键菜单） ------------------------- */
+
+/**
+ * v1.5：显示或隐藏 Dock（不退出应用）。
+ * 隐藏走 hide() 而不是关窗——Dock 窗口一旦 closed 就会触发整应用退出（index.ts 的主窗口语义）。
+ */
+export function setDockVisible(visible: boolean): void {
+  dockHiddenByUser = !visible
+  const win = getDockWindow()
+  if (!win) return
+  if (visible) {
+    applyFloatingVisibility()
+    applyDockLayout()
+  } else {
+    hiddenByDesktop.dock = false
+    if (win.isVisible()) win.hide()
+  }
+  logToFile('main', `[dock] 用户${visible ? '显示' : '隐藏'}了 Dock`)
+}
+
+/** 当前 Dock 是否对用户可见（隐藏状态 + 「仅在桌面显示」都算不可见） */
+export function isDockVisible(): boolean {
+  const win = getDockWindow()
+  if (!win || win.isDestroyed() || !win.isVisible()) return false
+  return !dockHiddenByUser
+}
+
+/** v1.5：托盘菜单「吸附到最近屏幕边」——把自由摆放的 Dock 吸回最近的边 */
+export function snapDockToEdge(): void {
+  snapDockToNearestEdge()
 }
 
 export function broadcast(channel: string, payload?: unknown): void {
@@ -793,8 +925,30 @@ export function applyDesktopState(state: DesktopState): void {
 function applyFloatingVisibility(): void {
   const settings = getSettings()
   const state = lastDesktopState
-  const selfActive = state ? state.foregroundPid === process.pid : false
+  // v1.5 修复：desktop-state 桥给的 foregroundPid 是窗口所属线程的进程（渲染进程），
+  // 永远不等于主进程 process.pid。改为比对本应用所有窗口的 OS 进程 id。
+  const selfActive = state
+    ? allWindows().some((win) => {
+        try {
+          return win.webContents.getOSProcessId() === state.foregroundPid
+        } catch {
+          return false
+        }
+      })
+    : false
   const desktopBusy = !!state && !selfActive && (state.maximized || state.fullscreen)
+
+  /** 统一的「让悬浮窗重新出现」路径：时钟必须等内容尺寸回报后才显示，避免隐形点击区 */
+  const showFloating = (target: 'dock' | 'music' | 'clock', win: BrowserWindow): void => {
+    if (target === 'clock') {
+      applyClockLayout()
+      showClockIfReady(win)
+      return
+    }
+    win.showInactive()
+    if (target === 'dock') applyDockLayout()
+    else applyMusicLayout()
+  }
 
   const entries: Array<{
     target: 'dock' | 'music' | 'clock'
@@ -802,7 +956,13 @@ function applyFloatingVisibility(): void {
     onlyOnDesktop: boolean
     userVisible: boolean
   }> = [
-    { target: 'dock', win: getDockWindow(), onlyOnDesktop: settings.dock.onlyOnDesktop, userVisible: true },
+    {
+      target: 'dock',
+      win: getDockWindow(),
+      onlyOnDesktop: settings.dock.onlyOnDesktop,
+      // v1.5：托盘「显示 Dock」开关（用户主动隐藏）优先于桌面状态
+      userVisible: !dockHiddenByUser
+    },
     {
       target: 'music',
       win: getMusicWindow(),
@@ -829,22 +989,14 @@ function applyFloatingVisibility(): void {
     const shouldHide = entry.onlyOnDesktop && desktopBusy
     if (shouldHide === hiddenByDesktop[target]) {
       // 状态未变时兜底确保「应显示」的窗口可见（启动/重建/首次桌面状态到达等场景）
-      if (!shouldHide && !win.isVisible()) {
-        win.showInactive()
-        if (target === 'dock') applyDockLayout()
-        else if (target === 'music') applyMusicLayout()
-        else applyClockLayout()
-      }
+      if (!shouldHide && !win.isVisible()) showFloating(target, win)
       continue
     }
     hiddenByDesktop[target] = shouldHide
     if (shouldHide) {
       if (win.isVisible()) win.hide()
     } else {
-      win.showInactive()
-      if (target === 'dock') applyDockLayout()
-      else if (target === 'music') applyMusicLayout()
-      else applyClockLayout()
+      showFloating(target, win)
     }
   }
 }

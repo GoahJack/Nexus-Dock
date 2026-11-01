@@ -6,9 +6,14 @@
  * stdin 每行一条命令：playpause | next | prev | seek:<毫秒>
  *
  * 设计要点：
- * - 子进程异常退出 → 指数退避重启（1s/2s/3s，最多 5 次），不影响 Dock；
+ * - 子进程异常退出 → 指数退避重启（1s/2s/3s，连续快速失败最多 5 次），不影响 Dock；
+ * - 桥「就绪」即清零退避步数（修复：旧实现要求 ready 且运行 >30s 才清零，
+ *   导致累计 5 次崩溃后桥永久死亡、音乐卡片从此静默不再更新）；
+ * - 连续「快速失败」（存活 <5s 即退出）单独计数并限流，避免 ready→立即崩溃的死循环刷屏；
+ * - 看门狗：started 状态下每 15s 检查一次，若桥进程缺失且没有待执行的重启，则重新拉起，
+ *   保证任何情况下桥不会永久死亡（最差 15s 内恢复）；
  * - 封面 PNG 落盘后读成 data URL（再次读取走内存缓存），读取失败降级为空封面；
- * - stderr / 桥错误事件写 userData/logs/media.log（写入失败静默）。
+ * - stderr / 桥错误事件写 userData/logs/media.log（由 logger 统一轮转，失败静默）。
  */
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process'
 import { EventEmitter } from 'node:events'
@@ -17,6 +22,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { app } from 'electron'
 import { DEFAULT_MEDIA_STATE, type MediaAction, type MediaState, type PlaybackStatus } from '@shared/types'
+import { logToFile } from '../logger'
 
 export interface SmtcBridge {
   start(): void
@@ -43,24 +49,15 @@ interface RawMediaEvent {
 const MAX_RESTARTS = 5
 // AC-5.4 要求桥进程异常退出后 ≤3s 内恢复；指数退避 1s/2s/3s（上限 3s）
 const MAX_RESTART_DELAY = 3000
+/** 子进程存活不足该时长即视为「快速失败」，才计入连续失败次数 */
+const FAST_CRASH_MS = 5000
+/** 看门狗巡检间隔：桥缺失且无待执行重启时的兜底恢复周期 */
+const WATCHDOG_INTERVAL_MS = 15_000
 const ART_CACHE_LIMIT = 24
 
-let logDirReady = false
-
-/** 写入 userData/logs/media.log；任何失败都静默（日志不能影响音乐功能） */
+/** 写入 userData/logs/media.log（由 logger 统一轮转）；任何失败都静默（日志不能影响音乐功能） */
 function mediaLog(message: string): void {
-  try {
-    const dir = path.join(app.getPath('userData'), 'logs')
-    if (!logDirReady) {
-      fs.mkdirSync(dir, { recursive: true })
-      logDirReady = true
-    }
-    fs.appendFile(path.join(dir, 'media.log'), `[${new Date().toISOString()}] ${message}\n`, () => {
-      /* 忽略写入失败 */
-    })
-  } catch {
-    /* 忽略 */
-  }
+  logToFile('media', message)
 }
 
 function errorText(error: unknown): string {
@@ -115,10 +112,19 @@ function resolveScriptPath(): string | null {
 class SmtcBridgeImpl extends EventEmitter implements SmtcBridge {
   private child: ChildProcessWithoutNullStreams | null = null
   private restartTimer: NodeJS.Timeout | null = null
+  /** 连续「快速失败」次数（存活 < FAST_CRASH_MS 即退出）：只在子进程稳定存活 ≥ FAST_CRASH_MS 后清零 */
+  private consecutiveFastCrashes = 0
+  /** 指数退避步数：桥「就绪」即清零（修复累计 5 次崩溃后永久死亡的核心） */
   private restartAttempts = 0
+  /** 「已达上限，仅看门狗兜底」日志只写一次，避免刷屏 */
+  private exhaustedLogged = false
+  private watchdogTimer: NodeJS.Timeout | null = null
   private started = false
   private stopping = false
   private spawnedAt = 0
+  /** 桥脚本缺失：只写一次日志，之后不再由看门狗反复尝试 */
+  private scriptMissing = false
+  private scriptMissingLogged = false
   private state: MediaState = { ...DEFAULT_MEDIA_STATE }
   private artCache = new Map<string, string>()
   private artToken = 0
@@ -129,7 +135,10 @@ class SmtcBridgeImpl extends EventEmitter implements SmtcBridge {
     this.started = true
     this.stopping = false
     this.restartAttempts = 0
+    this.consecutiveFastCrashes = 0
+    this.exhaustedLogged = false
     this.spawnBridge()
+    this.startWatchdog()
   }
 
   stop(): void {
@@ -137,6 +146,7 @@ class SmtcBridgeImpl extends EventEmitter implements SmtcBridge {
     this.stopping = true
     this.artToken++
     this.pendingArtPath = null
+    this.stopWatchdog()
     if (this.restartTimer) {
       clearTimeout(this.restartTimer)
       this.restartTimer = null
@@ -184,11 +194,35 @@ class SmtcBridgeImpl extends EventEmitter implements SmtcBridge {
 
   /* ------------------------------ 子进程生命周期 ------------------------------ */
 
+  /** 看门狗：桥处于 started 但进程缺失且无待执行重启时兜底拉起（防止桥永久死亡） */
+  private startWatchdog(): void {
+    if (this.watchdogTimer) return
+    this.watchdogTimer = setInterval(() => {
+      if (!this.started || this.stopping) return
+      if (this.child || this.restartTimer) return
+      if (this.scriptMissing) return
+      mediaLog('SMTC 桥进程缺失（看门狗巡检），重新拉起')
+      this.spawnBridge()
+    }, WATCHDOG_INTERVAL_MS)
+  }
+
+  private stopWatchdog(): void {
+    if (this.watchdogTimer) {
+      clearInterval(this.watchdogTimer)
+      this.watchdogTimer = null
+    }
+  }
+
   private spawnBridge(): void {
     if (!this.started || this.stopping) return
     const scriptPath = resolveScriptPath()
     if (!scriptPath) {
-      mediaLog('未找到 resources/smtc-bridge.ps1，SMTC 桥无法启动')
+      this.scriptMissing = true
+      if (!this.scriptMissingLogged) {
+        this.scriptMissingLogged = true
+        mediaLog('未找到 resources/smtc-bridge.ps1，SMTC 桥无法启动')
+      }
+      this.consecutiveFastCrashes++
       this.scheduleRestart()
       return
     }
@@ -209,10 +243,12 @@ class SmtcBridgeImpl extends EventEmitter implements SmtcBridge {
       })
       this.child = child
       this.spawnedAt = Date.now()
+      this.scriptMissing = false
       this.wireChild(child)
       mediaLog(`SMTC 桥已启动 pid=${String(child.pid)} script=${scriptPath}`)
     } catch (error) {
       mediaLog(`SMTC 桥启动失败: ${errorText(error)}`)
+      this.consecutiveFastCrashes++
       this.scheduleRestart()
     }
   }
@@ -257,18 +293,31 @@ class SmtcBridgeImpl extends EventEmitter implements SmtcBridge {
     if (this.child !== child) return
     this.child = null
     if (this.stopping || !this.started) return
+    // 只有「存活很短」的退出才算连续快速失败；稳定运行过一段再退出不消耗重试预算
+    const ranMs = this.spawnedAt > 0 ? Date.now() - this.spawnedAt : 0
+    if (ranMs >= FAST_CRASH_MS) {
+      this.consecutiveFastCrashes = 0
+      this.restartAttempts = 0
+      this.exhaustedLogged = false
+    } else {
+      this.consecutiveFastCrashes++
+    }
     this.scheduleRestart()
   }
 
   private scheduleRestart(): void {
     if (!this.started || this.stopping || this.restartTimer) return
-    if (this.restartAttempts >= MAX_RESTARTS) {
-      mediaLog('SMTC 桥重启次数已达上限（5 次），停止重试')
+    if (this.consecutiveFastCrashes >= MAX_RESTARTS) {
+      // 连续快速失败预算耗尽：不再排定时重启，交给看门狗每 15s 兜底（桥不会永久死亡）
+      if (!this.exhaustedLogged) {
+        this.exhaustedLogged = true
+        mediaLog('SMTC 桥连续快速失败已达上限（5 次），停止指数退避；改由看门狗每 15s 兜底重试')
+      }
       return
     }
     const delay = Math.min(1000 * 2 ** this.restartAttempts, MAX_RESTART_DELAY)
     this.restartAttempts++
-    mediaLog(`SMTC 桥将在 ${delay}ms 后重启（第 ${this.restartAttempts}/${MAX_RESTARTS} 次）`)
+    mediaLog(`SMTC 桥将在 ${delay}ms 后重启（连续快速失败 ${this.consecutiveFastCrashes}/${MAX_RESTARTS} 次）`)
     this.restartTimer = setTimeout(() => {
       this.restartTimer = null
       this.spawnBridge()
@@ -289,8 +338,11 @@ class SmtcBridgeImpl extends EventEmitter implements SmtcBridge {
     const event = parsed as { type?: unknown; message?: unknown }
     if (event.type === 'ready') {
       mediaLog('SMTC 桥就绪')
-      // 稳定运行 30s 后清零重启计数，避免「长期运行偶发退出」耗尽重试次数
-      if (Date.now() - this.spawnedAt > 30_000) this.restartAttempts = 0
+      // 修复（原 bug）：旧实现只在「ready 且已运行 >30s」时才清零重启计数，
+      // 而桥进程往往在 ready 后不到 30s 就被系统回收，计数只增不减，
+      // 累计 5 次后永久停止重启 —— 音乐卡片从此静默不更新，直到重启整个应用。
+      // 现在「就绪」即清零退避步数；连续快速失败另由 consecutiveFastCrashes 限流。
+      this.restartAttempts = 0
       return
     }
     if (event.type === 'error') {

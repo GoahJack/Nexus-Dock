@@ -1,10 +1,11 @@
 import { app, dialog, shell } from 'electron'
 import { spawn } from 'node:child_process'
 import { createHash } from 'node:crypto'
-import { appendFileSync, existsSync, mkdirSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { basename, extname, join, resolve } from 'node:path'
 import type { DockItem, LaunchResult } from '@shared/types'
+import { logToFile } from './logger'
 import { iconsDir } from './protocol'
 import { getSettings, updateSettings } from './settingsStore'
 import { openSettingsWindow } from './windowManager'
@@ -27,15 +28,9 @@ export function isLowIntegrity(): boolean {
 
 const hash = (input: string): string => createHash('sha1').update(input).digest('hex').slice(0, 12)
 
-/** 启动链路日志（排查「点了没反应」） */
+/** 启动链路日志（排查「点了没反应」），统一走 logger：带 1MB 轮转、异步写、失败静默 */
 function logLaunch(message: string): void {
-  try {
-    const dir = join(app.getPath('userData'), 'logs')
-    mkdirSync(dir, { recursive: true })
-    appendFileSync(join(dir, 'launch.log'), `[${new Date().toISOString()}] ${message}\n`, 'utf8')
-  } catch {
-    /* 日志失败不影响功能 */
-  }
+  logToFile('launch', message)
 }
 
 /** 子进程可能拿不到完整环境变量（TEMP/ProgramData 为空会让开始菜单路径失效） */

@@ -15,13 +15,16 @@
  * 生命周期：
  * - start({ enabled }) 只负责登记；是否真正拉起子进程由 enabled 决定；
  * - setEnabled(false) 会杀掉子进程并清定时器（「仅在桌面显示」三窗口全关时零常驻）；
- * - setEnabled(true) 立即重新拉起，并保留指数退避重启（1s→2s→5s 上限）。
+ * - setEnabled(true) 立即重新拉起，并保留指数退避重启（1s→2s→5s 上限）；
+ * - 崩溃循环治理（v1.5）：60s 窗口内失败（子进程退出/启动报错）累计 ≥5 次 → 进入 60s 降级冷却，
+ *   冷却期不再重启、只写 1 行日志；冷却结束重试一次；成功运行满 30s 后失败计数清零。
  */
 import { spawn, type ChildProcess } from 'node:child_process'
-import { appendFileSync, existsSync, mkdirSync } from 'node:fs'
+import { existsSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { app } from 'electron'
+import { logToFile } from './logger'
 
 export interface DesktopState {
   /** 前台窗口所属进程 ID；0 表示没有前台窗口 */
@@ -58,6 +61,13 @@ const DEFAULT_POLL_INTERVAL_MS = 800
 const STABLE_RUNTIME_MS = 30_000
 const MIN_RESTART_DELAY_MS = 1000
 const MAX_RESTART_DELAY_MS = 5000
+/**
+ * 崩溃循环治理（v1.5）：真实日志显示桌面状态桥反复 `退出 code=4294967295` 后 1s 重启，
+ * 长跑时无限刷日志。策略：滑动窗口内失败次数达到阈值 → 降级冷却，冷却期只写 1 行日志。
+ */
+const FAILURE_WINDOW_MS = 60_000
+const FAILURE_THRESHOLD = 5
+const COOLDOWN_MS = 60_000
 
 interface BridgeTarget {
   kind: 'exe' | 'ps1'
@@ -143,14 +153,9 @@ function childEnv(): NodeJS.ProcessEnv {
   return env
 }
 
+/** 统一日志（写入 userData/logs/desktop.log，由 logger 负责轮转与静默容错） */
 function log(message: string): void {
-  try {
-    const dir = join(app.getPath('userData'), 'logs')
-    mkdirSync(dir, { recursive: true })
-    appendFileSync(join(dir, 'desktop.log'), `[${new Date().toISOString()}] ${message}\n`, 'utf8')
-  } catch {
-    /* 日志失败不影响功能 */
-  }
+  logToFile('desktop', message)
 }
 
 export function createDesktopStateMonitor(options: MonitorOptions = {}): DesktopStateMonitor {
@@ -163,6 +168,13 @@ export function createDesktopStateMonitor(options: MonitorOptions = {}): Desktop
   let restartDelay = MIN_RESTART_DELAY_MS
   let spawnedAt = 0
   let state: DesktopState | null = null
+  /** 滑动窗口内的失败时间戳（子进程退出 / 启动报错） */
+  let failureTimes: number[] = []
+  /** 成功运行满 STABLE_RUNTIME_MS 后清零计数的定时器 */
+  let stableTimer: NodeJS.Timeout | null = null
+  /** 降级冷却定时器 */
+  let cooldownTimer: NodeJS.Timeout | null = null
+  let coolingDown = false
   const listeners = new Set<(state: DesktopState) => void>()
 
   const emit = (next: DesktopState): void => {
@@ -184,8 +196,61 @@ export function createDesktopStateMonitor(options: MonitorOptions = {}): Desktop
     }
   }
 
+  const clearStableTimer = (): void => {
+    if (stableTimer) {
+      clearTimeout(stableTimer)
+      stableTimer = null
+    }
+  }
+
+  const clearCooldownTimer = (): void => {
+    if (cooldownTimer) {
+      clearTimeout(cooldownTimer)
+      cooldownTimer = null
+    }
+  }
+
+  /** 清掉所有定时器（未启用 / 永久停止时调用，避免残留回调） */
+  const clearAllTimers = (): void => {
+    clearRestartTimer()
+    clearStableTimer()
+    clearCooldownTimer()
+  }
+
+  /** 记录一次失败；返回 true 表示 60s 窗口内已累计 ≥5 次（应进入冷却） */
+  const recordFailure = (): boolean => {
+    const now = Date.now()
+    failureTimes = failureTimes.filter((at) => now - at <= FAILURE_WINDOW_MS)
+    failureTimes.push(now)
+    return failureTimes.length >= FAILURE_THRESHOLD
+  }
+
+  /** 进入降级冷却：60s 内不再重启，只写 1 行日志；冷却结束后重试一次 */
+  const enterCooldown = (): void => {
+    coolingDown = true
+    failureTimes = []
+    clearRestartTimer()
+    // 冷却期不允许残留子进程占位（正常由 handleGone 触发时 child 已是 null）
+    killChild()
+    log(
+      `桌面状态桥 60 秒内失败 ${FAILURE_THRESHOLD} 次，进入 ${COOLDOWN_MS / 1000} 秒降级冷却` +
+        '（期间不重启、不再逐次刷日志）'
+    )
+    cooldownTimer = setTimeout(() => {
+      cooldownTimer = null
+      coolingDown = false
+      failureTimes = []
+      restartDelay = MIN_RESTART_DELAY_MS
+      if (disposed || !enabled) return
+      log('桌面状态桥冷却结束，重试一次')
+      spawnBridge()
+    }, COOLDOWN_MS)
+  }
+
   const scheduleRestart = (): void => {
     if (disposed || !enabled) return
+    // 冷却期间不排重启（enterCooldown 自己会在冷却结束后重试一次）
+    if (coolingDown) return
     if (timer) return
     // 稳定运行过一段时间的进程偶发退出 → 退避复位，避免长期运行后重启越来越慢
     if (spawnedAt > 0 && Date.now() - spawnedAt > STABLE_RUNTIME_MS) {
@@ -213,6 +278,7 @@ export function createDesktopStateMonitor(options: MonitorOptions = {}): Desktop
     const current = child
     child = null
     spawnedAt = 0
+    clearStableTimer()
     if (!current) return
     try {
       current.kill()
@@ -245,13 +311,21 @@ export function createDesktopStateMonitor(options: MonitorOptions = {}): Desktop
   const handleGone = (proc: ChildProcess): void => {
     if (child !== proc) return
     child = null
+    clearStableTimer()
     if (disposed || !enabled) return
+    // 崩溃循环治理：60s 窗口内累计失败 ≥5 次 → 进入 60s 降级冷却（只写 1 行日志）
+    if (recordFailure()) {
+      enterCooldown()
+      return
+    }
     log(`桌面状态桥退出，${restartDelay}ms 后重启`)
     scheduleRestart()
   }
 
   const spawnBridge = (): void => {
     if (disposed || !enabled || child) return
+    // 冷却期间只允许 enterCooldown 的定时器在冷却结束后重试
+    if (coolingDown) return
 
     const target = resolveTarget()
     if (!target) {
@@ -286,6 +360,13 @@ export function createDesktopStateMonitor(options: MonitorOptions = {}): Desktop
 
       child = proc
       spawnedAt = Date.now()
+      // 成功运行满 STABLE_RUNTIME_MS → 判定为「稳定」，失败计数清零（崩溃循环治理的恢复条件）
+      clearStableTimer()
+      stableTimer = setTimeout(() => {
+        stableTimer = null
+        failureTimes = []
+        restartDelay = MIN_RESTART_DELAY_MS
+      }, STABLE_RUNTIME_MS)
       let buffer = ''
       proc.stdout?.setEncoding('utf8')
       proc.stdout?.on('data', (chunk: string) => {
@@ -322,7 +403,10 @@ export function createDesktopStateMonitor(options: MonitorOptions = {}): Desktop
     } catch (error) {
       log(`异常: ${String(error)}`)
       if (target.kind === 'exe') preferScript = true
-      scheduleRestart()
+      // 接线阶段异常时可能已留下子进程：先清掉，避免冷却/退避期间有孤儿进程占位
+      if (child) killChild()
+      if (recordFailure()) enterCooldown()
+      else scheduleRestart()
     }
   }
 
@@ -340,10 +424,14 @@ export function createDesktopStateMonitor(options: MonitorOptions = {}): Desktop
       if (disposed || next === enabled) return
       enabled = next
       if (next) {
+        // 人工重新启用视为一次干净的重试：清除冷却倒计时与失败计数
+        clearCooldownTimer()
+        coolingDown = false
+        failureTimes = []
         restartDelay = MIN_RESTART_DELAY_MS
         spawnBridge()
       } else {
-        clearRestartTimer()
+        clearAllTimers()
         killChild()
       }
     },
@@ -353,7 +441,8 @@ export function createDesktopStateMonitor(options: MonitorOptions = {}): Desktop
     stop(): void {
       disposed = true
       enabled = false
-      clearRestartTimer()
+      coolingDown = false
+      clearAllTimers()
       killChild()
     },
     get(): DesktopState | null {

@@ -30,8 +30,11 @@ import {
   broadcast,
   getDockWindow,
   getSettingsWindow,
+  isDockVisible,
   openSettingsWindow,
-  setContentSize
+  setContentSize,
+  setDockVisible,
+  snapDockToEdge
 } from './windowManager'
 
 let hub: MediaHub | null = null
@@ -77,6 +80,7 @@ function showDockMenu(window: BrowserWindow | null): void {
       }
     },
     { type: 'separator' },
+    { label: '隐藏 Dock（托盘可恢复）', click: () => setDockVisible(false) },
     { label: '重载 Dock', click: () => getDockWindow()?.webContents.reload() },
     { label: '退出 Nexus Dock', click: () => app.quit() }
   ])
@@ -198,6 +202,16 @@ function registerWindowIpc(): void {
     const image = await win.webContents.capturePage()
     return image.isEmpty() ? '' : image.toDataURL()
   })
+
+  /**
+   * v1.5：补上契约里早已声明、但主进程一直没有 handler 的 `dock:snap`。
+   * 旧版本 preload 暴露了 window.nexus.dock.snap()，任何调用都会 reject
+   * 「No handler registered for 'dock:snap'」，属于死通道。
+   */
+  ipcMain.handle(IPC.dockSnap, (): boolean => {
+    snapDockToEdge()
+    return isDockVisible()
+  })
 }
 
 function registerMediaIpc(): void {
@@ -272,6 +286,7 @@ export function disposeIpc(): void {
   ipcMain.removeHandler(IPC.appsMenu)
   ipcMain.removeHandler(IPC.appsContextMenuDock)
   ipcMain.removeHandler(IPC.windowCapture)
+  ipcMain.removeHandler(IPC.dockSnap)
   ipcMain.removeHandler(IPC.mediaGetState)
   ipcMain.removeHandler(IPC.mediaControl)
   ipcMain.removeHandler(IPC.mediaPickFiles)

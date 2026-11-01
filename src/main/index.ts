@@ -8,6 +8,7 @@ import { disposeIpc, registerIpc } from './ipc'
 import { createMediaHub } from './media/mediaHub'
 import { flushSettings, getSettings, initSettings, subscribeSettings } from './settingsStore'
 import { registerProtocolHandlers, registerSchemes } from './protocol'
+import { disposeTray, setupTray } from './tray'
 import {
   applyDesktopState,
   broadcast,
@@ -101,9 +102,18 @@ if (!gotLock) {
     desktopMonitor.start({ enabled: needsDesktopStateBridge(initialSettings) })
 
     startRunningMonitor((running) => broadcast(IPC.appsRunning, running))
-    void hydrateIcons()
-    void probeEnvironment()
-    void cleanupErrorDialogs()
+    // v1.5：tray 是唯一稳定的「找回入口」（Dock 关窗即退出、应用不进任务栏）。
+    // 创建失败只记日志，不影响 Dock / 音乐卡片。
+    setupTray()
+    // v1.5：以下三件事各自会拉起 1–2 个 PowerShell（冷启动约 0.5–1s、60–100MB 工作集），
+    // 与 Dock 首帧抢 CPU 造成启动卡顿；改为界面先出、再错峰执行。
+    setTimeout(() => {
+      void hydrateIcons()
+    }, 1200)
+    setTimeout(() => {
+      void probeEnvironment()
+      void cleanupErrorDialogs()
+    }, 4000)
 
     // 桥进程按需启停的去抖定时器：设置页一次保存会触发多次 updateSettings，
     // 去抖避免「开→关→开」式抖动导致子进程反复 spawn/kill
@@ -142,6 +152,7 @@ if (!gotLock) {
       desktopMonitor.stop()
       unsubscribeSettings()
       unsubscribeAutoStart()
+      disposeTray()
       hub.dispose()
       stopRunningMonitor()
       disposeIpc()

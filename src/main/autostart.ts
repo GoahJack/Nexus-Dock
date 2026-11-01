@@ -9,8 +9,23 @@ import { getSettings, subscribeSettings, updateSettings } from './settingsStore'
  * - 写后立即回读校验；失败时把系统实际状态回写设置，避免设置页显示假状态。
  */
 
-/** 登录项路径与参数：写入与回读必须使用同一组，否则 openAtLogin 判断会失真 */
-const loginItemOptions = { path: process.execPath, args: [] as string[] }
+/**
+ * 登录项路径与参数：写入与回读必须使用同一组，否则 openAtLogin 判断会失真。
+ *
+ * v1.5 修复：electron-builder 的 portable 版启动时会把应用解包到 %TEMP% 下的临时目录
+ * （运行结束即 RMDir /r 删除），此时 process.execPath 指向的是「退出即不存在」的路径。
+ * 由于 Electron 的 path 只用于比对、解包目录名又是固定的，登录项会一直「读回 true」，
+ * 设置页谎报已开启，而实际登录时目标 exe 早已被删除。
+ * 便携版 stub 会注入 PORTABLE_EXECUTABLE_FILE（真实便携 exe 路径），优先使用它。
+ */
+function resolveLoginItemPath(): string {
+  const portable = process.env['PORTABLE_EXECUTABLE_FILE']
+  if (typeof portable === 'string' && portable.trim().length > 0) return portable.trim()
+  return process.execPath
+}
+
+const loginItemTargetPath = resolveLoginItemPath()
+const loginItemOptions = { path: loginItemTargetPath, args: [] as string[] }
 
 /** 上一次已知的操作系统登录项状态；null = 尚未同步过 */
 let lastKnownAutoStart: boolean | null = null
@@ -47,7 +62,7 @@ export function applyAutoStart(enabled: boolean): AutoStartResult {
       console.warn(`[autostart] 回读校验不一致：期望 ${enabled}，实际 ${actual}`)
       return { ok: false, autoStart: actual, reason: 'os' }
     }
-    console.log(`[autostart] 开机自启已${enabled ? '开启' : '关闭'}`)
+    console.log(`[autostart] 开机自启已${enabled ? '开启' : '关闭'}（${loginItemTargetPath}）`)
     return { ok: true, autoStart: actual }
   } catch (error) {
     const actual = readAutoStartState()
