@@ -1,0 +1,159 @@
+/* ==========================================================================
+   Nexus Dock — 桌面时钟（v1.1，对应 docs/spec.md US-13 / docs/motion-spec.md §3.4）
+   - 透明窗口：窗口尺寸完全由内容决定（渲染层 useContentSize('clock') 回报），页面不得出现滚动条
+   - ⚠ .clock-root 是被测量的根节点：入场只做 opacity 淡入，禁止 transform / 位移动画，
+     否则窗口尺寸会随动画抖动（与音乐卡片同一约束）
+   - 动效只用 shared/motion.css 的 --nx-* 令牌，不硬编码毫秒；「减少动效」由全局降级覆盖
+   ========================================================================== */
+
+html,
+body,
+#root {
+  /* 收缩到内容尺寸：透明窗口不能留下「看不见但能点」的空白区（AC-13.5） */
+  width: max-content;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.clock-root {
+  /* 由 JS 内联覆盖：--clock-font-size = settings.clock.fontSize，--clock-opacity = settings.clock.opacity */
+  --clock-font-size: 40px;
+  --clock-opacity: 1;
+
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  /* 内边距与间距随字号缩放：时钟的唯一尺寸控制就是 fontSize（AC-13.3） */
+  gap: calc(var(--clock-font-size) * 0.1);
+  width: max-content;
+  padding: clamp(10px, calc(var(--clock-font-size) * 0.3), 34px)
+    clamp(14px, calc(var(--clock-font-size) * 0.44), 48px);
+  border-radius: var(--nx-radius-lg);
+  color: var(--nx-text);
+  /* 整体透明度（20%–100%）直接作用在整卡上，玻璃底与文字一起变淡 */
+  opacity: var(--clock-opacity);
+  /* 整卡可拖动：位置由主进程 moved 事件吸附最近边并持久化（AC-13.4 / AC-14.3） */
+  -webkit-app-region: drag;
+  cursor: default;
+  user-select: none;
+  white-space: nowrap;
+}
+
+/* 入场：整体淡入、不位移（motion-spec §3.4），时长/曲线统一取令牌；
+   终点取用户透明度，避免与 --clock-opacity 打架。动画类由 React 在 animationend 后移除，
+   之后基础 opacity 立即跟随设置变化。 */
+.clock-root.is-entering {
+  animation: clock-fade-in var(--nx-dur-slow) var(--nx-ease-out);
+}
+
+@keyframes clock-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: var(--clock-opacity, 1);
+  }
+}
+
+/* 时间行：12 小时制时左侧「上午/下午」+ 大字时间。
+   用 inline / inline-block 而不是 flex：flex 会把子项块级化，innerText 在
+   「上午」与时间之间插入换行，验收脚本读取 body.innerText 时不便；
+   inline-block 让文字按基线对齐，同时 .clock-time 仍是纯数字文本节点。 */
+.clock-main {
+  line-height: 1;
+  text-align: center;
+}
+
+.clock-time {
+  display: inline-block;
+  font-family: "Segoe UI Variable Display", "Segoe UI", "Microsoft YaHei UI", system-ui, sans-serif;
+  font-size: var(--clock-font-size);
+  font-weight: 600;
+  line-height: 1.05;
+  letter-spacing: 0.01em;
+  /* 等宽数字：秒/分变化不引起宽度抖动，窗口尺寸保持稳定（motion-spec §3.4） */
+  font-variant-numeric: tabular-nums;
+}
+
+.clock-period {
+  display: inline-block;
+  margin-right: calc(var(--clock-font-size) * 0.08);
+  font-size: clamp(var(--nx-font-xs), calc(var(--clock-font-size) * 0.26), 24px);
+  font-weight: 500;
+  color: var(--nx-text-dim);
+  letter-spacing: 0.05em;
+  font-variant-numeric: tabular-nums;
+  vertical-align: baseline;
+}
+
+/* 日期在时间下方，字号随主字号缩放但保底可读 */
+.clock-date {
+  font-size: clamp(var(--nx-font-sm), calc(var(--clock-font-size) * 0.27), 26px);
+  color: var(--nx-text-dim);
+  letter-spacing: 0.08em;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.2;
+}
+
+/* 锁定态图标：默认透明，锁定时淡入；绝对定位不参与布局，不改变窗口尺寸 */
+.clock-lock {
+  position: absolute;
+  top: calc(var(--clock-font-size) * 0.13);
+  right: calc(var(--clock-font-size) * 0.15);
+  width: clamp(10px, calc(var(--clock-font-size) * 0.22), 22px);
+  height: auto;
+  color: var(--nx-text-faint);
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.4;
+  opacity: 0;
+  pointer-events: none;
+  /* 锁定态切换在 --nx-dur-fast 内完成，不改布局（motion-spec §3.4） */
+  transition:
+    opacity var(--nx-dur-fast) var(--nx-ease-out),
+    color var(--nx-dur-fast) var(--nx-ease-out);
+}
+
+/* 位置锁定（US-14）：拖动区失效 + 光标恢复默认；提示文字见根节点 title */
+.clock-root[data-locked='true'] {
+  -webkit-app-region: no-drag;
+  cursor: default;
+}
+
+.clock-root[data-locked='true'] .clock-lock {
+  opacity: 1;
+}
+
+/* ------------------------------- 浅色主题 ------------------------------- */
+/* 与 Dock 的浅色主题同一套冷灰蓝替换变量，保证白底上的对比度 */
+.clock-root[data-theme='light'] {
+  color-scheme: light;
+  --nx-text: #1a1d26;
+  --nx-text-dim: rgba(26, 29, 38, 0.62);
+  --nx-text-faint: rgba(26, 29, 38, 0.42);
+  --nx-border: rgba(20, 24, 38, 0.12);
+  --nx-border-strong: rgba(20, 24, 38, 0.22);
+  --nx-accent: #2f6fe4;
+  --nx-accent-soft: rgba(47, 111, 228, 0.14);
+}
+
+/* .nx-glass 默认是深色玻璃底，浅色主题整体换一套亮底与低对比阴影 */
+.clock-root[data-theme='light'].nx-glass {
+  background:
+    linear-gradient(
+      160deg,
+      rgba(255, 255, 255, 0.95),
+      rgba(255, 255, 255, 0.66) 45%,
+      rgba(240, 244, 252, 0.82)
+    );
+  border-color: rgba(20, 24, 38, 0.14);
+  box-shadow:
+    0 16px 42px rgba(26, 34, 58, 0.2),
+    0 2px 8px rgba(26, 34, 58, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    inset 0 -1px 0 rgba(20, 24, 38, 0.06);
+}
+
+/* hover 不改变任何尺寸/位移（只由光标与拖动手感反馈，禁止 transform 叠加）。
+   减少动效：motion.css 的全局降级会把入场动画与锁定过渡收敛为瞬时，无需重复声明。 */

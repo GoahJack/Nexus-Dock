@@ -1,0 +1,601 @@
+/* Nexus Dock — 音乐卡片（复用 shared/theme.css 的玻璃材质与主题变量）
+   v1.0 精细化动效：控件按压/涟漪、播放图标 morph、切歌微动、进度条跟手、封面交叉淡入
+   动效细则见 docs/motion-spec.md §3.2。
+   ⚠ .music-card 是被 useContentSize 测量的根节点：禁止在它上面做 transform/scale，
+   入场只做 opacity 淡入，位移/缩放全部作用在子元素上，避免窗口尺寸抖动。 */
+
+html,
+body,
+#root {
+  width: max-content;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.music-card {
+  /* 本卡片专属时长：200ms 播放图标 morph、240ms 封面交叉淡入（随强度档位缩放，见 motion-spec §2.1） */
+  --music-morph-dur: calc(200ms * var(--nx-motion-scale));
+  --music-art-dur: calc(240ms * var(--nx-motion-scale));
+  --music-enter-step: calc(30ms * var(--nx-motion-scale));
+
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-areas:
+    'art main'
+    'bottom bottom';
+  align-items: center;
+  gap: 10px 12px;
+  padding: 12px 14px;
+  border-radius: 20px;
+  min-height: 88px;
+  position: relative;
+  -webkit-app-region: drag;
+  /* 根节点只淡入：不改位移/尺寸，测量值保持稳定 */
+  animation: nx-fade-in var(--nx-dur-slow) var(--nx-ease-out) both;
+}
+
+/* v1.1 位置锁定（US-14）：锁定后整卡拖动区失效（渲染层 no-drag + 主进程
+   win.setMovable(false) 双层防护），光标不再是可拖动样式；
+   关闭 / 播放 / 进度等控件均为 no-drag，锁定期间仍可正常操作。 */
+.music-card[data-locked='true'] {
+  -webkit-app-region: no-drag;
+  cursor: default;
+}
+
+/* 子元素错峰入场：封面 → 文本区 → 控件组，位移与缩放不影响根节点 getBoundingClientRect */
+.music-art,
+.music-ring,
+.music-main,
+.music-bottom {
+  animation: music-enter var(--nx-dur-slow) var(--nx-ease-out) both;
+}
+
+.music-main {
+  animation-delay: var(--music-enter-step);
+}
+
+.music-bottom {
+  animation-delay: calc(var(--music-enter-step) * 2);
+}
+
+/* 环形进度模式下网格项是 .music-ring，内部封面不再重复入场 */
+.music-ring > .music-art {
+  animation: none;
+}
+
+@keyframes music-enter {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.music-card button,
+.music-card [role='slider'] {
+  -webkit-app-region: no-drag;
+}
+
+/* -------------------- 按压 + 涟漪工具类（全部按钮共用） -------------------- */
+/* 按下瞬间即进入 :active（pointerdown 跟手），松手用 spring 回弹；阴影同步收缩。
+   涟漪由 shared/motion.ts 的 spawnRipple() 生成，宿主类 nx-ripple-host 在 JSX 上。 */
+.music-pressable {
+  transition:
+    transform var(--nx-dur-base) var(--nx-spring),
+    box-shadow var(--nx-dur-fast) var(--nx-ease-out),
+    background-color var(--nx-dur-fast) var(--nx-ease-out),
+    border-color var(--nx-dur-fast) var(--nx-ease-out),
+    color var(--nx-dur-fast) var(--nx-ease-out),
+    opacity var(--nx-dur-fast) var(--nx-ease-out);
+}
+
+/* 选择器带 .music-card 前缀：确保 :active 的阴影收缩能压过 is-main:hover 的发光阴影 */
+.music-card .music-pressable:active:not(:disabled) {
+  transform: scale(0.9);
+  box-shadow: var(--music-press-shadow, 0 1px 2px rgba(0, 0, 0, 0.22));
+  transition:
+    transform var(--nx-dur-fast) var(--nx-ease-press),
+    box-shadow var(--nx-dur-fast) var(--nx-ease-press),
+    background-color var(--nx-dur-fast) var(--nx-ease-out);
+}
+
+/* 统一焦点环（motion-spec §5：0 0 0 2px 强调色 + 偏移 2px） */
+.music-card button:focus-visible,
+.music-progress:focus-visible {
+  outline: 2px solid var(--nx-focus-color);
+  outline-offset: 2px;
+}
+
+/* 右上角关闭按钮：默认隐藏，悬停卡片才明显（不遮挡封面/标题，顶部行已留出避让区） */
+.music-close {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  color: var(--nx-text-dim);
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+  --music-press-shadow: 0 1px 1px rgba(0, 0, 0, 0.2);
+  opacity: 0;
+}
+
+.music-card:hover .music-close,
+.music-close:focus-visible {
+  opacity: 1;
+}
+
+.music-close:hover {
+  color: #ffd9d9;
+  background: rgba(255, 107, 107, 0.24);
+  border-color: rgba(255, 107, 107, 0.45);
+}
+
+/* ------------------------------- 封面 ------------------------------- */
+.music-art {
+  grid-area: art;
+  position: relative;
+  width: 64px;
+  height: 64px;
+  border-radius: 14px;
+  overflow: hidden;
+  background: linear-gradient(145deg, rgba(110, 168, 254, 0.35), rgba(180, 140, 255, 0.22));
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.1), 0 4px 12px rgba(0, 0, 0, 0.32);
+}
+
+/* 封面双层交叉淡入：is-current 新封面在上层淡入（scale 1.04→1），is-prev 旧封面在下层淡出。
+   旧封面由 React 在新图 animationend 后卸载，不再用 key 重挂单图（避免黑闪）。 */
+.music-art-img,
+.music-art-placeholder {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.music-art-img {
+  display: block;
+  object-fit: cover;
+}
+
+.music-art-placeholder {
+  display: grid;
+  place-items: center;
+  color: rgba(255, 255, 255, 0.64);
+  background: linear-gradient(145deg, rgba(110, 168, 254, 0.42), rgba(180, 140, 255, 0.28));
+}
+
+.music-art-img.is-current,
+.music-art-placeholder.is-current {
+  z-index: 1;
+  animation: music-art-in var(--music-art-dur) var(--nx-ease-out) both;
+}
+
+.music-art-img.is-prev,
+.music-art-placeholder.is-prev {
+  z-index: 0;
+  animation: music-art-out var(--music-art-dur) var(--nx-ease-out) both;
+}
+
+@keyframes music-art-in {
+  from {
+    opacity: 0;
+    transform: scale(1.04);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes music-art-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+/* --------------------------- 环形进度（封面外圈） --------------------------- */
+.music-ring {
+  grid-area: art;
+  position: relative;
+}
+
+.music-ring-svg {
+  position: absolute;
+  inset: 0;
+  overflow: visible;
+}
+
+.music-ring-track {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.14);
+  stroke-width: 2.5;
+}
+
+.music-ring-value {
+  fill: none;
+  stroke: var(--nx-accent);
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  transition: stroke-dashoffset var(--nx-dur-base) linear;
+  filter: drop-shadow(0 0 4px rgba(110, 168, 254, 0.5));
+}
+
+.music-ring .music-art {
+  position: absolute;
+  inset: 6px;
+  width: auto;
+  height: auto;
+  border-radius: 12px;
+}
+
+/* ------------------------------- 文本区 ------------------------------- */
+.music-main {
+  grid-area: main;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.music-topline {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  padding-right: 20px;
+}
+
+.music-badge {
+  flex: none;
+  padding: 3px 7px;
+  border-radius: 999px;
+  border: 1px solid rgba(110, 168, 254, 0.36);
+  background: var(--nx-accent-soft);
+  color: #cfe1ff;
+  font-size: 10.5px;
+  line-height: 1;
+  letter-spacing: 0.4px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.18);
+  --music-press-shadow: 0 1px 1px rgba(0, 0, 0, 0.16);
+}
+
+.music-badge:hover {
+  background: rgba(110, 168, 254, 0.28);
+  border-color: rgba(110, 168, 254, 0.6);
+}
+
+.music-pick {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 6px;
+  color: var(--nx-text-dim);
+  background: transparent;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
+  --music-press-shadow: 0 0 0 rgba(0, 0, 0, 0);
+}
+
+.music-pick:hover {
+  color: var(--nx-text);
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.music-appid {
+  margin-left: auto;
+  max-width: 96px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 10.5px;
+  color: var(--nx-text-faint);
+}
+
+.music-title {
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.25;
+  letter-spacing: 0.1px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.music-title.is-empty {
+  font-weight: 500;
+  color: var(--nx-text-dim);
+}
+
+.music-artist {
+  font-size: 12.5px;
+  color: var(--nx-text-dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ------------------------------- 底部区 ------------------------------- */
+.music-bottom {
+  grid-area: bottom;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+/* 进度条：容器高度固定 4px，轨道视觉由 ::before 承担，
+   hover 增高只发生在绝对定位图层上，卡片高度（被窗口测量）不变化，避免窗口尺寸抖动。 */
+.music-progress {
+  position: relative;
+  height: 4px;
+  margin: 0 1px;
+  border-radius: 999px;
+  cursor: pointer;
+  touch-action: none;
+}
+
+.music-progress::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 4px;
+  transform: translateY(-50%);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.14);
+  transition:
+    height var(--nx-dur-fast) var(--nx-ease-out),
+    background-color var(--nx-dur-fast) var(--nx-ease-out);
+}
+
+.music-progress:hover::before {
+  height: 6px;
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.music-progress-fill {
+  position: absolute;
+  left: 0;
+  top: 50%;
+  height: 4px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #6ea8fe, #b48cff);
+  transform: translateY(-50%);
+  transition:
+    width var(--nx-dur-fast) linear,
+    height var(--nx-dur-fast) var(--nx-ease-out),
+    box-shadow var(--nx-dur-fast) var(--nx-ease-out);
+}
+
+/* hover：轨道增高 + 填充柔光 */
+.music-progress:hover .music-progress-fill {
+  height: 6px;
+  box-shadow: 0 0 10px rgba(110, 168, 254, 0.4);
+}
+
+/* 拖动：填充渐变发光；拖动中宽度不做过渡（保持跟手，motion-spec §3.2） */
+.music-progress.is-dragging .music-progress-fill {
+  height: 6px;
+  box-shadow: 0 0 12px rgba(110, 168, 254, 0.55), 0 0 3px rgba(180, 140, 255, 0.45);
+  transition: none;
+}
+
+.music-progress-thumb {
+  position: absolute;
+  top: 50%;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #fff;
+  transform: translate(-50%, -50%) scale(1);
+  opacity: 0;
+  transition:
+    opacity var(--nx-dur-fast) var(--nx-ease-out),
+    transform var(--nx-dur-fast) var(--nx-spring-soft),
+    box-shadow var(--nx-dur-fast) var(--nx-ease-out);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
+  pointer-events: none;
+}
+
+.music-progress:hover .music-progress-thumb,
+.music-progress:focus-visible .music-progress-thumb {
+  opacity: 1;
+}
+
+.music-progress:hover .music-progress-thumb {
+  transform: translate(-50%, -50%) scale(1.35);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.5), 0 0 10px rgba(110, 168, 254, 0.6);
+}
+
+.music-progress.is-dragging .music-progress-thumb {
+  opacity: 1;
+  transform: translate(-50%, -50%) scale(1.55);
+  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.45), 0 0 16px rgba(110, 168, 254, 0.75);
+}
+
+/* 总时长未知（durationMs<=0，如酷狗不上报 EndTime）：不确定态，不显示填充/拖拽点 */
+.music-progress.is-unknown {
+  cursor: default;
+  overflow: hidden;
+}
+
+.music-progress.is-unknown .music-progress-fill {
+  width: 0 !important;
+}
+
+.music-progress.is-unknown .music-progress-thumb,
+.music-progress.is-unknown:hover .music-progress-thumb,
+.music-progress.is-unknown:focus-visible .music-progress-thumb {
+  opacity: 0;
+}
+
+.music-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.music-buttons {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.music-ctrl {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  color: var(--nx-text);
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.22);
+  --music-press-shadow: 0 1px 2px rgba(0, 0, 0, 0.18);
+}
+
+.music-ctrl:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.18);
+}
+
+.music-ctrl.is-main {
+  width: 36px;
+  height: 36px;
+  color: #dceaff;
+  background: rgba(110, 168, 254, 0.22);
+  border-color: rgba(110, 168, 254, 0.4);
+  box-shadow: 0 3px 12px rgba(110, 168, 254, 0.22);
+  --music-press-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+.music-ctrl.is-main:hover:not(:disabled) {
+  background: rgba(110, 168, 254, 0.34);
+  box-shadow: 0 4px 16px rgba(110, 168, 254, 0.32);
+}
+
+/* 禁用态：不参与按压与涟漪（JS 也不生成涟漪），透明度按 motion-spec §5 收敛到 0.45 */
+.music-ctrl:disabled {
+  opacity: 0.45;
+  cursor: default;
+  box-shadow: none;
+}
+
+/* ---------------------- 播放/暂停图标 morph（双层叠放） ---------------------- */
+.music-play-icon {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+}
+
+.music-play-layer {
+  grid-area: 1 / 1;
+  display: grid;
+  place-items: center;
+  will-change: transform, opacity;
+  transition:
+    opacity var(--music-morph-dur) var(--nx-spring-soft),
+    transform var(--music-morph-dur) var(--nx-spring-soft);
+}
+
+/* 暂停层默认收起（-18° / 0.6），切到播放态时正向展开；播放层反向退出，形成 morph 观感 */
+.music-play-layer-pause {
+  opacity: 0;
+  transform: rotate(-18deg) scale(0.6);
+}
+
+.music-play-icon.is-playing .music-play-layer-play {
+  opacity: 0;
+  transform: rotate(18deg) scale(0.6);
+}
+
+.music-play-icon.is-playing .music-play-layer-pause {
+  opacity: 1;
+  transform: rotate(0deg) scale(1);
+}
+
+/* ---------------------- 上一首/下一首：方向微动（只播一次） ---------------------- */
+.music-nudge {
+  display: grid;
+  place-items: center;
+  will-change: transform;
+}
+
+.music-nudge.is-prev {
+  animation: nx-nudge-left var(--nx-dur-slow) var(--nx-ease-out) both;
+}
+
+.music-nudge.is-next {
+  animation: nx-nudge-right var(--nx-dur-slow) var(--nx-ease-out) both;
+}
+
+.music-time {
+  font-size: 11.5px;
+  color: var(--nx-text-dim);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.2px;
+  white-space: nowrap;
+}
+
+.music-time-sep {
+  margin: 0 3px;
+  color: var(--nx-text-faint);
+}
+
+/* 时长未知：进度条用低频扫光提示「仍在播放」，避免看起来像坏掉的空条 */
+.music-progress.is-unknown::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  width: 40%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.28), transparent);
+  animation: music-unknown-sweep 2.4s ease-in-out infinite;
+}
+
+@keyframes music-unknown-sweep {
+  0% {
+    transform: translateX(-120%);
+  }
+  100% {
+    transform: translateX(320%);
+  }
+}
+
+/* --------------------------- 可访问性降级补充 --------------------------- */
+/* 全局 motion.css 已把时长收敛到 0.01ms；这里补两件事：
+   1) 未知时长扫光改为静态提示；
+   2) 入场错峰延迟归零，避免「减少动效」时子元素先隐身再弹出。 */
+@media (prefers-reduced-motion: reduce) {
+  .music-progress.is-unknown::after {
+    animation: none;
+    opacity: 0.25;
+    width: 100%;
+  }
+
+  .music-card,
+  .music-card * {
+    animation-delay: 0ms !important;
+  }
+}
+
+:root[data-reduced-motion='true'] .music-card,
+:root[data-reduced-motion='true'] .music-card * {
+  animation-delay: 0ms !important;
+}

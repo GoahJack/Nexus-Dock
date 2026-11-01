@@ -1,0 +1,83 @@
+{
+  "steps": [
+    {
+      "name": "hover-magnification",
+      "hoveredIndex": 2,
+      "scales": [
+        1.06,
+        1.18,
+        1.3,
+        1.18,
+        1.06,
+        1
+      ],
+      "shot": "E:\\AI WorkRegion\\app_creator\\docs\\verification\\dock-hover.png"
+    },
+    {
+      "name": "hover-reset",
+      "transform": "matrix(1, 0, 0, 1, 0, 0)"
+    },
+    {
+      "name": "launch-notepad",
+      "running": true,
+      "indicators": [
+        "dock-indicator",
+        "dock-indicator",
+        "dock-indicator",
+        "dock-indicator",
+        "dock-indicator",
+        "dock-indicator"
+      ],
+      "shot": "E:\\AI WorkRegion\\app_creator\\docs\\verification\\dock-running.png",
+      "dockItems": 6
+    },
+    {
+      "name": "drag-reorder",
+      "beforeOrder": [
+        "explorer",
+        "notepad",
+        "calc",
+        "paint",
+        "cmd",
+        "taskmgr"
+      ],
+      "afterOrder": [
+        "notepad",
+        "calc",
+        "explorer",
+        "paint",
+        "cmd",
+        "taskmgr"
+      ],
+      "changed": true
+    },
+    {
+      "name": "running-map",
+      "runningState": {
+        "explorer": false,
+        "notepad": false,
+        "calc": false,
+        "paint": false,
+        "cmd": false,
+        "taskmgr": false
+      }
+    },
+    {
+      "name": "music-card",
+      "text": "系统 未在播放 打开任意播放器即可同步 0:00/0:00",
+      "source": {},
+      "shot": "E:\\AI WorkRegion\\app_creator\\docs\\verification\\music-state.png"
+    },
+    {
+      "name": "settings-pages",
+      "shots": {
+        "Dock": "E:\\AI WorkRegion\\app_creator\\docs\\verification\\settings-dock.png",
+        "音乐": "E:\\AI WorkRegion\\app_creator\\docs\\verification\\settings-music.png",
+        "应用": "E:\\AI WorkRegion\\app_creator\\docs\\verification\\settings-apps.png",
+        "关于": "E:\\AI WorkRegion\\app_creator\\docs\\verification\\settings-about.png"
+      },
+      "text": "Nexus 设置 — ✕ Dock 音乐 应用 关于 关于 Nexus Dock 版本与运行环境用于反馈问题和定位差异。 应用 Nexus Dock 版本 0.1.0 平台 Windows（开发模式） 运行环境 Electron / Chromium / Node 版本。 Electron 44.10.0 Chromium 152.0.7977.169 Node 24.22.1 维护 恢复默认会立即覆盖当前所有参数；退出后 Dock 与音乐卡片一并关闭。 恢复全部默认设置 退出 Nexus Dock 退出后设置窗口关闭，主进程随之退出；下次启动会沿用当前配置。 Nexus Dock v0.1.0 恢复默认设置"
+    }
+  ],
+  "ok": true
+}

@@ -1,0 +1,85 @@
+{
+  "dock": {
+    "screen": {
+      "x": 564,
+      "y": 960,
+      "w": 580,
+      "h": 96
+    },
+    "edge": "bottom",
+    "transparent": "true",
+    "background": "rgba(0, 0, 0, 0)",
+    "backgroundImage": "none",
+    "boxShadow": "none",
+    "musicButton": true,
+    "musicButtonOn": true,
+    "bodySize": {
+      "w": 578,
+      "h": 93
+    }
+  },
+  "musicToggle": {
+    "before": true,
+    "after": false,
+    "flipped": true,
+    "musicWindowExists": true,
+    "restored": true
+  },
+  "catalog": {
+    "count": 186,
+    "sample": [
+      {
+        "name": "7-Zip File Manager",
+        "aumid": "D:\\my_tool\\7-Zip\\7zFM.exe",
+        "hasIcon": true
+      },
+      {
+        "name": "百度网盘",
+        "aumid": "D:\\pan\\baidu\\BaiduNetdisk\\BaiduNetdisk.exe",
+        "hasIcon": true
+      },
+      {
+        "name": "便笺",
+        "aumid": "Microsoft.MicrosoftStickyNotes_8wekyb3d8bbwe!App",
+        "hasIcon": false
+      },
+      {
+        "name": "步骤记录器",
+        "aumid": "{1AC14E77-02E7-4E5D-B744-2EB1AE5198B7}\\psr.exe",
+        "hasIcon": true
+      },
+      {
+        "name": "磁盘清理",
+        "aumid": "{1AC14E77-02E7-4E5D-B744-2EB1AE5198B7}\\cleanmgr.exe",
+        "hasIcon": true
+      },
+      {
+        "name": "单击以执行",
+        "aumid": "MicrosoftWindows.Client.CoreAI_cw5n1h2txyewy!ClickToDoApp",
+        "hasIcon": false
+      },
+      {
+        "name": "电脑管家",
+        "aumid": "Microsoft.MicrosoftPCManager_8wekyb3d8bbwe!App",
+        "hasIcon": false
+      },
+      {
+        "name": "多屏中心",
+        "aumid": "B9ECED6F.Glidex_qmba6cd70vzyy!App",
+        "hasIcon": false
+      }
+    ]
+  },
+  "music": {
+    "text": "系统 kugou 最甜情歌 (Remix) 藤柒吖 0:00/--:--",
+    "closeButton": true,
+    "bodySize": {
+      "w": 330,
+      "h": 150
+    },
+    "images": [
+      "data:image/png;base64,iVBORw0KGg"
+    ]
+  },
+  "ok": true
+}

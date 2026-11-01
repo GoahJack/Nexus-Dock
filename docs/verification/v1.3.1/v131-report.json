@@ -1,0 +1,202 @@
+{
+  "generatedAt": "2026-11-01T08:17:58.471Z",
+  "startedAt": "2026-11-01T08:17:39.650Z",
+  "port": 9224,
+  "scope": "Dock 唤起已运行应用时保持窗口显示状态（v1.3.1）",
+  "checks": [
+    {
+      "id": "A2-fixture-built",
+      "ac": "AC-20.5",
+      "pass": true,
+      "detail": {
+        "path": "C:/Users/huih/AppData/Local/NexusDock/v131-fixture/probe.exe"
+      }
+    },
+    {
+      "id": "A1-app-version",
+      "ac": "AC-20.5",
+      "pass": true,
+      "detail": {
+        "appVersion": "1.3.1",
+        "isPackaged": true,
+        "schemaVersion": 7
+      }
+    },
+    {
+      "id": "W1-launch-fixture",
+      "ac": "AC-20.4",
+      "pass": true,
+      "detail": {
+        "result": {
+          "ok": true
+        },
+        "window": {
+          "title": "Nexus WindowState Probe",
+          "pid": 294700,
+          "max": false,
+          "min": false
+        }
+      }
+    },
+    {
+      "id": "W2-fixture-maximized",
+      "ac": "AC-20.1",
+      "pass": true,
+      "detail": {
+        "label": "after-maximize",
+        "title": "Nexus WindowState Probe",
+        "pid": 294700,
+        "hwnd": 264606,
+        "min": false,
+        "max": true,
+        "rect": [
+          -8,
+          -8,
+          1715,
+          1075
+        ]
+      }
+    },
+    {
+      "id": "W3-activate-keeps-maximized",
+      "ac": "AC-20.1 / AC-20.2",
+      "pass": true,
+      "detail": {
+        "result": {
+          "ok": true
+        },
+        "state": {
+          "label": "after-dock-activate",
+          "title": "Nexus WindowState Probe",
+          "pid": 294700,
+          "hwnd": 264606,
+          "min": false,
+          "max": true,
+          "rect": [
+            -8,
+            -8,
+            1715,
+            1075
+          ]
+        },
+        "foregroundTitle": "Nexus WindowState Probe"
+      }
+    },
+    {
+      "id": "W4-fixture-minimized",
+      "ac": "AC-20.3",
+      "pass": true,
+      "detail": {
+        "label": "after-minimize",
+        "title": "Nexus WindowState Probe",
+        "pid": 294700,
+        "hwnd": 264606,
+        "min": true,
+        "max": false,
+        "rect": [
+          -32000,
+          -32000,
+          -31763,
+          -31961
+        ]
+      }
+    },
+    {
+      "id": "W5-restore-keeps-maximized",
+      "ac": "AC-20.3",
+      "pass": true,
+      "detail": {
+        "result": {
+          "ok": true
+        },
+        "state": {
+          "label": "after-dock-restore",
+          "title": "Nexus WindowState Probe",
+          "pid": 294700,
+          "hwnd": 264606,
+          "min": false,
+          "max": true,
+          "rect": [
+            -8,
+            -8,
+            1715,
+            1075
+          ]
+        },
+        "foregroundTitle": "Nexus WindowState Probe"
+      }
+    },
+    {
+      "id": "W6-normal-stays-normal",
+      "ac": "AC-20.4",
+      "pass": true,
+      "detail": {
+        "before": {
+          "label": "after-normalize",
+          "title": "Nexus WindowState Probe",
+          "pid": 294700,
+          "hwnd": 264606,
+          "min": false,
+          "max": false,
+          "rect": [
+            473,
+            303,
+            1233,
+            763
+          ]
+        },
+        "result": {
+          "ok": true
+        },
+        "after": {
+          "label": "after-dock-activate-normal",
+          "title": "Nexus WindowState Probe",
+          "pid": 294700,
+          "hwnd": 264606,
+          "min": false,
+          "max": false,
+          "rect": [
+            473,
+            303,
+            1233,
+            763
+          ]
+        }
+      }
+    },
+    {
+      "id": "A9-no-runtime-exceptions",
+      "ac": "AC-20.5",
+      "pass": true,
+      "detail": {
+        "count": 0
+      }
+    },
+    {
+      "id": "W7-apps-restored",
+      "ac": "AC-20.5",
+      "pass": true,
+      "detail": {
+        "originalCount": 11,
+        "restoredCount": 11
+      }
+    }
+  ],
+  "screenshots": [
+    "docs/verification/v1.3.1/maximized-preserved.png",
+    "docs/verification/v1.3.1/minimized-restored-maximized.png"
+  ],
+  "notes": [
+    "测试使用独立 WinForms fixture 窗口（标题 Nexus WindowState Probe），不启动也不关闭用户的真实应用。",
+    "修复点：Activate-Win 由「无条件 ShowWindow(SW_RESTORE=9)」改为「仅最小化时 SW_RESTORE」，最大化/普通窗口只 BringWindowToTop + SetForegroundWindow。",
+    "W3 是用户报告场景：应用已运行且最大化，点 Dock 后不得先最大化出现再被还原。"
+  ],
+  "exceptions": [],
+  "fatalError": null,
+  "summary": {
+    "total": 10,
+    "passed": 10,
+    "failed": 0,
+    "failedIds": []
+  }
+}

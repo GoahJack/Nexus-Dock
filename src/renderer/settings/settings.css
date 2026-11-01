@@ -1,0 +1,1229 @@
+/* ============================================================
+   Nexus 设置面板
+   580×760 无边框窗口：内容铺满 + 14px 圆角，标题栏可拖动
+   ============================================================ */
+
+:root {
+  --nx-settings-radius: 14px;
+  --nx-titlebar-h: 48px;
+  --nx-nav-w: 132px;
+  --nx-footer-h: 36px;
+}
+
+/* ---------- 外壳 ---------- */
+
+.settings-shell {
+  position: relative;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-radius: var(--nx-settings-radius);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  color: var(--nx-text);
+  background:
+    radial-gradient(120% 82% at 16% -14%, rgba(110, 168, 254, 0.18), rgba(110, 168, 254, 0) 58%),
+    linear-gradient(180deg, #1a1c24 0%, var(--nx-bg-solid) 44%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.07);
+  font-size: 13px;
+}
+
+/* ---------- 标题栏（可拖动） ---------- */
+
+.settings-titlebar {
+  flex: 0 0 var(--nx-titlebar-h);
+  height: var(--nx-titlebar-h);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 8px 0 16px;
+  -webkit-app-region: drag;
+  border-bottom: 1px solid var(--nx-border);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0));
+}
+
+.settings-title {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 13.5px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+}
+
+.settings-title-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #8abaff, #6ea8fe);
+  box-shadow: 0 0 10px rgba(110, 168, 254, 0.75);
+}
+
+.settings-titlebar-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  -webkit-app-region: no-drag;
+}
+
+.settings-win-btn {
+  width: 32px;
+  height: 28px;
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  line-height: 1;
+  color: var(--nx-text-dim);
+  transition: background 0.15s var(--nx-ease-out), color 0.15s var(--nx-ease-out);
+}
+
+.settings-win-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--nx-text);
+}
+
+.settings-win-btn.is-close:hover {
+  background: var(--nx-danger);
+  color: #fff;
+}
+
+/* ---------- 主体：左导航 + 右内容 ---------- */
+
+.settings-main {
+  flex: 1 1 auto;
+  display: flex;
+  min-height: 0;
+}
+
+.settings-nav {
+  flex: 0 0 var(--nx-nav-w);
+  width: var(--nx-nav-w);
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 10px;
+  border-right: 1px solid var(--nx-border);
+  overflow-y: auto;
+}
+
+.settings-nav-item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  height: 36px;
+  padding: 0 10px 0 12px;
+  border-radius: 10px;
+  font-size: 13px;
+  text-align: left;
+  color: var(--nx-text-dim);
+  transition: background 0.15s var(--nx-ease-out), color 0.15s var(--nx-ease-out);
+}
+
+.settings-nav-item:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--nx-text);
+}
+
+.settings-nav-item.is-active {
+  background: var(--nx-accent-soft);
+  color: #dce9ff;
+}
+
+.settings-nav-item.is-active::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 3px;
+  height: 16px;
+  border-radius: 0 3px 3px 0;
+  background: var(--nx-accent);
+}
+
+.settings-nav-item:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.settings-nav-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: currentColor;
+  opacity: 0.9;
+}
+
+.settings-content {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 16px 20px 20px;
+  scrollbar-gutter: stable;
+}
+
+.nx-sections {
+  display: flex;
+  flex-direction: column;
+}
+
+.settings-content .ui-section + .ui-section {
+  margin-top: 10px;
+  padding-top: 16px;
+  border-top: 1px solid var(--nx-border);
+}
+
+/* ---------- 底部栏 ---------- */
+
+.settings-footer {
+  flex: 0 0 var(--nx-footer-h);
+  height: var(--nx-footer-h);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 10px 0 16px;
+  border-top: 1px solid var(--nx-border);
+  background: rgba(0, 0, 0, 0.16);
+  font-size: 11px;
+  color: var(--nx-text-faint);
+}
+
+.settings-version {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.2px;
+}
+
+.settings-reset-link {
+  padding: 4px 9px;
+  border-radius: 7px;
+  font-size: 11.5px;
+  color: var(--nx-danger);
+  opacity: 0.9;
+  transition: background 0.15s var(--nx-ease-out), opacity 0.15s;
+}
+
+.settings-reset-link:hover:not(:disabled) {
+  background: rgba(255, 107, 107, 0.12);
+  opacity: 1;
+}
+
+.settings-reset-link:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+/* ---------- 加载骨架 ---------- */
+
+.nx-loading {
+  padding-top: 2px;
+}
+
+.nx-skeleton {
+  height: 12px;
+  margin-bottom: 12px;
+  border-radius: 7px;
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.05) 25%,
+    rgba(255, 255, 255, 0.11) 37%,
+    rgba(255, 255, 255, 0.05) 63%
+  );
+  background-size: 400% 100%;
+  animation: nx-shimmer 1.4s ease infinite;
+}
+
+@keyframes nx-shimmer {
+  0% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0 50%;
+  }
+}
+
+.settings-loading {
+  margin: 18px 0 0;
+  text-align: center;
+  font-size: 12px;
+  color: var(--nx-text-faint);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nx-skeleton {
+    animation: none;
+  }
+}
+
+/* ---------- 通用小件 ---------- */
+
+.nx-notice {
+  margin: 6px 0 2px;
+  padding: 8px 11px;
+  border-radius: 9px;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.nx-notice.is-ok {
+  background: rgba(110, 168, 254, 0.1);
+  border: 1px solid rgba(110, 168, 254, 0.3);
+  color: #cfe1ff;
+}
+
+.nx-notice.is-err {
+  background: rgba(255, 107, 107, 0.1);
+  border: 1px solid rgba(255, 107, 107, 0.32);
+  color: #ffd9d9;
+}
+
+.nx-inline-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 9px;
+  padding: 6px 0 10px;
+}
+
+.nx-hint-text {
+  font-size: 11.5px;
+  color: var(--nx-text-faint);
+}
+
+.nx-empty {
+  padding: 22px 12px;
+  text-align: center;
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--nx-text-faint);
+}
+
+.nx-text-danger {
+  color: var(--nx-danger);
+}
+
+.nx-text-danger:hover {
+  color: #ff8f8f;
+}
+
+.nx-mono {
+  font-family: 'Cascadia Mono', 'Consolas', 'Courier New', monospace;
+  font-size: 12px;
+  color: var(--nx-text-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- 二次确认（行内条 / 底部弹层） ---------- */
+
+.nx-confirm-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 8px 0 10px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 107, 107, 0.28);
+  background: rgba(255, 107, 107, 0.08);
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: #ffd9d9;
+}
+
+.nx-confirm-bar > span {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.nx-confirm-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 auto;
+}
+
+.nx-popover-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  background: rgba(6, 8, 14, 0.45);
+  backdrop-filter: blur(2px);
+}
+
+.nx-foot-confirm {
+  position: fixed;
+  right: 14px;
+  bottom: calc(var(--nx-footer-h) + 10px);
+  z-index: 41;
+  width: 276px;
+  padding: 14px;
+  border-radius: 12px;
+  background: var(--nx-bg-elev);
+  border: 1px solid var(--nx-border-strong);
+  box-shadow: var(--nx-shadow);
+}
+
+.nx-foot-confirm p {
+  margin: 0 0 12px;
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--nx-text-dim);
+}
+
+/* ---------- 应用列表 ---------- */
+
+.nx-apps-toolbar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 6px 0 10px;
+}
+
+.nx-apps-toolbar-spacer {
+  flex: 1 1 auto;
+}
+
+.nx-app-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.nx-app-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 8px;
+  border-radius: 10px;
+  border: 1px solid transparent;
+  background: rgba(255, 255, 255, 0.03);
+  transition: background 0.14s var(--nx-ease-out), border-color 0.14s var(--nx-ease-out);
+}
+
+.nx-app-row:hover {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: var(--nx-border);
+}
+
+.nx-app-icon {
+  flex: 0 0 36px;
+  width: 36px;
+  height: 36px;
+  border-radius: 9px;
+  object-fit: contain;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.nx-app-icon-fallback {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  font-weight: 600;
+  color: #cfe1ff;
+  background: linear-gradient(150deg, rgba(110, 168, 254, 0.35), rgba(110, 168, 254, 0.12));
+}
+
+.nx-app-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.nx-app-name {
+  font-size: 13px;
+  color: var(--nx-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.nx-app-path {
+  font-size: 11.5px;
+  color: var(--nx-text-faint);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.nx-app-actions {
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  flex: 0 0 auto;
+  opacity: 0.6;
+  transition: opacity 0.14s var(--nx-ease-out);
+}
+
+.nx-app-row:hover .nx-app-actions,
+.nx-app-row:focus-within .nx-app-actions {
+  opacity: 1;
+}
+
+.nx-app-action {
+  width: 26px;
+  height: 26px;
+  border-radius: 7px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  line-height: 1;
+  color: var(--nx-text-dim);
+  transition: background 0.14s var(--nx-ease-out), color 0.14s;
+}
+
+.nx-app-action:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--nx-text);
+}
+
+.nx-app-action:disabled {
+  opacity: 0.25;
+  cursor: default;
+}
+
+.nx-app-action.is-danger:hover:not(:disabled) {
+  background: rgba(255, 107, 107, 0.18);
+  color: var(--nx-danger);
+}
+
+/* ---------- 开始菜单候选面板（覆盖内容区） ---------- */
+
+.nx-apps-overlay {
+  position: fixed;
+  inset: var(--nx-titlebar-h) 0 var(--nx-footer-h) var(--nx-nav-w);
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 18px;
+  background: rgba(8, 10, 16, 0.46);
+  backdrop-filter: blur(2px);
+}
+
+.nx-apps-panel {
+  width: 100%;
+  max-width: 420px;
+  height: 100%;
+  max-height: 576px;
+  display: flex;
+  flex-direction: column;
+  border-radius: 14px;
+  background: var(--nx-bg-elev);
+  border: 1px solid var(--nx-border-strong);
+  box-shadow: var(--nx-shadow);
+  overflow: hidden;
+}
+
+.nx-apps-panel-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 12px 10px 14px;
+  border-bottom: 1px solid var(--nx-border);
+}
+
+.nx-apps-panel-head h3 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.nx-apps-panel-head p {
+  margin: 3px 0 0;
+  font-size: 11.5px;
+  color: var(--nx-text-faint);
+}
+
+.nx-panel-head-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+}
+
+.nx-icon-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  line-height: 1;
+  color: var(--nx-text-dim);
+}
+
+.nx-icon-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--nx-text);
+}
+
+.nx-search {
+  margin: 10px 14px;
+  padding: 8px 11px;
+  border-radius: 9px;
+  border: 1px solid var(--nx-border);
+  background: rgba(0, 0, 0, 0.32);
+  color: var(--nx-text);
+  font-family: inherit;
+  font-size: 12.5px;
+  outline: none;
+  transition: border-color 0.15s var(--nx-ease-out), box-shadow 0.15s var(--nx-ease-out);
+}
+
+.nx-search::placeholder {
+  color: var(--nx-text-faint);
+}
+
+.nx-search:focus {
+  border-color: rgba(110, 168, 254, 0.65);
+  box-shadow: 0 0 0 3px rgba(110, 168, 254, 0.14);
+}
+
+.nx-search::-webkit-search-cancel-button {
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.nx-apps-candidates {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 0 8px 10px;
+}
+
+.nx-cand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 6px 8px;
+  border-radius: 9px;
+  text-align: left;
+  color: inherit;
+  transition: background 0.14s var(--nx-ease-out);
+}
+
+.nx-cand:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.07);
+}
+
+.nx-cand:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.nx-cand-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.nx-cand-name {
+  font-size: 12.5px;
+  color: var(--nx-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.nx-cand-path {
+  font-size: 11px;
+  color: var(--nx-text-faint);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.nx-cand-action {
+  flex: 0 0 auto;
+  font-size: 11.5px;
+  color: var(--nx-accent);
+}
+
+.nx-cand:disabled .nx-cand-action {
+  color: var(--nx-text-faint);
+}
+
+/* ---------- 关于 ---------- */
+
+.nx-about-value {
+  font-size: 12.5px;
+  color: var(--nx-text-dim);
+}
+
+.nx-about-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding-top: 6px;
+}
+
+.nx-about-note {
+  margin: 10px 0 0;
+  font-size: 11.5px;
+  line-height: 1.55;
+  color: var(--nx-text-faint);
+}
+
+/* ---------- 键盘可达性 ---------- */
+
+.settings-shell button:focus-visible,
+.settings-shell input:focus-visible {
+  outline: 2px solid rgba(110, 168, 254, 0.65);
+  outline-offset: 2px;
+}
+
+/* ============================================================
+   v0.2：UWP 徽标 / 名称行 / 应用说明文案
+   ============================================================ */
+
+.nx-app-name-line,
+.nx-cand-name-line {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.nx-app-name,
+.nx-cand-name {
+  flex: 0 1 auto;
+  min-width: 0;
+}
+
+.nx-app-badge {
+  flex: 0 0 auto;
+  padding: 0 4px;
+  border-radius: 5px;
+  border: 1px solid rgba(110, 168, 254, 0.35);
+  background: rgba(110, 168, 254, 0.14);
+  color: #cfe1ff;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1.5;
+  letter-spacing: 0.4px;
+}
+
+.nx-apps-tip {
+  margin: 0 0 10px;
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--nx-text-faint);
+}
+
+/* ============================================================
+   v1.0 精细化动效（docs/motion-spec.md §3.3）
+   - 时长/曲线全部取自 shared/motion.css 令牌，随 data-motion 档位缩放
+   - 追加在末尾，仅覆盖/增强上文同名规则，不改变既有布局与尺寸
+   ============================================================ */
+
+/* 面板级时长：页面转场基准 220ms、预览弹跳基准 600ms（× 强度缩放） */
+.settings-shell {
+  --nx-page-dur: calc(220ms * var(--nx-motion-scale));
+  --nx-preview-bounce-dur: calc(600ms * var(--nx-motion-scale));
+}
+
+/* ---------- 页面切换：opacity 0→1 + translateY 6px→0 ---------- */
+/* 用 backwards 填充而非 both：动画结束后不残留 transform，
+   否则 .settings-page 会成为 position:fixed 的开始菜单弹层（.nx-apps-overlay）的包含块 */
+
+.settings-page {
+  animation: nx-page-in var(--nx-page-dur) var(--nx-ease-out) backwards;
+}
+
+/* ---------- 导航项：hover / active / 按压 + 左侧指示条 spring 展开 ---------- */
+
+.settings-nav-item {
+  transition:
+    background-color var(--nx-dur-fast) var(--nx-ease-out),
+    color var(--nx-dur-fast) var(--nx-ease-out),
+    transform var(--nx-dur-base) var(--nx-spring);
+}
+
+/* nx-ripple-host 已提供 position / overflow / isolation，这里补指示条与按压 */
+
+.settings-nav-item::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  width: 3px;
+  height: 16px;
+  border-radius: 0 3px 3px 0;
+  background: var(--nx-accent);
+  opacity: 0;
+  transform: translateY(-50%) scaleY(0);
+  transition:
+    transform var(--nx-dur-base) var(--nx-spring),
+    opacity var(--nx-dur-fast) var(--nx-ease-out);
+}
+
+.settings-nav-item.is-active::before {
+  opacity: 1;
+  transform: translateY(-50%) scaleY(1);
+}
+
+.settings-nav-item:hover:not(:disabled) {
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.05);
+}
+
+.settings-nav-item.is-active {
+  box-shadow: inset 0 0 0 1px rgba(110, 168, 254, 0.2);
+}
+
+.settings-nav-item:active:not(:disabled) {
+  transform: scale(0.98);
+  transition: transform var(--nx-dur-fast) var(--nx-ease-press);
+}
+
+.settings-nav-item:focus-visible {
+  outline: 2px solid var(--nx-focus-color);
+  outline-offset: 2px;
+}
+
+.settings-nav-icon {
+  transition:
+    transform var(--nx-dur-base) var(--nx-spring-soft),
+    opacity var(--nx-dur-fast) var(--nx-ease-out);
+}
+
+.settings-nav-item:hover:not(:disabled) .settings-nav-icon {
+  transform: scale(1.08);
+  opacity: 1;
+}
+
+.settings-nav-item.is-active .settings-nav-icon {
+  color: var(--nx-accent-strong);
+  opacity: 1;
+}
+
+/* ---------- 标题栏按钮：按下 scale .94；关闭按钮保留红色 hover ---------- */
+
+.settings-win-btn {
+  transition:
+    background-color var(--nx-dur-fast) var(--nx-ease-out),
+    color var(--nx-dur-fast) var(--nx-ease-out),
+    transform var(--nx-dur-fast) var(--nx-ease-press);
+}
+
+.settings-win-btn:active:not(:disabled) {
+  transform: scale(0.94);
+}
+
+/* ---------- 底部恢复默认链接：按压 .96 + 涟漪 ---------- */
+
+.settings-reset-link {
+  transition:
+    background-color var(--nx-dur-fast) var(--nx-ease-out),
+    opacity var(--nx-dur-fast) var(--nx-ease-out),
+    transform var(--nx-dur-fast) var(--nx-ease-press);
+}
+
+.settings-reset-link:active:not(:disabled) {
+  transform: scale(0.96);
+}
+
+/* ---------- 应用列表行：hover 边框/背景 + 行内操作按钮浮现/按压 ---------- */
+
+.nx-app-row {
+  transition:
+    background-color var(--nx-dur-fast) var(--nx-ease-out),
+    border-color var(--nx-dur-fast) var(--nx-ease-out),
+    box-shadow var(--nx-dur-fast) var(--nx-ease-out);
+}
+
+.nx-app-row:hover {
+  background: rgba(255, 255, 255, 0.07);
+  border-color: var(--nx-border-strong);
+  box-shadow: inset 0 0 0 1px rgba(110, 168, 254, 0.06);
+}
+
+.nx-app-actions {
+  transition: opacity var(--nx-dur-fast) var(--nx-ease-out);
+}
+
+.nx-app-row:hover .nx-app-actions,
+.nx-app-row:focus-within .nx-app-actions {
+  opacity: 1;
+}
+
+.nx-app-action {
+  transition:
+    background-color var(--nx-dur-fast) var(--nx-ease-out),
+    color var(--nx-dur-fast) var(--nx-ease-out),
+    transform var(--nx-dur-fast) var(--nx-ease-press);
+}
+
+.nx-app-action:active:not(:disabled) {
+  transform: scale(0.9);
+}
+
+/* ---------- 开始菜单候选行 / 搜索框 focus 光晕 / 图标按钮 ---------- */
+
+.nx-cand {
+  transition:
+    background-color var(--nx-dur-fast) var(--nx-ease-out),
+    transform var(--nx-dur-fast) var(--nx-ease-press);
+}
+
+.nx-cand:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.nx-cand:active:not(:disabled) {
+  transform: scale(0.985);
+}
+
+.nx-search {
+  transition:
+    border-color var(--nx-dur-fast) var(--nx-ease-out),
+    background-color var(--nx-dur-fast) var(--nx-ease-out),
+    box-shadow var(--nx-dur-base) var(--nx-ease-out);
+}
+
+.nx-search:focus {
+  border-color: rgba(110, 168, 254, 0.7);
+  background: rgba(0, 0, 0, 0.4);
+  box-shadow:
+    0 0 0 3px rgba(110, 168, 254, 0.16),
+    0 0 22px rgba(110, 168, 254, 0.16);
+}
+
+.nx-icon-btn {
+  transition:
+    background-color var(--nx-dur-fast) var(--nx-ease-out),
+    color var(--nx-dur-fast) var(--nx-ease-out),
+    transform var(--nx-dur-fast) var(--nx-ease-press);
+}
+
+.nx-icon-btn:active:not(:disabled) {
+  transform: scale(0.92);
+}
+
+/* ---------- 弹层入场：遮罩淡入 + 面板 pop-in，行内确认条淡入 ---------- */
+
+.nx-apps-overlay,
+.nx-popover-backdrop {
+  animation: nx-fade-in var(--nx-dur-base) var(--nx-ease-out) both;
+}
+
+.nx-apps-panel,
+.nx-foot-confirm {
+  animation: nx-pop-in var(--nx-dur-base) var(--nx-ease-out) both;
+}
+
+.nx-confirm-bar {
+  animation: nx-fade-in var(--nx-dur-base) var(--nx-ease-out) both;
+}
+
+/* ---------- 外观页：动效强度说明 + 效果预览区 ---------- */
+
+.nx-motion-hint {
+  margin: 6px 0 0;
+  padding: 8px 11px;
+  border-radius: 9px;
+  border: 1px solid var(--nx-border);
+  background: rgba(255, 255, 255, 0.035);
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--nx-text-dim);
+}
+
+.nx-motion-hint strong {
+  color: #cfe1ff;
+  font-weight: 600;
+}
+
+.nx-motion-hint-desc {
+  display: block;
+  margin-top: 2px;
+  font-size: 11.5px;
+  color: var(--nx-text-faint);
+}
+
+.nx-motion-preview {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 14px 18px;
+  padding: 14px;
+  border-radius: 12px;
+  border: 1px solid var(--nx-border);
+  background:
+    radial-gradient(120% 120% at 12% 0%, rgba(110, 168, 254, 0.12), rgba(110, 168, 254, 0) 60%),
+    rgba(0, 0, 0, 0.22);
+}
+
+.nx-motion-preview-stage {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex: 0 0 auto;
+}
+
+/* Dock 风格图标 tile：hover 上浮柔光，按下乘 --dock-press-scale，点击弹跳一次 */
+.nx-motion-tile {
+  position: relative;
+  width: 54px;
+  height: 54px;
+  border-radius: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(150deg, #9ac5ff, #6ea8fe 58%, #4d7fce);
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  box-shadow:
+    0 8px 20px rgba(110, 168, 254, 0.28),
+    inset 0 1px 0 rgba(255, 255, 255, 0.42);
+  color: #0b1020;
+  /* 启动弹跳方向：预览区朝上（Dock 里由停靠边注入） */
+  --nx-hop-x: 0px;
+  --nx-hop-y: calc(-1 * var(--nx-hop));
+  transition:
+    transform var(--nx-dur-base) var(--nx-spring),
+    box-shadow var(--nx-dur-fast) var(--nx-ease-out),
+    filter var(--nx-dur-fast) var(--nx-ease-out);
+}
+
+.nx-motion-tile:hover {
+  transform: translateY(-2px) scale(1.05);
+  box-shadow: var(--nx-glow-accent), inset 0 1px 0 rgba(255, 255, 255, 0.5);
+  filter: brightness(1.06);
+}
+
+.nx-motion-tile:active {
+  transform: scale(var(--dock-press-scale));
+  filter: brightness(1.12);
+  transition: transform var(--nx-dur-fast) var(--nx-ease-press);
+}
+
+.nx-motion-tile.is-bouncing {
+  animation: nx-launch-bounce var(--nx-preview-bounce-dur) var(--nx-spring) both;
+}
+
+.nx-motion-tile-glyph {
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+/* 预览区说明：当前档位 + 差异 + 试听提示 */
+.nx-motion-preview-meta {
+  flex: 1 1 180px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.nx-motion-preview-tier {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #cfe1ff;
+}
+
+.nx-motion-preview-desc {
+  font-size: 12px;
+  color: var(--nx-text);
+}
+
+.nx-motion-preview-facts {
+  font-size: 11.5px;
+  color: var(--nx-text-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+.nx-motion-preview-note {
+  margin-top: 2px;
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--nx-text-faint);
+}
+
+/* ============================================================
+   v1.0 补：恢复默认弹层退场动画（React 挂 .is-leaving，160ms 后卸载）
+   ============================================================ */
+
+.nx-popover-backdrop.is-leaving {
+  animation: nx-fade-out var(--dock-toast-out-dur, 160ms) var(--nx-ease-out) forwards;
+}
+
+.nx-foot-confirm.is-leaving {
+  animation: nx-pop-out var(--dock-toast-out-dur, 160ms) var(--nx-ease-out) forwards;
+}
+
+/* ============================================================
+   v1.1：「时钟」页 / 「系统」页 / 音乐吸附开关
+   - 导航扩为 7 项：7×36px 行高 + 6×3px 间距 + 上下 10px 内边距 = 290px，
+     小于 580×760 窗口扣除标题栏(48)与底栏(36)后的 676px 可用高度，
+     因此保持 v1.0 导航尺寸不变，不压缩、不溢出
+   - 新样式只复用 nx-* 前缀与 shared/motion.css 令牌，不硬编码毫秒
+   ============================================================ */
+
+/* 开发模式提示：琥珀色，与错误红、成功蓝区分 */
+.nx-notice.is-warn {
+  background: rgba(255, 191, 92, 0.1);
+  border: 1px solid rgba(255, 191, 92, 0.32);
+  color: #ffe3b5;
+}
+
+/* 系统页：锁定状态摘要（总开关为「三者全锁」推导值，摘要解释部分锁定状态） */
+.nx-lock-state {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 2px 0 6px;
+  padding: 8px 11px;
+  border-radius: 9px;
+  border: 1px solid var(--nx-border);
+  background: rgba(255, 255, 255, 0.035);
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--nx-text-dim);
+  transition:
+    border-color var(--nx-dur-base) var(--nx-ease-out),
+    background-color var(--nx-dur-base) var(--nx-ease-out),
+    color var(--nx-dur-base) var(--nx-ease-out);
+}
+
+.nx-lock-state.is-locked {
+  border-color: rgba(255, 191, 92, 0.3);
+  background: rgba(255, 191, 92, 0.08);
+  color: #ffe3b5;
+}
+
+.nx-lock-state-label {
+  flex: 0 0 auto;
+  font-size: var(--nx-font-xs);
+  letter-spacing: 0.2px;
+  opacity: 0.85;
+}
+
+.nx-lock-state-value {
+  flex: 0 1 auto;
+  min-width: 0;
+  text-align: right;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 独立锁定开关：内缩 + 左侧细线，表达与总开关的层级关系 */
+.nx-lock-children {
+  margin: 2px 0 4px;
+  padding-left: 12px;
+  border-left: 2px solid rgba(255, 255, 255, 0.08);
+}
+
+.nx-lock-children .ui-row {
+  padding: 7px 0;
+}
+
+/* 系统页状态提示：沿用 v1.0 淡入令牌，减少动效时由 motion.css 全局收敛 */
+.settings-shell .nx-notice {
+  animation: nx-fade-in var(--nx-dur-base) var(--nx-ease-out) both;
+}
+
+/* -------------------- v1.3 窗口共性设置折叠栏 -------------------- */
+/* 系统页按窗口折叠管理共性项；默认全部收起，标题行右侧显示状态摘要 */
+.nx-acc {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.nx-acc-item {
+  border: 1px solid var(--nx-border);
+  border-radius: var(--nx-radius-sm);
+  background: rgba(255, 255, 255, 0.02);
+  overflow: hidden;
+  transition: border-color var(--nx-dur-fast) var(--nx-ease-out);
+}
+
+.nx-acc-item.is-open {
+  border-color: rgba(110, 168, 254, 0.34);
+  background: var(--nx-accent-soft);
+}
+
+.nx-acc-head {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 0;
+  background: transparent;
+  color: var(--nx-text);
+  font-size: var(--nx-font-md);
+  text-align: left;
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+  transition: background-color var(--nx-dur-fast) var(--nx-ease-out);
+}
+
+.nx-acc-head:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.nx-acc-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  font-weight: 600;
+  flex: 0 0 auto;
+}
+
+.nx-acc-chevron {
+  display: inline-block;
+  width: 14px;
+  color: var(--nx-text-dim);
+  transition: transform var(--nx-dur-base) var(--nx-spring);
+}
+
+.nx-acc-item.is-open .nx-acc-chevron {
+  transform: rotate(90deg);
+  color: var(--nx-accent-strong);
+}
+
+.nx-acc-summary {
+  flex: 1 1 auto;
+  min-width: 0;
+  text-align: right;
+  font-size: var(--nx-font-xs);
+  color: var(--nx-text-dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.nx-acc-item.is-open .nx-acc-summary {
+  color: var(--nx-text-faint);
+}
+
+.nx-acc-body {
+  padding: 4px 12px 12px;
+  border-top: 1px solid var(--nx-border);
+  animation: nx-fade-in var(--nx-dur-base) var(--nx-ease-out) both;
+}
+
+.nx-acc-body .ui-row {
+  padding: 7px 0;
+}
+

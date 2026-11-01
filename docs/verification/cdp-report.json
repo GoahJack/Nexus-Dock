@@ -1,0 +1,124 @@
+{
+  "dock": {
+    "edge": "bottom",
+    "theme": "dark",
+    "itemCount": 6,
+    "images": [
+      {
+        "src": "icon://473a3c8fa7e7.png",
+        "natural": 48,
+        "complete": true
+      },
+      {
+        "src": "icon://13617a808edd.png",
+        "natural": 48,
+        "complete": true
+      },
+      {
+        "src": "icon://af52e0e26ce9.png",
+        "natural": 48,
+        "complete": true
+      },
+      {
+        "src": "icon://593fb582ce8d.png",
+        "natural": 48,
+        "complete": true
+      },
+      {
+        "src": "icon://fd42d4dbe853.png",
+        "natural": 48,
+        "complete": true
+      },
+      {
+        "src": "icon://f94f3dc720b6.png",
+        "natural": 48,
+        "complete": true
+      }
+    ],
+    "barRect": {
+      "x": 16,
+      "y": 16,
+      "width": 385.3333435058594,
+      "height": 77.33333587646484,
+      "top": 16,
+      "right": 401.3333435058594,
+      "bottom": 93.33333587646484,
+      "left": 16
+    },
+    "gripWidth": 14,
+    "bodySize": {
+      "w": 417,
+      "h": 93
+    },
+    "bg": "gradient"
+  },
+  "hover": {
+    "hoveredTransform": "matrix(1, 0, 0, 1, 0, 0)",
+    "transforms": [
+      "matrix(1, 0, 0, 1, 0, 0)",
+      "matrix(1, 0, 0, 1, 0, 0)",
+      "matrix(1, 0, 0, 1, 0, 0)",
+      "matrix(1, 0, 0, 1, 0, 0)",
+      "matrix(1, 0, 0, 1, 0, 0)",
+      "matrix(1, 0, 0, 1, 0, 0)"
+    ]
+  },
+  "dockLeft": {
+    "edge": "left",
+    "bodySize": {
+      "w": 93,
+      "h": 417
+    },
+    "barRect": {
+      "x": 0,
+      "y": 16,
+      "width": 77.33333587646484,
+      "height": 385.3333435058594,
+      "top": 16,
+      "right": 77.33333587646484,
+      "bottom": 401.3333435058594,
+      "left": 0
+    },
+    "firstItem": {
+      "x": 14.666666984558105,
+      "y": 48.66666793823242,
+      "width": 48,
+      "height": 48,
+      "top": 48.66666793823242,
+      "right": 62.666666984558105,
+      "bottom": 96.66666793823242,
+      "left": 14.666666984558105
+    }
+  },
+  "dockTop": "top",
+  "music": {
+    "hasCard": true,
+    "text": "系统 未在播放 打开任意播放器即可同步 0:00/0:00",
+    "width": 330,
+    "bodySize": {
+      "w": 330,
+      "h": 150
+    }
+  },
+  "settings": {
+    "title": "Nexus 设置",
+    "navItems": [
+      "Dock",
+      "音乐",
+      "应用",
+      "关于"
+    ],
+    "text": "Nexus 设置 — ✕ Dock 音乐 应用 关于 停靠位置 切换停靠边或微调沿边位置，Dock 会立即重新排列。 停靠边 ↓底部 ↑顶部 ←左侧 →右侧 沿边位置 0% 靠左/上端，100% 靠右/下端 50% 图标 图标尺寸与悬停手感，直接决定 Dock 的视觉体量。 图标尺寸 48 px 悬停放大 鼠标经过时的最大放大倍率 1.30× 图标间距 10 px 内边距 14 px 外观与行为 底条透明度、置顶层级与运行状态提示。 不透明度 82% 显示运行指示点 进程运行时图标下方显示高亮点 始终置顶 Dock",
+    "bodySize": {
+      "w": 580,
+      "h": 762
+    }
+  },
+  "files": {
+    "dockShot": "E:\\AI WorkRegion\\app_creator\\docs\\verification\\dock-default.png",
+    "dockLeftShot": "E:\\AI WorkRegion\\app_creator\\docs\\verification\\dock-left.png",
+    "dockTopShot": "E:\\AI WorkRegion\\app_creator\\docs\\verification\\dock-top.png",
+    "musicShot": "E:\\AI WorkRegion\\app_creator\\docs\\verification\\music-empty.png",
+    "settingsShot": "E:\\AI WorkRegion\\app_creator\\docs\\verification\\settings-dock.png"
+  }
+}

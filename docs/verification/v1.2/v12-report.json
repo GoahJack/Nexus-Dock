@@ -1,0 +1,874 @@
+{
+  "generatedAt": "2026-10-30T12:07:58.535Z",
+  "port": 9224,
+  "appVersion": "1.2.0",
+  "isPackaged": true,
+  "checks": [
+    {
+      "id": "A1-dock-target",
+      "ac": "AC-15.5",
+      "pass": true,
+      "detail": {
+        "url": "file:///C:/Users/huih/AppData/Local/NexusDock/resources/app/out/renderer/dock/index.html",
+        "title": "Nexus Dock"
+      }
+    },
+    {
+      "id": "A2-env",
+      "ac": "AC-12.4 / AC-15.5",
+      "pass": true,
+      "detail": {
+        "platform": "win32",
+        "isPackaged": true,
+        "isDev": false,
+        "appVersion": "1.2.0",
+        "versions": {
+          "electron": "44.10.0",
+          "chrome": "152.0.7977.169",
+          "node": "24.22.1"
+        }
+      }
+    },
+    {
+      "id": "A3-schema-v6",
+      "ac": "AC-16.6 / AC-17.5",
+      "pass": true,
+      "detail": {
+        "schemaVersion": 6,
+        "hasClockGroup": true,
+        "hasLockGroup": true,
+        "hasSystemGroup": true,
+        "musicSnapToEdge": false,
+        "clockSnapToEdge": true,
+        "clockVisible": false,
+        "lock": {
+          "dock": false,
+          "music": false,
+          "clock": false
+        }
+      }
+    },
+    {
+      "id": "A3b-clock-snap-field",
+      "ac": "AC-16.6",
+      "pass": true,
+      "detail": {
+        "clockSnapToEdge": true,
+        "note": "v5→v6 迁移后时钟必须有 snapToEdge 布尔字段（旧字段由 H4 校验保留）"
+      }
+    },
+    {
+      "id": "A4-music-target",
+      "ac": "§8 四窗口 / US-11",
+      "pass": true,
+      "detail": {
+        "found": true,
+        "url": "file:///C:/Users/huih/AppData/Local/NexusDock/resources/app/out/renderer/music/index.html",
+        "existedAtStart": true,
+        "openedByVerify": false,
+        "initialMusicVisible": false,
+        "reason": "music target 启动时已存在但配置为隐藏（前次验收创建的隐藏窗口，hide 不销毁）；验收期间通过 API 设为可见"
+      }
+    },
+    {
+      "id": "A5-settings-target",
+      "ac": "AC-15.1",
+      "pass": true,
+      "detail": {
+        "found": true,
+        "url": "file:///C:/Users/huih/AppData/Local/NexusDock/resources/app/out/renderer/settings/index.html",
+        "openedBy": "window.nexus.window.openSettings()"
+      }
+    },
+    {
+      "id": "A6-clock-target",
+      "ac": "AC-13.1",
+      "pass": true,
+      "detail": {
+        "found": true,
+        "url": "file:///C:/Users/huih/AppData/Local/NexusDock/resources/app/out/renderer/clock/index.html",
+        "existedAtStart": true,
+        "openedBy": "settings.update({ clock: { visible: true } })"
+      }
+    },
+    {
+      "id": "A7-four-targets",
+      "ac": "AC-15.5",
+      "pass": true,
+      "detail": {
+        "dock": true,
+        "music": true,
+        "settings": true,
+        "clock": true,
+        "targetUrls": [
+          "file:///C:/Users/huih/AppData/Local/NexusDock/resources/app/out/renderer/clock/index.html",
+          "file:///C:/Users/huih/AppData/Local/NexusDock/resources/app/out/renderer/settings/index.html",
+          "file:///C:/Users/huih/AppData/Local/NexusDock/resources/app/out/renderer/music/index.html",
+          "file:///C:/Users/huih/AppData/Local/NexusDock/resources/app/out/renderer/dock/index.html"
+        ]
+      }
+    },
+    {
+      "id": "B1-clock-default",
+      "ac": "US-13 / AC-13.2",
+      "pass": true,
+      "detail": {
+        "time": "20:07",
+        "timeMatches24hNoSeconds": true,
+        "date": "10月30日 周五",
+        "theme": "dark",
+        "locked": null,
+        "opacity": 1,
+        "entering": false
+      }
+    },
+    {
+      "id": "B2-clock-seconds",
+      "ac": "AC-13.2",
+      "pass": true,
+      "detail": {
+        "time": "20:07:41",
+        "expected": "HH:mm:ss"
+      }
+    },
+    {
+      "id": "B3-clock-hour12",
+      "ac": "AC-13.2",
+      "pass": true,
+      "detail": {
+        "time": "08:07:42",
+        "period": "下午"
+      }
+    },
+    {
+      "id": "B4-clock-fontsize",
+      "ac": "AC-13.3",
+      "pass": true,
+      "detail": {
+        "fontSize": 64,
+        "expected": 64
+      }
+    },
+    {
+      "id": "B5-clock-opacity",
+      "ac": "AC-13.3",
+      "pass": true,
+      "detail": {
+        "opacity": 0.5,
+        "expected": 0.5,
+        "entering": false
+      }
+    },
+    {
+      "id": "B6-clock-theme-light",
+      "ac": "AC-13.3",
+      "pass": true,
+      "detail": {
+        "theme": "light"
+      }
+    },
+    {
+      "id": "C1-nav-7-items",
+      "ac": "AC-15.1",
+      "pass": true,
+      "detail": {
+        "actual": [
+          "Dock",
+          "音乐",
+          "时钟",
+          "应用",
+          "外观",
+          "系统",
+          "关于"
+        ],
+        "expected": [
+          "Dock",
+          "音乐",
+          "时钟",
+          "应用",
+          "外观",
+          "系统",
+          "关于"
+        ],
+        "count": 7
+      }
+    },
+    {
+      "id": "C2-settings-clock-page",
+      "ac": "AC-13.1 / AC-13.3",
+      "pass": true,
+      "detail": {
+        "found": [
+          "显示桌面时钟",
+          "显示秒",
+          "显示日期",
+          "字号",
+          "透明度",
+          "自动吸附屏幕边缘"
+        ],
+        "missing": [],
+        "textPreview": "显示 桌面悬浮数字时钟默认隐藏，打开后立即显示在桌面右上角。 显示桌面时钟 也可以点击 Dock 末端的时钟按钮快速开关，两处共享同一开关 显示秒 每秒刷新一次；关闭后只在分钟变化时刷新，更省电 显示日期 在时间下方显示今天的日期 时间制式 24 小时制 12 小时制 外观 字号即时钟尺寸；主题、透明度与置顶立即作用于时钟窗口。 字号 时钟窗口会随字号自动调整大小 40 px 透明度 100% 主题 深色 浅色 始终置顶 时钟悬浮在普通"
+      }
+    },
+    {
+      "id": "C3-settings-system-page",
+      "ac": "AC-12.1 / AC-14.1 / AC-14.2",
+      "pass": true,
+      "detail": {
+        "found": [
+          "开机自启",
+          "锁定全部窗口位置",
+          "Dock",
+          "音乐卡片",
+          "桌面时钟"
+        ],
+        "missing": [],
+        "autoStartSwitch": {
+          "found": true,
+          "checked": "true",
+          "disabled": false,
+          "tabIndex": "0",
+          "rowText": "开机自启 登录 Windows 后自动启动 Nexus Dock（仅安装版生效）"
+        },
+        "notices": [],
+        "textPreview": "启动 控制 Nexus Dock 是否随 Windows 登录自动启动。 开机自启 登录 Windows 后自动启动 Nexus Dock（仅安装版生效） 窗口位置锁定 锁定后拖动区失效、窗口不可移动；总开关按三个窗口是否全部锁定推导。 锁定全部窗口位置 勾选 = 三个窗口全部锁定；取消 = 全部解锁，下方独立开关可再单独覆盖 当前锁定 无窗口锁定 Dock 音乐卡片 桌面时钟 锁定期间拖动不写入位置；右键 Dock 勾选「锁定全部窗口位置」可快捷解锁；设置窗口本身不受位置锁定影响。"
+      }
+    },
+    {
+      "id": "C4-settings-music-page",
+      "ac": "AC-11.1",
+      "pass": true,
+      "detail": {
+        "containsSnapSwitch": true,
+        "textPreview": "音乐卡片 桌面悬浮的音乐信息窗，可跟随 Dock 或自由摆放。 显示音乐卡片 关闭后卡片隐藏，Dock 不受影响 卡片位置 跟随 Dock 自由拖动 自动吸附屏幕边缘 关闭后拖到哪停在哪；开启后松手吸附最近屏幕边 卡片宽度 330 px 进度样式 条形 环形 音乐来源 系统播放器从 Windows 媒体会话读取，本地播放器播放所选音频。 来源 系统播放器 本地播放器 选择本地音频 支持 mp3 / wav / flac / m4a / "
+      }
+    },
+    {
+      "id": "E1-music-snap-default",
+      "ac": "AC-11.1 / AC-17.4",
+      "pass": true,
+      "detail": {
+        "switch": {
+          "found": true,
+          "checked": "false",
+          "disabled": false,
+          "tabIndex": "0",
+          "rowText": "自动吸附屏幕边缘 关闭后拖到哪停在哪；开启后松手吸附最近屏幕边"
+        },
+        "snapshotValue": false,
+        "note": "断言设置页开关与当前配置一致；「默认开启」由契约默认值与 v4→v5 迁移保证（用户可在验收前调整偏好）"
+      }
+    },
+    {
+      "id": "E2-music-snap-off",
+      "ac": "AC-11.1 / AC-11.4",
+      "pass": true,
+      "detail": {
+        "settingsValue": false,
+        "switchChecked": "false",
+        "switch": {
+          "found": true,
+          "checked": "false",
+          "disabled": false,
+          "tabIndex": "0",
+          "rowText": "自动吸附屏幕边缘 关闭后拖到哪停在哪；开启后松手吸附最近屏幕边"
+        }
+      }
+    },
+    {
+      "id": "E3-music-snap-on",
+      "ac": "AC-11.4 / AC-11.6",
+      "pass": true,
+      "detail": {
+        "settingsValue": true,
+        "switchChecked": "true",
+        "switch": {
+          "found": true,
+          "checked": "true",
+          "disabled": false,
+          "tabIndex": "0",
+          "rowText": "自动吸附屏幕边缘 关闭后拖到哪停在哪；开启后松手吸附最近屏幕边"
+        }
+      }
+    },
+    {
+      "id": "H1-clock-snap-default",
+      "ac": "AC-16.1 / AC-17.4",
+      "pass": true,
+      "detail": {
+        "switch": {
+          "found": true,
+          "checked": "true",
+          "disabled": false,
+          "tabIndex": "0",
+          "rowText": "自动吸附屏幕边缘 关闭后拖到哪停在哪；开启后松手吸附最近的屏幕边"
+        },
+        "currentValue": true,
+        "note": "断言设置页开关与当前配置一致；默认开启由契约默认值与 v5→v6 迁移保证"
+      }
+    },
+    {
+      "id": "H2-clock-snap-off",
+      "ac": "AC-16.1 / AC-16.4",
+      "pass": true,
+      "detail": {
+        "settingsValue": false,
+        "switchChecked": "false",
+        "switch": {
+          "found": true,
+          "checked": "false",
+          "disabled": false,
+          "tabIndex": "0",
+          "rowText": "自动吸附屏幕边缘 关闭后拖到哪停在哪；开启后松手吸附最近的屏幕边"
+        }
+      }
+    },
+    {
+      "id": "H3-clock-snap-on",
+      "ac": "AC-16.2 / AC-16.4",
+      "pass": true,
+      "detail": {
+        "settingsValue": true,
+        "switchChecked": "true",
+        "switch": {
+          "found": true,
+          "checked": "true",
+          "disabled": false,
+          "tabIndex": "0",
+          "rowText": "自动吸附屏幕边缘 关闭后拖到哪停在哪；开启后松手吸附最近的屏幕边"
+        }
+      }
+    },
+    {
+      "id": "H4-clock-migration-preserved",
+      "ac": "AC-16.6",
+      "pass": true,
+      "detail": {
+        "preservedKeys": [
+          "visible",
+          "showSeconds",
+          "showDate",
+          "hour12",
+          "fontSize",
+          "opacity",
+          "alwaysOnTop",
+          "theme"
+        ],
+        "beforeToggleClock": {
+          "visible": true,
+          "showSeconds": false,
+          "showDate": true,
+          "hour12": false,
+          "fontSize": 40,
+          "opacity": 1,
+          "alwaysOnTop": true,
+          "snapToEdge": true,
+          "theme": "dark",
+          "freeX": 779,
+          "freeY": 12
+        },
+        "currentClock": {
+          "visible": true,
+          "showSeconds": false,
+          "showDate": true,
+          "hour12": false,
+          "fontSize": 40,
+          "opacity": 1,
+          "alwaysOnTop": true,
+          "snapToEdge": true,
+          "theme": "dark",
+          "freeX": 779,
+          "freeY": 12
+        }
+      }
+    },
+    {
+      "id": "D1-lock-on",
+      "ac": "AC-14.1 / AC-14.3 / AC-14.8",
+      "pass": true,
+      "detail": {
+        "settingsLock": {
+          "dock": true,
+          "music": true,
+          "clock": true
+        },
+        "dock": {
+          "dataLocked": "true",
+          "gripLocked": "true",
+          "gripTitle": "位置已锁定（设置 → 系统 解锁）",
+          "gripHasLockIcon": true,
+          "appRegion": "none"
+        },
+        "music": {
+          "dataLocked": "true",
+          "title": "位置已锁定（设置 → 系统 解锁）",
+          "appRegion": "no-drag"
+        },
+        "clock": {
+          "locked": "true",
+          "title": "位置已锁定：设置 → 系统 解锁",
+          "appRegion": "no-drag"
+        },
+        "mainProcessNote": "主进程 applyLockState→win.setMovable(false) 无法从渲染层读取；证据 = windowManager.ts:680-684 代码审查 + 三窗口 data-locked"
+      }
+    },
+    {
+      "id": "D2-lock-off",
+      "ac": "AC-14.3 / AC-14.4",
+      "pass": true,
+      "detail": {
+        "settingsLock": {
+          "dock": false,
+          "music": false,
+          "clock": false
+        },
+        "dock": {
+          "dataLocked": null,
+          "gripLocked": null,
+          "gripTitle": "拖动以移动 Dock",
+          "gripHasLockIcon": false,
+          "appRegion": "none"
+        },
+        "music": {
+          "dataLocked": null,
+          "title": null,
+          "appRegion": "drag"
+        },
+        "clockLocked": null
+      }
+    },
+    {
+      "id": "F1-autostart-switch-enabled",
+      "ac": "AC-12.1 / AC-12.2",
+      "pass": true,
+      "detail": {
+        "switch": {
+          "found": true,
+          "checked": "true",
+          "disabled": false,
+          "tabIndex": "0",
+          "rowText": "开机自启 登录 Windows 后自动启动 Nexus Dock（仅安装版生效）"
+        },
+        "isPackaged": true
+      }
+    },
+    {
+      "id": "F2-autostart-enable",
+      "ac": "AC-12.2 / AC-12.3",
+      "pass": true,
+      "detail": {
+        "result": {
+          "ok": true,
+          "autoStart": true
+        },
+        "settingsValue": true,
+        "pageSwitchChecked": "true",
+        "pageNotices": [],
+        "baselineSettingsValue": true
+      }
+    },
+    {
+      "id": "F3-autostart-disable",
+      "ac": "AC-12.2 / AC-12.3",
+      "pass": true,
+      "detail": {
+        "result": {
+          "ok": true,
+          "autoStart": false
+        },
+        "settingsValue": false,
+        "pageSwitchChecked": "false",
+        "cleanupError": null
+      }
+    },
+    {
+      "id": "F4-autostart-registry-write",
+      "ac": "AC-12.2",
+      "pass": true,
+      "detail": {
+        "writtenEntries": {
+          "added": [
+            "com.nexus.dock"
+          ],
+          "removed": [],
+          "addedValues": [
+            "\"C:\\Users\\huih\\AppData\\Local\\NexusDock\\NexusDockApp.exe\""
+          ]
+        },
+        "note": "HKCU Run 实际新增登录项（reg query 只读证据）"
+      }
+    },
+    {
+      "id": "F5-autostart-cleanup",
+      "ac": "AC-12.2",
+      "pass": true,
+      "detail": {
+        "cleanupError": null,
+        "registryClean": true,
+        "addedAfterCleanup": {
+          "added": [],
+          "removed": [],
+          "addedValues": []
+        },
+        "settingsValue": false,
+        "note": "finally 中已执行 setAutoStart(false)；HKCU Run 与归一化基线一致，并已按需恢复用户原自启状态"
+      }
+    },
+    {
+      "id": "G1-settings-restored",
+      "ac": "AC-15.2",
+      "pass": true,
+      "detail": {
+        "groupsMatch": {
+          "dock": true,
+          "music": true,
+          "clock": true,
+          "lock": true,
+          "system": true,
+          "appearance": true
+        },
+        "finalSettings": {
+          "clockVisible": false,
+          "lock": {
+            "dock": false,
+            "music": false,
+            "clock": false
+          },
+          "musicSnapToEdge": false,
+          "musicVisible": false,
+          "systemAutoStart": true
+        },
+        "note": "一次 settings.update 还原 dock/music/clock/lock/system/appearance 六组快照"
+      }
+    },
+    {
+      "id": "G2-settings-window-closed",
+      "ac": "AC-15.2",
+      "pass": true,
+      "detail": {
+        "closed": true,
+        "error": null
+      }
+    },
+    {
+      "id": "G3-settings-persisted",
+      "ac": "AC-15.2 / AC-15.3",
+      "pass": true,
+      "detail": {
+        "ok": true,
+        "path": "C:\\Users\\huih\\AppData\\Roaming\\nexus-dock\\settings.json",
+        "schemaVersion": 6,
+        "clockSnapToEdge": true,
+        "groupsMatch": {
+          "dock": true,
+          "music": true,
+          "clock": true,
+          "lock": true,
+          "system": true,
+          "appearance": true
+        },
+        "clockVisible": false,
+        "lock": {
+          "dock": false,
+          "music": false,
+          "clock": false
+        }
+      }
+    },
+    {
+      "id": "A8-no-runtime-exceptions",
+      "ac": "AC-15.5",
+      "pass": true,
+      "detail": {
+        "count": 0,
+        "exceptions": []
+      }
+    }
+  ],
+  "screenshots": [
+    "docs/verification/v1.2/clock-default.png",
+    "docs/verification/v1.2/clock-seconds.png",
+    "docs/verification/v1.2/clock-light.png",
+    "docs/verification/v1.2/settings-clock.png",
+    "docs/verification/v1.2/settings-system.png",
+    "docs/verification/v1.2/settings-music.png",
+    "docs/verification/v1.2/settings-clock-snap.png",
+    "docs/verification/v1.2/dock-locked.png",
+    "docs/verification/v1.2/clock-locked.png",
+    "docs/verification/v1.2/music-locked.png"
+  ],
+  "manual": [
+    "真实拖动吸附（音乐卡片/US-11）：脚本无法可靠模拟系统级拖动，需人工拖动验证「松手吸附最近边 + 12px 间距」与关闭开关后「拖到哪停在哪」。",
+    "位置锁定后可拖动性（US-14）：主进程 setMovable(false) 无法从渲染层读取，脚本以 data-locked + 代码审查为证据；需人工拖动确认锁定后鼠标不可拖。",
+    "开机自启真实登录（US-12）：脚本已真实写入并移除 HKCU Run；「重启 Windows 后自动启动」需人工重启验证。",
+    "时钟观感（US-13）：字号/透明度/主题/12 小时制的视觉观感需人工确认；脚本只验证文本格式与计算样式。",
+    "时钟吸附拖动（US-16）：脚本验证开关默认值/切换落盘/翻转逻辑，真实拖动「吸附最近边」与「拖到哪停在哪」需人工确认。"
+  ],
+  "exceptions": [],
+  "notes": [
+    "初始 target 数：3（clock/index.html, music/index.html, dock/index.html）",
+    "本次为重复运行：/music/、/clock/ target 在验收开始前已存在（上一次验收创建，窗口 hide 后 target 不销毁）；脚本通过 API 重新显示后检查。冷启动时是否创建取决于初始 settings 的 visible 值。",
+    "起始 settings.music.visible=false：音乐卡片默认隐藏；验收期间通过 settings.update({music:{visible:true}}) 打开（冷启动无 target 则等待主进程创建，重复运行则把残留隐藏窗口重新显示），结束时已还原快照。",
+    "开机自启基线为「已开启」：脚本先归零再测试，结束后恢复基线。",
+    "开机自启：仅安装版（isPackaged=true）真实执行 setAutoStart(true)→false，并在 finally 中保证清理。"
+  ],
+  "environment": {
+    "startedAt": "2026-10-30T12:07:39.480Z",
+    "initialTargets": [
+      {
+        "url": "file:///C:/Users/huih/AppData/Local/NexusDock/resources/app/out/renderer/clock/index.html",
+        "title": "Nexus 时钟"
+      },
+      {
+        "url": "file:///C:/Users/huih/AppData/Local/NexusDock/resources/app/out/renderer/music/index.html",
+        "title": "Nexus Music"
+      },
+      {
+        "url": "file:///C:/Users/huih/AppData/Local/NexusDock/resources/app/out/renderer/dock/index.html",
+        "title": "Nexus Dock"
+      }
+    ],
+    "env": {
+      "platform": "win32",
+      "isDev": false,
+      "isPackaged": true,
+      "appVersion": "1.2.0",
+      "versions": {
+        "electron": "44.10.0",
+        "chrome": "152.0.7977.169",
+        "node": "24.22.1"
+      }
+    },
+    "snapshot": {
+      "schemaVersion": 6,
+      "dock": {
+        "edge": "bottom",
+        "alongPercent": 28.2,
+        "snapToEdge": false,
+        "freeX": 569,
+        "freeY": 947,
+        "onlyOnDesktop": true,
+        "iconSize": 45,
+        "magnification": 1.15,
+        "gap": 9,
+        "padding": 14,
+        "showIndicators": true,
+        "alwaysOnTop": false,
+        "acrylic": false,
+        "opacity": 0,
+        "theme": "dark"
+      },
+      "music": {
+        "visible": false,
+        "source": "system",
+        "anchor": "free",
+        "snapToEdge": false,
+        "edge": "top",
+        "alongPercent": 95.3,
+        "freeX": 1381,
+        "freeY": 32,
+        "width": 330,
+        "progressStyle": "bar"
+      },
+      "clock": {
+        "visible": false,
+        "showSeconds": false,
+        "showDate": true,
+        "hour12": false,
+        "fontSize": 40,
+        "opacity": 1,
+        "alwaysOnTop": true,
+        "snapToEdge": true,
+        "theme": "dark",
+        "freeX": 779,
+        "freeY": 12
+      },
+      "lock": {
+        "dock": false,
+        "music": false,
+        "clock": false
+      },
+      "system": {
+        "autoStart": true
+      },
+      "appearance": {
+        "motionIntensity": "standard",
+        "reducedMotion": false,
+        "clickSound": false
+      },
+      "appCount": 10
+    }
+  },
+  "restore": {
+    "done": true,
+    "evidence": {
+      "finalSettings": {
+        "clockVisible": false,
+        "lock": {
+          "dock": false,
+          "music": false,
+          "clock": false
+        },
+        "musicSnapToEdge": false,
+        "musicVisible": false,
+        "systemAutoStart": true
+      },
+      "settingsRestored": true,
+      "restoreReason": "正常收尾"
+    }
+  },
+  "registry": {
+    "before": {
+      "ok": true,
+      "entries": [
+        {
+          "name": "OneDrive",
+          "value": "\"C:\\Users\\huih\\AppData\\Local\\Microsoft\\OneDrive\\OneDrive.exe\" /background"
+        },
+        {
+          "name": "Steam",
+          "value": "\"D:\\steam\\steam.exe\" -silent"
+        },
+        {
+          "name": "QuarkUpdaterTaskUser1.0.0.21",
+          "value": "\"C:\\Users\\huih\\AppData\\Local\\QuarkUpdater\\QuarkUpdater\\1.0.0.21\\updater.exe\" --wake --enable-logging --vmodule=*/components/winhttp/*=1,*/components/update_client/*=2,*/chrome/updater/*=2,*/chrome/updater/quark/*=2,*/quark/utils/*=2"
+        },
+        {
+          "name": "WallpaperEngine",
+          "value": "\"D:\\steam\\steamapps\\common\\wallpaper_engine\\wallpaper64.exe\" -silent"
+        },
+        {
+          "name": "GameViewer",
+          "value": "\"D:\\my_tool\\GameViewer\\GameViewer.exe\" --auto-run"
+        },
+        {
+          "name": "QianwenUpdaterTaskUser1.0.0.10",
+          "value": "\"C:\\Users\\huih\\AppData\\Local\\QianwenUpdater\\QianwenUpdater\\1.0.0.10\\updater.exe\" --wake --enable-logging --vmodule=*/components/winhttp/*=1,*/components/update_client/*=2,*/chrome/updater/*=2,*/chrome/updater/quark/*=2,*/quark/utils/*=2"
+        },
+        {
+          "name": "MCHOSE HUB Watcher",
+          "value": "\"D:\\my_tool\\MCHOSE HUB\\MCHOSE HUB Watcher.exe\" --watchdog"
+        },
+        {
+          "name": "Nexus",
+          "value": "D:\\my_tool\\Nexus\\Winstep\\Nexus.exe autostart"
+        },
+        {
+          "name": "MicrosoftEdgeAutoLaunch_8AF991201018DA1C66EDC75E61AC59E0",
+          "value": "\"C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe\" --no-startup-window --win-session-start"
+        }
+      ]
+    },
+    "afterEnable": {
+      "ok": true,
+      "entries": [
+        {
+          "name": "OneDrive",
+          "value": "\"C:\\Users\\huih\\AppData\\Local\\Microsoft\\OneDrive\\OneDrive.exe\" /background"
+        },
+        {
+          "name": "Steam",
+          "value": "\"D:\\steam\\steam.exe\" -silent"
+        },
+        {
+          "name": "QuarkUpdaterTaskUser1.0.0.21",
+          "value": "\"C:\\Users\\huih\\AppData\\Local\\QuarkUpdater\\QuarkUpdater\\1.0.0.21\\updater.exe\" --wake --enable-logging --vmodule=*/components/winhttp/*=1,*/components/update_client/*=2,*/chrome/updater/*=2,*/chrome/updater/quark/*=2,*/quark/utils/*=2"
+        },
+        {
+          "name": "WallpaperEngine",
+          "value": "\"D:\\steam\\steamapps\\common\\wallpaper_engine\\wallpaper64.exe\" -silent"
+        },
+        {
+          "name": "GameViewer",
+          "value": "\"D:\\my_tool\\GameViewer\\GameViewer.exe\" --auto-run"
+        },
+        {
+          "name": "QianwenUpdaterTaskUser1.0.0.10",
+          "value": "\"C:\\Users\\huih\\AppData\\Local\\QianwenUpdater\\QianwenUpdater\\1.0.0.10\\updater.exe\" --wake --enable-logging --vmodule=*/components/winhttp/*=1,*/components/update_client/*=2,*/chrome/updater/*=2,*/chrome/updater/quark/*=2,*/quark/utils/*=2"
+        },
+        {
+          "name": "MCHOSE HUB Watcher",
+          "value": "\"D:\\my_tool\\MCHOSE HUB\\MCHOSE HUB Watcher.exe\" --watchdog"
+        },
+        {
+          "name": "Nexus",
+          "value": "D:\\my_tool\\Nexus\\Winstep\\Nexus.exe autostart"
+        },
+        {
+          "name": "MicrosoftEdgeAutoLaunch_8AF991201018DA1C66EDC75E61AC59E0",
+          "value": "\"C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe\" --no-startup-window --win-session-start"
+        },
+        {
+          "name": "com.nexus.dock",
+          "value": "\"C:\\Users\\huih\\AppData\\Local\\NexusDock\\NexusDockApp.exe\""
+        }
+      ]
+    },
+    "afterCleanup": {
+      "ok": true,
+      "entries": [
+        {
+          "name": "OneDrive",
+          "value": "\"C:\\Users\\huih\\AppData\\Local\\Microsoft\\OneDrive\\OneDrive.exe\" /background"
+        },
+        {
+          "name": "Steam",
+          "value": "\"D:\\steam\\steam.exe\" -silent"
+        },
+        {
+          "name": "QuarkUpdaterTaskUser1.0.0.21",
+          "value": "\"C:\\Users\\huih\\AppData\\Local\\QuarkUpdater\\QuarkUpdater\\1.0.0.21\\updater.exe\" --wake --enable-logging --vmodule=*/components/winhttp/*=1,*/components/update_client/*=2,*/chrome/updater/*=2,*/chrome/updater/quark/*=2,*/quark/utils/*=2"
+        },
+        {
+          "name": "WallpaperEngine",
+          "value": "\"D:\\steam\\steamapps\\common\\wallpaper_engine\\wallpaper64.exe\" -silent"
+        },
+        {
+          "name": "GameViewer",
+          "value": "\"D:\\my_tool\\GameViewer\\GameViewer.exe\" --auto-run"
+        },
+        {
+          "name": "QianwenUpdaterTaskUser1.0.0.10",
+          "value": "\"C:\\Users\\huih\\AppData\\Local\\QianwenUpdater\\QianwenUpdater\\1.0.0.10\\updater.exe\" --wake --enable-logging --vmodule=*/components/winhttp/*=1,*/components/update_client/*=2,*/chrome/updater/*=2,*/chrome/updater/quark/*=2,*/quark/utils/*=2"
+        },
+        {
+          "name": "MCHOSE HUB Watcher",
+          "value": "\"D:\\my_tool\\MCHOSE HUB\\MCHOSE HUB Watcher.exe\" --watchdog"
+        },
+        {
+          "name": "Nexus",
+          "value": "D:\\my_tool\\Nexus\\Winstep\\Nexus.exe autostart"
+        },
+        {
+          "name": "MicrosoftEdgeAutoLaunch_8AF991201018DA1C66EDC75E61AC59E0",
+          "value": "\"C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe\" --no-startup-window --win-session-start"
+        }
+      ]
+    },
+    "diffBeforeCleanup": {
+      "added": [
+        "com.nexus.dock"
+      ],
+      "removed": [],
+      "addedValues": [
+        "\"C:\\Users\\huih\\AppData\\Local\\NexusDock\\NexusDockApp.exe\""
+      ]
+    },
+    "diffAfterCleanup": {
+      "added": [],
+      "removed": [],
+      "addedValues": []
+    },
+    "restoredToBaseline": {
+      "ok": true,
+      "autoStart": true
+    }
+  },
+  "fatalError": null,
+  "summary": {
+    "total": 36,
+    "passed": 36,
+    "failed": 0,
+    "failedIds": []
+  }
+}

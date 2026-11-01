@@ -1,0 +1,722 @@
+/* ==========================================================================
+   Nexus Dock 渲染层样式
+   - 依赖 theme.css 的变量与 .nx-glass，ui.css 的通用控件
+   - 本文件在 theme.css / ui.css 之后加载，可覆盖基础样式
+   - 动效令牌（时长/曲线/幅度）来自 shared/motion.css；本文件只做 Dock 专属接线
+   ========================================================================== */
+
+/* --------------------------- 动效注册属性 --------------------------- */
+/* 注册为 <number> 后自定义属性本身可过渡：悬停光效 / 按压阴影会随数值逐帧重算 */
+@property --dock-glow {
+  syntax: '<number>';
+  inherits: false;
+  initial-value: 0;
+}
+
+@property --dock-shadow {
+  syntax: '<number>';
+  inherits: false;
+  initial-value: 1;
+}
+
+/* 透明窗口的内容尺寸 = 内容本身：不允许滚动条，也不要有被动拉伸的 100% 高度 */
+html,
+body,
+#root {
+  width: max-content;
+  height: max-content;
+  min-width: 0;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  background: transparent;
+}
+
+/* ------------------------------- 根容器 ------------------------------- */
+.dock-root {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: max-content;
+  height: max-content;
+  color: var(--nx-text);
+  font-size: 12px;
+  -webkit-user-select: none;
+  user-select: none;
+
+  /* 由 Dock.tsx 按 iconSize / magnification 覆盖 */
+  --dock-room: 20px;
+  --dock-icon-size: 48px;
+  --dock-gap: 10px;
+  --dock-padding: 14px;
+
+  /* 组件级动效常量：motion-spec §3.1 的 Dock 专属数值（共享令牌里没有对应项） */
+  --dock-rise-dur: calc(320ms * var(--nx-motion-scale));
+  --dock-stagger: calc(24ms * var(--nx-motion-scale));
+  --dock-breath-dur: 2.6s;
+  --dock-toast-out-dur: 160ms;
+
+  /* 启动弹跳方向：默认无位移，由 data-edge 朝屏幕内侧注入（见下） */
+  --nx-hop-x: 0px;
+  --nx-hop-y: 0px;
+}
+
+/* 四边方向：上下横排、左右竖排 */
+.dock-root[data-edge='bottom'],
+.dock-root[data-edge='top'] {
+  flex-direction: column;
+}
+.dock-root[data-edge='left'],
+.dock-root[data-edge='right'] {
+  flex-direction: row;
+}
+
+/* 底条紧贴窗口靠屏幕的一侧（窗口已按 SCREEN_MARGIN 与屏幕边对齐），
+   其余三侧留出放大 / 上浮空间，窗口变大时玻璃条不会离开屏幕边。 */
+.dock-root[data-edge='bottom'] {
+  justify-content: flex-end;
+  padding: var(--dock-room) var(--dock-room) 0 var(--dock-room);
+}
+.dock-root[data-edge='top'] {
+  justify-content: flex-start;
+  padding: 0 var(--dock-room) var(--dock-room) var(--dock-room);
+}
+.dock-root[data-edge='left'] {
+  justify-content: flex-start;
+  padding: var(--dock-room) var(--dock-room) var(--dock-room) 0;
+}
+.dock-root[data-edge='right'] {
+  justify-content: flex-end;
+  padding: var(--dock-room) 0 var(--dock-room) var(--dock-room);
+}
+
+/* 启动弹跳方向：朝屏幕内侧（Dock 贴着屏幕边），距离统一用 --nx-hop */
+.dock-root[data-edge='bottom'] {
+  --nx-hop-y: calc(-1 * var(--nx-hop));
+}
+.dock-root[data-edge='top'] {
+  --nx-hop-y: var(--nx-hop);
+}
+.dock-root[data-edge='left'] {
+  --nx-hop-x: var(--nx-hop);
+}
+.dock-root[data-edge='right'] {
+  --nx-hop-x: calc(-1 * var(--nx-hop));
+}
+
+/* ------------------------------ 玻璃底条 ------------------------------ */
+/* 背景 / 描边 / 高光强度随 settings.dock.opacity 衰减：
+   alpha 通过 --nx-bg 与 --dock-opacity 注入，不用整块 opacity（否则图标一起变淡） */
+.dock-bar {
+  --dock-veil: var(--dock-opacity, 1);
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: var(--dock-padding);
+  border-radius: 18px;
+  background:
+    linear-gradient(
+      160deg,
+      rgba(255, 255, 255, calc(0.02 + 0.08 * var(--dock-veil))),
+      rgba(255, 255, 255, calc(0.005 + 0.025 * var(--dock-veil))) 38%,
+      rgba(0, 0, 0, calc(0.015 + 0.065 * var(--dock-veil)))
+    ),
+    var(--nx-bg);
+  border-color: rgba(255, 255, 255, calc(0.03 + 0.1 * var(--dock-veil)));
+  box-shadow:
+    0 10px 30px rgba(0, 0, 0, calc(0.1 + 0.28 * var(--dock-veil))),
+    0 2px 6px rgba(0, 0, 0, calc(0.06 + 0.2 * var(--dock-veil))),
+    inset 0 1px 0 rgba(255, 255, 255, calc(0.05 + 0.15 * var(--dock-veil))),
+    inset 0 -1px 0 rgba(0, 0, 0, calc(0.1 + 0.18 * var(--dock-veil)));
+
+  /* 入场：只作用在 bar 上（.dock-root 被 ResizeObserver 测量，不能加 transform）；
+     fill-mode 用 backwards，播完不残留 transform / opacity */
+  animation: nx-rise-in var(--dock-rise-dur) var(--nx-ease-out) backwards;
+}
+
+/* 细高光描边：覆盖在 .nx-glass 渐变之上，避免边框像塑料 */
+.dock-bar::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, calc(0.015 + 0.045 * var(--dock-veil))),
+    inset 0 1px 0 rgba(255, 255, 255, calc(0.04 + 0.14 * var(--dock-veil)));
+}
+
+.dock-root[data-edge='bottom'] .dock-bar,
+.dock-root[data-edge='top'] .dock-bar {
+  flex-direction: row;
+}
+.dock-root[data-edge='left'] .dock-bar,
+.dock-root[data-edge='right'] .dock-bar {
+  flex-direction: column;
+}
+
+/* ------------------------------ 拖动手柄 ------------------------------ */
+/* AC-1.7：⋮ 圆点区，悬停提示「拖动以移动 Dock」，按住可拖动整个窗口 */
+.dock-grip {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  align-self: stretch;
+  width: 14px;
+  border-radius: 7px;
+  color: rgba(255, 255, 255, 0.42);
+  cursor: grab;
+  -webkit-app-region: drag;
+  /* 锁定态视觉切换用 --nx-dur-fast（motion-spec §3.4），不硬编码毫秒 */
+  transition: color var(--nx-dur-fast) var(--nx-ease-out);
+}
+
+.dock-grip:active {
+  cursor: grabbing;
+}
+
+.dock-grip-dots {
+  display: block;
+  fill: currentColor;
+  pointer-events: none;
+}
+
+/* 竖排时圆点旋转 90°（⋮ → ⋯），手柄位于底条上端 */
+.dock-root[data-edge='left'] .dock-grip,
+.dock-root[data-edge='right'] .dock-grip {
+  width: auto;
+  height: 14px;
+}
+.dock-root[data-edge='left'] .dock-grip-dots,
+.dock-root[data-edge='right'] .dock-grip-dots {
+  transform: rotate(90deg);
+}
+
+/* --------------------- 音乐卡片 / 桌面时钟开关 --------------------- */
+/* 常驻按钮：图标条末端（横排最右 / 竖排最下），不参与拖拽排序。
+   v1.1 时钟按钮复用音乐按钮的尺寸 / 悬停 / 按压 / 高亮规范 */
+.dock-music-toggle,
+.dock-clock-toggle {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border-radius: 50%;
+  color: rgba(255, 255, 255, 0.46);
+  background: transparent;
+  cursor: pointer;
+  -webkit-app-region: no-drag;
+  transition:
+    color var(--nx-dur-fast) var(--nx-ease-out),
+    background-color var(--nx-dur-fast) var(--nx-ease-out),
+    box-shadow var(--nx-dur-fast) var(--nx-ease-out),
+    transform var(--nx-dur-base) var(--nx-spring);
+}
+
+/* 尺寸随 Dock 图标尺寸缩放（由 Dock.tsx 内联注入，缺省 34px 与 v1.0 一致） */
+.dock-music-toggle {
+  width: var(--dock-music-size, 34px);
+  height: var(--dock-music-size, 34px);
+}
+
+.dock-clock-toggle {
+  width: var(--dock-clock-size, 34px);
+  height: var(--dock-clock-size, 34px);
+}
+
+.dock-music-toggle svg,
+.dock-clock-toggle svg {
+  display: block;
+  width: 62%;
+  height: 62%;
+  pointer-events: none;
+}
+
+/* 音符图标是填充型；时钟图标用 stroke 跟随 currentColor，不在这里统一 fill */
+.dock-music-toggle svg {
+  fill: currentColor;
+}
+
+.dock-music-toggle:hover,
+.dock-clock-toggle:hover {
+  color: var(--nx-text);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+/* 按下：跟手收缩用快曲线，松手回到基础规则的 spring 回弹 */
+.dock-music-toggle:active,
+.dock-clock-toggle:active {
+  transform: scale(var(--nx-press-scale));
+  transition:
+    color var(--nx-dur-fast) var(--nx-ease-press),
+    background-color var(--nx-dur-fast) var(--nx-ease-press),
+    box-shadow var(--nx-dur-fast) var(--nx-ease-press),
+    transform var(--nx-dur-fast) var(--nx-ease-press);
+}
+
+.dock-music-toggle.is-on,
+.dock-clock-toggle.is-on {
+  color: var(--nx-accent);
+  background: var(--nx-accent-soft);
+  box-shadow:
+    inset 0 0 0 1px rgba(110, 168, 254, 0.32),
+    0 0 12px rgba(110, 168, 254, 0.25);
+}
+
+.dock-music-toggle:focus-visible,
+.dock-clock-toggle:focus-visible {
+  outline: 2px solid var(--nx-accent);
+  outline-offset: 1px;
+}
+
+/* 与最后一个图标留出呼吸间距：横排加左间距，竖排加上间距；
+   时钟按钮紧跟音乐按钮，间距收窄让两个开关视觉成组 */
+.dock-root[data-edge='bottom'] .dock-music-toggle,
+.dock-root[data-edge='top'] .dock-music-toggle {
+  margin-left: 6px;
+}
+.dock-root[data-edge='left'] .dock-music-toggle,
+.dock-root[data-edge='right'] .dock-music-toggle {
+  margin-top: 6px;
+}
+
+.dock-root[data-edge='bottom'] .dock-clock-toggle,
+.dock-root[data-edge='top'] .dock-clock-toggle {
+  margin-left: 2px;
+}
+.dock-root[data-edge='left'] .dock-clock-toggle,
+.dock-root[data-edge='right'] .dock-clock-toggle {
+  margin-top: 2px;
+}
+
+/* ------------------------------ 图标列表 ------------------------------ */
+.dock-items {
+  display: flex;
+  align-items: center;
+  gap: var(--dock-gap);
+  flex: 0 0 auto;
+  -webkit-app-region: no-drag;
+}
+
+.dock-root[data-edge='bottom'] .dock-items,
+.dock-root[data-edge='top'] .dock-items {
+  flex-direction: row;
+}
+.dock-root[data-edge='left'] .dock-items,
+.dock-root[data-edge='right'] .dock-items {
+  flex-direction: column;
+}
+
+.dock-item {
+  position: relative;
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: var(--dock-icon-size);
+  height: var(--dock-icon-size);
+  border-radius: 26%;
+  outline: none;
+  cursor: pointer;
+  touch-action: none;
+  /* 图标区必须 no-drag，否则点击 / 拖拽排序都无法响应 */
+  -webkit-app-region: no-drag;
+  /* 新图标入场：每项按内联 --dock-index 错峰（24ms/项）。
+     fill-mode 必须是 backwards —— both 会在结束后一直占用 transform，
+     覆盖 FLIP 排序写在 .dock-item 上的内联 transform */
+  animation: nx-item-in var(--nx-dur-slow) var(--nx-ease-out) backwards;
+  animation-delay: calc(var(--dock-index, 0) * var(--dock-stagger));
+}
+
+/* 涟漪宿主（motion.css）会把直接子元素设为 relative；指示点必须保持绝对定位 */
+.dock-item > .dock-indicator {
+  position: absolute;
+}
+
+.dock-item:focus-visible {
+  box-shadow: 0 0 0 2px var(--nx-accent);
+}
+
+/* 放大只作用在 inner 上，不改变布局尺寸（AC-2.2 无布局抖动） */
+.dock-item-inner {
+  width: 100%;
+  height: 100%;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+  will-change: transform;
+  /* 基础曲线用于 hover 放大与松手回弹（spring 带轻微过冲） */
+  transition:
+    transform var(--nx-dur-base) var(--nx-spring),
+    opacity var(--nx-dur-base) var(--nx-ease-out),
+    filter var(--nx-dur-fast) var(--nx-ease-out);
+}
+
+/* 放大基准点：朝屏幕内侧生长 */
+.dock-root[data-edge='bottom'] .dock-item-inner {
+  transform-origin: center bottom;
+}
+.dock-root[data-edge='top'] .dock-item-inner {
+  transform-origin: center top;
+}
+.dock-root[data-edge='left'] .dock-item-inner {
+  transform-origin: left center;
+}
+.dock-root[data-edge='right'] .dock-item-inner {
+  transform-origin: right center;
+}
+
+/* 拖拽中被拖项：提亮 + 半透明（位置跟随槽位实时重排） */
+.dock-item[data-dragging='true'] {
+  z-index: 5;
+  cursor: grabbing;
+}
+.dock-item[data-dragging='true'] .dock-item-inner {
+  opacity: 0.75;
+  filter: brightness(1.22) saturate(1.1);
+}
+
+/* 按下反馈（未进入拖拽时）：按下用快曲线收缩，松手回到基础 spring 曲线回弹 */
+.dock-item[data-pressed='true'] .dock-item-inner {
+  filter: brightness(1.12);
+  transition:
+    transform var(--nx-dur-fast) var(--nx-ease-press),
+    opacity var(--nx-dur-fast) var(--nx-ease-press),
+    filter var(--nx-dur-fast) var(--nx-ease-press);
+}
+
+/* 图标本体 */
+.dock-item-icon {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  /* 悬停光效强度 0~1（按邻项衰减由 DockItemView 内联注入）与按压阴影收缩系数 */
+  --dock-glow: 0;
+  --dock-shadow: 1;
+  /* 两层投影：基础黑阴影 + 强调色柔光。
+     两个数值通过 @property 注册为可过渡属性，filter 会随它们逐帧重算 */
+  filter: drop-shadow(
+      0 calc(4px * var(--dock-shadow)) calc(9px * var(--dock-shadow))
+        rgba(0, 0, 0, calc(0.34 * var(--dock-shadow)))
+    )
+    drop-shadow(
+      0 calc(8px * var(--dock-glow)) calc(22px * var(--dock-glow))
+        rgba(110, 168, 254, calc(0.28 * var(--dock-glow)))
+    );
+  transition-property: --dock-glow, --dock-shadow;
+  transition-duration: var(--nx-dur-base), var(--nx-dur-fast);
+  transition-timing-function: var(--nx-ease-out), var(--nx-ease-press);
+}
+
+/* AC-9.2 阴影同步收缩：按下时基础投影更短更淡 */
+.dock-item[data-pressed='true'] .dock-item-icon {
+  --dock-shadow: 0.55;
+}
+
+/* AC-9.4 启动弹跳：点击后立即朝屏幕内侧 hop 一次（方向由 data-edge 注入的 --nx-hop-x/y 决定） */
+.dock-item-icon.is-launching {
+  animation: nx-launch-bounce var(--nx-dur-spring) var(--nx-ease-out);
+}
+
+.dock-icon-img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  pointer-events: none;
+  -webkit-user-drag: none;
+  user-select: none;
+}
+
+/* 字母占位图标：渐变圆角方块 + 首字 */
+.dock-icon-letter {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  color: #fff;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: 0.5px;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.35),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.2),
+    0 4px 10px rgba(0, 0, 0, 0.26);
+  pointer-events: none;
+}
+
+/* --------------------------- 运行状态指示点 --------------------------- */
+/* AC-2.6：4px 圆点，横排在下、竖排在右，运行中高亮 --nx-accent */
+.dock-indicator {
+  position: absolute;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.3);
+  pointer-events: none;
+  transition:
+    background-color var(--nx-dur-fast) var(--nx-ease-out),
+    box-shadow var(--nx-dur-fast) var(--nx-ease-out),
+    transform var(--nx-dur-fast) var(--nx-ease-out),
+    filter var(--nx-dur-fast) var(--nx-ease-out);
+}
+
+/* AC-9.6：运行中 2.6s 呼吸（关键帧只动 opacity / box-shadow，不覆盖定位用的 translate） */
+.dock-indicator.is-running {
+  background: var(--nx-accent);
+  box-shadow:
+    0 0 6px var(--nx-accent),
+    0 0 12px rgba(110, 168, 254, 0.5);
+  animation: nx-breath var(--dock-breath-dur) ease-in-out infinite;
+}
+
+/* AC-9.6 悬停图标时指示点增亮（filter 不被呼吸关键帧覆盖） */
+.dock-item:hover .dock-indicator.is-running {
+  filter: brightness(1.4);
+}
+
+.dock-root[data-edge='bottom'] .dock-indicator,
+.dock-root[data-edge='top'] .dock-indicator {
+  left: 50%;
+  bottom: -7px;
+  transform: translateX(-50%);
+}
+
+.dock-root[data-edge='left'] .dock-indicator,
+.dock-root[data-edge='right'] .dock-indicator {
+  top: 50%;
+  right: -7px;
+  transform: translateY(-50%);
+}
+
+/* ---------------------------- 启动失败提示 ---------------------------- */
+/* 放在图标条内侧（下→上、上→下、左→右、右→左），2s 后消失 */
+.dock-toast {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  max-width: 420px;
+  padding: 7px 12px 7px 9px;
+  border-radius: 12px;
+  font-size: 12.5px;
+  line-height: 1.3;
+  color: #ffdede;
+  background: rgba(46, 22, 26, 0.94);
+  border: 1px solid rgba(255, 107, 107, 0.5);
+  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.45);
+  pointer-events: none;
+  -webkit-app-region: no-drag;
+  animation: dock-toast-in var(--nx-dur-base) var(--nx-ease-out) backwards;
+  order: 1;
+}
+
+/* AC-9.8 Toast 退出：Dock.tsx 挂 .is-leaving 后播 160ms 淡出，再卸载 DOM */
+.dock-toast.is-leaving {
+  animation: nx-toast-out var(--dock-toast-out-dur) var(--nx-ease-out) forwards;
+}
+
+.dock-toast-icon {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 15px;
+  height: 15px;
+  margin-top: 1px;
+  border-radius: 50%;
+  background: rgba(255, 107, 107, 0.9);
+  color: #2a0c0f;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+/* 启动失败文案完整可见：自动换行，最多 3 行（窗口会随内容增高，不会被裁掉） */
+.dock-toast-text {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  overflow: hidden;
+}
+
+/* 底条在下方 / 右侧时，提示放到底条上方 / 左侧 */
+.dock-root[data-edge='bottom'] .dock-toast,
+.dock-root[data-edge='right'] .dock-toast {
+  order: -1;
+}
+
+@keyframes dock-toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(5px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* ------------------------------- 浅色主题 ------------------------------- */
+.dock-root[data-theme='light'] {
+  color-scheme: light;
+  --nx-text: #1a1d26;
+  --nx-text-dim: rgba(26, 29, 38, 0.62);
+  --nx-text-faint: rgba(26, 29, 38, 0.42);
+  --nx-border: rgba(20, 24, 38, 0.12);
+  --nx-border-strong: rgba(20, 24, 38, 0.22);
+  --nx-accent: #2f6fe4;
+  --nx-accent-soft: rgba(47, 111, 228, 0.14);
+}
+
+.dock-root[data-theme='light'] .dock-bar {
+  background:
+    linear-gradient(
+      160deg,
+      rgba(255, 255, 255, calc(0.2 + 0.52 * var(--dock-veil))),
+      rgba(255, 255, 255, calc(0.1 + 0.3 * var(--dock-veil))) 42%,
+      rgba(255, 255, 255, calc(0.04 + 0.12 * var(--dock-veil)))
+    ),
+    var(--nx-bg);
+  border-color: rgba(20, 24, 38, calc(0.03 + 0.09 * var(--dock-veil)));
+  box-shadow:
+    0 12px 32px rgba(26, 34, 58, calc(0.05 + 0.19 * var(--dock-veil))),
+    0 2px 6px rgba(26, 34, 58, calc(0.02 + 0.1 * var(--dock-veil))),
+    inset 0 1px 0 rgba(255, 255, 255, calc(0.5 + 0.45 * var(--dock-veil))),
+    inset 0 -1px 0 rgba(20, 24, 38, calc(0.02 + 0.04 * var(--dock-veil)));
+}
+
+.dock-root[data-theme='light'] .dock-bar::before {
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, calc(0.2 + 0.35 * var(--dock-veil))),
+    inset 0 1px 0 rgba(255, 255, 255, calc(0.7 + 0.3 * var(--dock-veil)));
+}
+
+.dock-root[data-theme='light'] .dock-music-toggle,
+.dock-root[data-theme='light'] .dock-clock-toggle {
+  color: rgba(26, 29, 38, 0.48);
+}
+
+.dock-root[data-theme='light'] .dock-music-toggle:hover,
+.dock-root[data-theme='light'] .dock-clock-toggle:hover {
+  color: var(--nx-text);
+  background: rgba(20, 24, 38, 0.07);
+}
+
+.dock-root[data-theme='light'] .dock-music-toggle.is-on,
+.dock-root[data-theme='light'] .dock-clock-toggle.is-on {
+  color: var(--nx-accent);
+  background: var(--nx-accent-soft);
+  box-shadow:
+    inset 0 0 0 1px rgba(47, 111, 228, 0.3),
+    0 0 12px rgba(47, 111, 228, 0.18);
+}
+
+.dock-root[data-theme='light'] .dock-grip {
+  color: rgba(26, 29, 38, 0.4);
+}
+
+.dock-root[data-theme='light'] .dock-indicator {
+  background: rgba(26, 29, 38, 0.26);
+}
+
+.dock-root[data-theme='light'] .dock-indicator.is-running {
+  background: var(--nx-accent);
+  box-shadow:
+    0 0 6px rgba(47, 111, 228, 0.7),
+    0 0 12px rgba(47, 111, 228, 0.35);
+}
+
+/* 浅色主题：基础阴影改用冷灰，强调光调淡（避免在白底上过曝） */
+.dock-root[data-theme='light'] .dock-item-icon {
+  filter: drop-shadow(
+      0 calc(3px * var(--dock-shadow)) calc(8px * var(--dock-shadow))
+        rgba(26, 34, 58, calc(0.24 * var(--dock-shadow)))
+    )
+    drop-shadow(
+      0 calc(6px * var(--dock-glow)) calc(18px * var(--dock-glow))
+        rgba(47, 111, 228, calc(0.2 * var(--dock-glow)))
+    );
+}
+
+.dock-root[data-theme='light'] .dock-toast {
+  color: #7d1d25;
+  background: rgba(255, 246, 246, 0.97);
+  border-color: rgba(200, 60, 70, 0.4);
+  box-shadow: 0 10px 26px rgba(26, 34, 58, 0.2);
+}
+
+.dock-root[data-theme='light'] .dock-toast-icon {
+  background: #d93a46;
+  color: #fff;
+}
+
+/* ------------------------- 位置锁定（v1.1，US-14） ------------------------- */
+/* AC-14.4：锁定后拖动手柄失效 —— 渲染层 -webkit-app-region: no-drag + 主进程
+   win.setMovable(false) 双层防护；手柄换成锁形图标 + 默认光标并降低不透明度。
+   图标条与按钮本身已是 no-drag，锁定不影响图标点击与右键菜单。 */
+.dock-root[data-locked='true'] .dock-grip {
+  -webkit-app-region: no-drag;
+  cursor: default;
+  color: rgba(255, 255, 255, 0.3);
+}
+
+/* 覆盖 .dock-grip:active 的 grabbing，hover / 按下都保持禁用光标 */
+.dock-root[data-locked='true'] .dock-grip:hover,
+.dock-root[data-locked='true'] .dock-grip:active {
+  cursor: default;
+}
+
+.dock-root[data-theme='light'][data-locked='true'] .dock-grip {
+  color: rgba(26, 29, 38, 0.3);
+}
+
+.dock-grip-lock {
+  display: block;
+  pointer-events: none;
+}
+
+/* --------------------------- 完全透明模式 --------------------------- */
+/* opacity ≈ 0：不画底条背景 / 边框 / 内外阴影 / backdrop-filter，
+   只保留图标、图标阴影、拖拽手柄与音乐按钮（图标态不受影响，不能整块 opacity） */
+.dock-bar[data-transparent='true'],
+.dock-root[data-theme='light'] .dock-bar[data-transparent='true'] {
+  background: none;
+  border-color: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+.dock-bar[data-transparent='true']::before,
+.dock-root[data-theme='light'] .dock-bar[data-transparent='true']::before {
+  display: none;
+}
+
+/* ------------------------------ 动效降级 ------------------------------ */
+@media (prefers-reduced-motion: reduce) {
+  .dock-item-inner,
+  .dock-indicator,
+  .dock-toast,
+  .dock-music-toggle,
+  .dock-clock-toggle {
+    transition-duration: 0.01ms;
+    animation-duration: 0.01ms;
+  }
+
+  /* 错峰延迟也归零：否则减少动效时图标会先隐形一段时间再瞬间出现 */
+  .dock-item {
+    animation-delay: 0ms;
+  }
+}
+
+/* 用户「减少动效」开关：与系统偏好同样的行为（motion.css 已全局收敛时长） */
+:root[data-reduced-motion='true'] .dock-item {
+  animation-delay: 0ms;
+}

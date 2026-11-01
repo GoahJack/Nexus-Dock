@@ -1,0 +1,98 @@
+{
+  "cardPlaying": {
+    "buttonTitle": "暂停",
+    "pos": {
+      "x": 68.66666793823242,
+      "y": 116.66667175292969
+    },
+    "text": "系统 MSEdge Nexus 主题曲 · 玻璃海岸 Nexus Audio Lab 0:09/0:36",
+    "windowPos": {
+      "x": 644,
+      "y": 799,
+      "w": 332,
+      "h": 150
+    }
+  },
+  "mediaControl": {
+    "edgeAfterPause": true,
+    "cardAfterPause": "播放",
+    "edgeAfterPlay": false,
+    "cardAfterPlay": "暂停"
+  },
+  "launchAndIndicator": {
+    "apps": 6,
+    "running": {
+      "explorer": false,
+      "notepad": false,
+      "calc": false,
+      "paint": false,
+      "cmd": false,
+      "taskmgr": false
+    },
+    "indicators": [
+      {
+        "name": null,
+        "cls": "dock-indicator"
+      },
+      {
+        "name": null,
+        "cls": "dock-indicator"
+      },
+      {
+        "name": null,
+        "cls": "dock-indicator"
+      },
+      {
+        "name": null,
+        "cls": "dock-indicator"
+      },
+      {
+        "name": null,
+        "cls": "dock-indicator"
+      },
+      {
+        "name": null,
+        "cls": "dock-indicator"
+      }
+    ]
+  },
+  "musicFollow": {
+    "dockEdgeBefore": "bottom",
+    "musicLeft": {
+      "x": 444,
+      "y": 389
+    },
+    "musicBottom": {
+      "x": 806,
+      "y": 475
+    }
+  },
+  "settingsSnapshot": {
+    "dock": {
+      "edge": "bottom",
+      "alongPercent": 50,
+      "iconSize": 48,
+      "magnification": 1.3,
+      "gap": 10,
+      "padding": 14,
+      "showIndicators": true,
+      "alwaysOnTop": true,
+      "acrylic": false,
+      "opacity": 0.82,
+      "theme": "dark"
+    },
+    "music": {
+      "visible": true,
+      "source": "system",
+      "anchor": "dock",
+      "edge": "bottom",
+      "alongPercent": 50,
+      "freeX": 60,
+      "freeY": 60,
+      "width": 330,
+      "progressStyle": "bar"
+    },
+    "appCount": 6
+  },
+  "ok": true
+}

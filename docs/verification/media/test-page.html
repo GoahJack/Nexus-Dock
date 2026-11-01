@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <title>Nexus SMTC 验收页</title>
+    <style>
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        background: radial-gradient(circle at 30% 20%, #1b2a4a, #0a0d14 70%);
+        color: #e8eefc;
+        font-family: "Segoe UI", "Microsoft YaHei UI", sans-serif;
+        display: grid;
+        place-items: center;
+      }
+      .card {
+        text-align: center;
+        padding: 40px 56px;
+        border-radius: 20px;
+        background: rgba(255, 255, 255, 0.05);
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        backdrop-filter: blur(14px);
+        max-width: 520px;
+      }
+      h1 {
+        margin: 0 0 6px;
+        font-size: 20px;
+      }
+      p {
+        margin: 0;
+        color: rgba(232, 238, 252, 0.6);
+        font-size: 13px;
+        line-height: 1.6;
+      }
+      .hint {
+        margin-top: 18px;
+        font-size: 12px;
+        color: rgba(232, 238, 252, 0.45);
+      }
+      audio {
+        margin-top: 22px;
+        width: 360px;
+      }
+      button {
+        margin-top: 18px;
+        padding: 10px 22px;
+        border-radius: 10px;
+        border: 1px solid rgba(110, 168, 254, 0.5);
+        background: rgba(110, 168, 254, 0.18);
+        color: #cfe1ff;
+        font-size: 14px;
+        cursor: pointer;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <h1>Nexus Dock · SMTC 验收页</h1>
+      <p id="meta">正在准备播放…</p>
+      <audio id="player" src="./sample.wav" autoplay loop controls></audio>
+      <button id="start">▶ 开始播放</button>
+      <div class="hint">通过 MediaSession API 向 Windows 暴露曲目与封面，用于验证音乐卡片</div>
+    </div>
+    <script>
+      const player = document.getElementById('player')
+      const label = document.getElementById('meta')
+      const start = document.getElementById('start')
+
+      // 关键：元数据先设置，播放失败也要设置，否则 SMTC 不会出现会话
+      if ('mediaSession' in navigator) {
+        navigator.mediaSession.metadata = new MediaMetadata({
+          title: 'Nexus 主题曲 · 玻璃海岸',
+          artist: 'Nexus Audio Lab',
+          album: 'Dock Sessions',
+          artwork: [
+            { src: './cover.png', sizes: '512x512', type: 'image/png' },
+            { src: './cover.png', sizes: '256x256', type: 'image/png' }
+          ]
+        })
+        navigator.mediaSession.setActionHandler('play', () => player.play())
+        navigator.mediaSession.setActionHandler('pause', () => player.pause())
+        navigator.mediaSession.setActionHandler('seekto', (details) => {
+          if (typeof details.seekTime === 'number') player.currentTime = details.seekTime
+        })
+        label.textContent = 'MediaSession 已就绪：Nexus 主题曲 · 玻璃海岸 / Nexus Audio Lab'
+      }
+
+      function syncState() {
+        if (!('mediaSession' in navigator)) return
+        navigator.mediaSession.playbackState = player.paused ? 'paused' : 'playing'
+      }
+
+      async function tryPlay() {
+        try {
+          await player.play()
+          syncState()
+          label.textContent = '正在播放：Nexus 主题曲 · 玻璃海岸（SMTC 应可见）'
+        } catch (error) {
+          label.textContent = '自动播放被拦截，请点击下方「开始播放」；元数据已就绪。'
+        }
+      }
+
+      start.addEventListener('click', () => {
+        void tryPlay()
+      })
+      player.addEventListener('play', syncState)
+      player.addEventListener('pause', syncState)
+      window.addEventListener('load', () => {
+        void tryPlay()
+        // 某些策略下首次播放被拦，用户随便点一下页面后补播
+        window.addEventListener('pointerdown', () => void tryPlay(), { once: true })
+      })
+    </script>
+  </body>
+</html>

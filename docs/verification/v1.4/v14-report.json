@@ -1,0 +1,146 @@
+{
+  "at": "2026-11-01T08:46:56.430Z",
+  "label": "v1.4 轻量化验收",
+  "port": 9224,
+  "passed": 17,
+  "failed": 0,
+  "checks": [
+    {
+      "id": "clock-root-exists",
+      "pass": true,
+      "detail": {
+        "hasRoot": true,
+        "className": "clock-root nx-glass",
+        "theme": "dark",
+        "locked": "true",
+        "title": "位置已锁定：设置 → 系统 解锁",
+        "aria": "桌面时钟（位置已锁定：设置 → 系统 解锁）",
+        "time": "16:46",
+        "date": "11月1日 周日",
+        "hasLockIcon": true,
+        "usesReact": false
+      }
+    },
+    {
+      "id": "clock-data-theme",
+      "pass": true,
+      "detail": "dark"
+    },
+    {
+      "id": "clock-locked-attr",
+      "pass": true,
+      "detail": "true"
+    },
+    {
+      "id": "clock-lock-hint",
+      "pass": true,
+      "detail": {
+        "title": "位置已锁定：设置 → 系统 解锁",
+        "aria": "桌面时钟（位置已锁定：设置 → 系统 解锁）"
+      }
+    },
+    {
+      "id": "clock-time-format",
+      "pass": true,
+      "detail": "16:46"
+    },
+    {
+      "id": "clock-date-format",
+      "pass": true,
+      "detail": "11月1日 周日"
+    },
+    {
+      "id": "clock-lock-icon",
+      "pass": true,
+      "detail": true
+    },
+    {
+      "id": "clock-time-accurate",
+      "pass": true,
+      "detail": {
+        "dom": "16:46",
+        "system": "16:46",
+        "driftSec": 50.145
+      }
+    },
+    {
+      "id": "clock-ticks-live",
+      "pass": true,
+      "detail": {
+        "tick1": "16:46:51",
+        "tick2": "16:46:53"
+      }
+    },
+    {
+      "id": "dock-api-available",
+      "pass": true,
+      "detail": {
+        "hasNexus": true,
+        "items": 11,
+        "locked": "true"
+      }
+    },
+    {
+      "id": "dock-items-rendered",
+      "pass": true,
+      "detail": {
+        "items": 11
+      }
+    },
+    {
+      "id": "music-enabled-spawns-smtc-bridge",
+      "pass": true,
+      "detail": {
+        "before": {
+          "desktopState": 1,
+          "powershell": 3
+        },
+        "after": {
+          "desktopState": 1,
+          "powershell": 4
+        }
+      }
+    },
+    {
+      "id": "music-window-created",
+      "pass": true,
+      "detail": {
+        "url": "file:///C:/Users/huih/AppData/Local/NexusDock/resources/app/out/renderer/music/index.html"
+      }
+    },
+    {
+      "id": "music-disabled-kills-smtc-bridge",
+      "pass": true,
+      "detail": {
+        "after": {
+          "desktopState": 1,
+          "powershell": 3
+        }
+      }
+    },
+    {
+      "id": "music-enabled-flag",
+      "pass": true,
+      "detail": {
+        "enabled": true,
+        "disabled": false
+      }
+    },
+    {
+      "id": "settings-window-opens",
+      "pass": true,
+      "detail": {
+        "url": "file:///C:/Users/huih/AppData/Local/NexusDock/resources/app/out/renderer/settings/index.html"
+      }
+    },
+    {
+      "id": "settings-renders",
+      "pass": true,
+      "detail": {
+        "sections": 0,
+        "title": "Nexus 设置",
+        "textLength": 414
+      }
+    }
+  ]
+}

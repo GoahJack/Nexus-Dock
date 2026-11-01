@@ -1,0 +1,215 @@
+{
+  "at": "2026-11-01T10:09:23.114Z",
+  "label": "v1.4.1 修复验收：Dock 自身图标点击打开设置面板",
+  "port": 9224,
+  "env": {
+    "packaged": true,
+    "version": "1.4.1",
+    "title": "Nexus Dock"
+  },
+  "selfItem": {
+    "id": "custom-14d5c3098e71",
+    "name": "NexusDockApp",
+    "path": "C:\\Users\\huih\\AppData\\Local\\NexusDock\\NexusDockApp.exe"
+  },
+  "passed": 17,
+  "failed": 0,
+  "checks": [
+    {
+      "id": "dock-target-available",
+      "ac": "AC-21.0",
+      "pass": true,
+      "detail": {
+        "url": "file:///C:/Users/huih/AppData/Local/NexusDock/resources/app/out/renderer/dock/index.html"
+      }
+    },
+    {
+      "id": "installed-build-v141",
+      "ac": "AC-21.0",
+      "pass": true,
+      "detail": {
+        "packaged": true,
+        "version": "1.4.1",
+        "title": "Nexus Dock"
+      }
+    },
+    {
+      "id": "self-dock-item-found",
+      "ac": "AC-21.0",
+      "pass": true,
+      "detail": {
+        "id": "custom-14d5c3098e71",
+        "name": "NexusDockApp"
+      }
+    },
+    {
+      "id": "settings-closed-before-test",
+      "ac": "AC-21.0",
+      "pass": true,
+      "detail": {
+        "count": 0
+      }
+    },
+    {
+      "id": "single-main-process-before",
+      "ac": "AC-21.0",
+      "pass": true,
+      "detail": {
+        "mains": 1
+      }
+    },
+    {
+      "id": "self-launch-opens-settings",
+      "ac": "AC-21.1",
+      "pass": true,
+      "detail": {
+        "launchResult": {
+          "ok": true
+        },
+        "target": {
+          "url": "file:///C:/Users/huih/AppData/Local/NexusDock/resources/app/out/renderer/settings/index.html"
+        }
+      }
+    },
+    {
+      "id": "settings-window-renders",
+      "ac": "AC-21.1",
+      "pass": true,
+      "detail": {
+        "title": "Nexus 设置",
+        "textLength": 414,
+        "focus": true,
+        "hidden": false
+      }
+    },
+    {
+      "id": "settings-window-on-screen",
+      "ac": "AC-21.1",
+      "pass": true,
+      "detail": {
+        "hwnd": 987004,
+        "pid": 313712,
+        "proc": "?",
+        "title": "Nexus 设置",
+        "min": false,
+        "max": false,
+        "rect": [
+          556,
+          153,
+          1150,
+          922
+        ]
+      }
+    },
+    {
+      "id": "settings-window-capture",
+      "ac": "AC-21.1",
+      "pass": true,
+      "detail": {
+        "bytes": 184401
+      }
+    },
+    {
+      "id": "no-second-main-process",
+      "ac": "AC-21.7",
+      "pass": true,
+      "detail": {
+        "before": 1,
+        "after": 1
+      }
+    },
+    {
+      "id": "launch-log-self-detected",
+      "ac": "AC-21.7",
+      "pass": true,
+      "detail": {
+        "tail": [
+          "[2026-11-01T10:08:46.382Z]   COM ShellExecute found=false title= activated=false launched=false",
+          "[2026-11-01T10:08:46.674Z]   FAILED id=verify-not-self-v141 errors=启动后未检测到窗口",
+          "[2026-11-01T10:09:08.708Z] launch id=custom-14d5c3098e71 name=NexusDockApp path=C:\\Users\\huih\\AppData\\Local\\NexusDock\\NexusDockApp.exe aumid=",
+          "[2026-11-01T10:09:08.709Z]   → 识别为 Nexus Dock 自身：打开设置面板"
+        ]
+      }
+    },
+    {
+      "id": "no-duplicate-settings-window",
+      "ac": "AC-21.2",
+      "pass": true,
+      "detail": {
+        "settingsTargets": 1
+      }
+    },
+    {
+      "id": "dock-icon-real-click-opens-settings",
+      "ac": "AC-21.3",
+      "pass": true,
+      "detail": {
+        "rect": {
+          "x": 67.16666793823242,
+          "y": 49.16666793823242,
+          "width": 45,
+          "height": 45
+        },
+        "settings": {
+          "hidden": false,
+          "focus": true
+        },
+        "onScreen": true,
+        "screenshotBytes": 184401
+      }
+    },
+    {
+      "id": "lnk-self-opens-settings",
+      "ac": "AC-21.4",
+      "pass": true,
+      "detail": {
+        "launchResult": {
+          "ok": true
+        },
+        "target": {
+          "url": "file:///C:/Users/huih/AppData/Local/NexusDock/resources/app/out/renderer/settings/index.html"
+        }
+      }
+    },
+    {
+      "id": "non-self-app-does-not-open-settings",
+      "ac": "AC-21.5",
+      "pass": true,
+      "detail": {
+        "launchResult": null,
+        "settingsTarget": null
+      }
+    },
+    {
+      "id": "second-instance-opens-settings",
+      "ac": "AC-21.6",
+      "pass": true,
+      "detail": {
+        "spawnReturn": "0",
+        "target": {
+          "url": "file:///C:/Users/huih/AppData/Local/NexusDock/resources/app/out/renderer/settings/index.html"
+        }
+      }
+    },
+    {
+      "id": "dock-apps-restored",
+      "ac": "AC-21.0",
+      "pass": true,
+      "detail": {
+        "before": 11,
+        "after": 11
+      }
+    }
+  ],
+  "screenshots": [
+    "docs/verification/v1.4.1/settings-window.png",
+    "docs/verification/v1.4.1/dock-window.png",
+    "docs/verification/v1.4.1/settings-opened.png",
+    "docs/verification/v1.4.1/settings-after-dock-click.png",
+    "docs/verification/v1.4.1/dock-click-opened-settings.png",
+    "docs/verification/v1.4.1/second-instance-opened-settings.png"
+  ],
+  "notes": [
+    "全屏截图前置顶设置窗口：OK:987004"
+  ]
+}

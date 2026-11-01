@@ -1,0 +1,14 @@
+﻿# runtime / build outputs
+node_modules/
+out/
+dist/
+.npm-cache/
+.electron-cache/
+.userdata/
+*.log
+scripts/out/
+# verification screenshots (large binaries)
+docs/verification/**/*.png
+docs/verification/*.png
+docs/verification/**/*.wav
+!docs/verification/.gitkeep

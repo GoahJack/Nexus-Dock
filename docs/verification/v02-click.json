@@ -1,0 +1,15 @@
+{
+  "launch": {
+    "pos": {
+      "x": 188.6666717529297,
+      "y": 54.66666793823242,
+      "title": "计算器"
+    },
+    "result": {
+      "ok": true
+    }
+  },
+  "beforeMax": {
+    "onlyOnDesktop": true
+  }
+}

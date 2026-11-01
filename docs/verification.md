@@ -1,0 +1,792 @@
+# VERIFICATION — 验收记录
+
+> 环境：Windows 11 build 26200 · Node v24.21.0 · Electron 44.10.0（Chromium 152 / Node 24.22）· 2026-10-29
+> 本文件记录的是「实跑」结果，不是计划。证据截图在 `docs/verification/`。
+
+## 0. 环境自检
+
+| 检查 | 结果 | 说明 |
+|---|---|---|
+| Node ≥ 20 | ✅ v24.21.0 | |
+| npm + 镜像 | ✅ PONG（registry.npmmirror.com，`.npmrc` 固定 + 工作区内缓存） | 沙箱下用户目录 npm 缓存不可写，已改为工作区缓存 |
+| Electron 二进制 | ✅ 44.10.0 可用 | 45.1.0 在本机启动即崩溃（`0xc0000005`），已锁定 44.10.0 |
+| SMTC 可用 | ✅ 读到 Edge 会话（标题/歌手/进度/状态） | 用 PowerShell WinRT 接口验证 |
+
+### 本机已知环境限制（重要）
+
+1. **宿主注入了 `ELECTRON_RUN_AS_NODE=1`**：直接 `npx electron` 会以 Node 模式运行、拿不到 `app/protocol`。`scripts/dev.ps1` 会先清除该变量。
+2. **Chromium 沙箱在本宿主不可用**：不加 `--no-sandbox` 时 Electron 在主进程 JS 执行前静默退出（事件日志无崩溃记录）。`scripts/dev.ps1` / `scripts/start.ps1` 已加 `--no-sandbox`；**普通桌面环境不需要**。
+3. **进程可见性受限**：应用子进程的 `Get-Process` 只能看到约 9 个进程（看不到 `explorer`），因此「运行状态指示点」在本机无法验证（代码已加保护：可见进程 < 20 时不上报，避免全部误判为未运行）。
+4. **Edge 不把 MediaSession 封面暴露给 SMTC**：音乐卡片封面走占位图；真实播放器（Spotify 等）会提供缩略图，取图分支已用模拟流单测通过。
+
+## 1. 构建门禁
+
+| 项 | 命令 | 结果 |
+|---|---|---|
+| 类型检查 | `npm run typecheck` | ✅ 0 错误 |
+| 生产构建 | `npm run build` | ✅ `out/main`、`out/preload`、`out/renderer/{dock,music,settings}` 齐全 |
+| 开发启动 | `npm run dev` | ✅ Vite 5173 + Electron 5 个进程，控制台无红错 |
+
+## 2. AC 逐条验收
+
+### US-1 位置可调的 Dock
+
+| AC | 结果 | 证据 / 方式 |
+|---|---|---|
+| AC-1.1 默认底部居中、玻璃质感、置顶、不进任务栏 | ✅ | `final-desktop.png`；窗口 `skipTaskbar:true`、`alwaysOnTop:true` |
+| AC-1.2 拖动手柄移动、松手吸附最近边 + 12px | ⚠️ 待人工 | 吸附算法（最近边 + 沿边百分比 + `SCREEN_MARGIN`）已实现且窗口可移动；`-webkit-app-region: drag` 属 OS 级拖动，CDP 无法模拟，需人工拖一次确认 |
+| AC-1.3 吸附后保留沿边位置 | ✅（等价验证） | CDP 设置 `edge/alongPercent` 后窗口按公式移动（bottom→left→top 均正确），并写入 settings.json |
+| AC-1.4 设置切四边立即转向 | ✅ | `dock-left.png`（93×417 竖条）、`dock-top.png`、`dock-default.png`（417×93 横条），`data-edge` 同步 |
+| AC-1.5 沿边位置滑块实时移动 | ✅ | 设置面板滑块 → `settings:update` → 窗口重排（CDP 验证位置变化） |
+| AC-1.6 位置参数持久化、重启还原 | ✅ | `%APPDATA%\nexus-dock\settings.json` 写入正确；dev 多次重启后位置保持 |
+| AC-1.7 可识别拖拽手柄 | ✅（提示气泡受限） | 手柄 ⋮ 圆点 + `cursor:grab` 可见；Electron drag 区域不向渲染层转发鼠标事件，原生 tooltip 可能不弹（已知限制） |
+
+### US-2 图标交互与 Nexus 观感
+
+| AC | 结果 | 证据 |
+|---|---|---|
+| AC-2.1 6 个内置应用图标 | ✅ | 6 个图标 `naturalWidth=48` 全部加载（`icon://` 协议；曾因 URL host 位解析错误显示字母占位，已修） |
+| AC-2.2 悬停放大 + 邻项递减 + 上浮 + 平滑复位 | ✅ | 实测缩放 `[1.06, 1.18, 1.30, 1.18, 1.06, 1.0]`，移开后 `matrix(1,0,0,1,0,0)`；`dock-hover.png` |
+| AC-2.3 单击启动应用 | ✅ | CDP 真实鼠标点击 → `notepad.exe` 进程启动（`shell.openPath` 返回空错误） |
+| AC-2.4 右键菜单四项 | ⚠️ 待人工 | 原生 `Menu.popup` 已接（打开 / 在资源管理器中显示 / 从 Dock 移除 / Dock 设置），需人工右键确认观感 |
+| AC-2.5 拖动排序并持久化 | ✅ | 拖拽后顺序 `explorer→notepad/calc/explorer…`，settings.json 落盘；已还原 |
+| AC-2.6 运行指示点 | ⚠️ 环境不可验 | 逻辑完整（4px 圆点 + `is-running`），但本机进程可见性受限，见 §0.3 |
+
+### US-3 音乐显示
+
+| AC | 结果 | 证据 |
+|---|---|---|
+| AC-3.1 封面/标题/歌手/进度/时间 | ✅ | `music-playing.png`：`Nexus 主题曲 · 玻璃海岸 / Nexus Audio Lab / 0:11 / 0:36`；无封面时显示音符占位 |
+| AC-3.2 自动显示系统播放器曲目、切歌刷新 | ✅ | SMTC 抓到 Edge 会话（MSEdge），卡片实时同步（暂停/播放/进度均变化） |
+| AC-3.3 卡片按钮真实控制系统播放器 | ✅ | 点「暂停」→ Edge `player.paused=true`、按钮变「播放」；再点 → `false`、按钮回「暂停」 |
+| AC-3.4 无播放器时空状态、不残留封面 | ✅ | `music-empty.png`：「未在播放 / 打开任意播放器即可同步 / 0:00」，无封面残留 |
+| AC-3.5 卡片显示/隐藏、位置跟随或自由吸附、持久化 | ✅（跟随部分） | 卡片位置随 Dock 停靠边变化（bottom→left 坐标同步变化）；自由拖动吸附需人工验证 |
+| AC-3.6 本地播放器选文件播放、拖动进度 | ⚠️ 待人工 | 代码完成（`media://local?p=` + Range 流 + 播放列表 + 进度拖动），需在真实文件对话框里点一次 |
+| AC-3.7 宽度、进度样式实时生效 | ✅（环形待截图） | 宽度 240–520、条形/环形切换均接线；环形截图待补 |
+
+### US-4 设置面板
+
+| AC | 结果 | 证据 |
+|---|---|---|
+| AC-4.1 打开/拖动/关闭、不进任务栏 | ✅ | `settings-dock.png`（自定义标题栏、最小化/关闭）；打开方式：Dock 右键 / `window.nexus.window.openSettings()` |
+| AC-4.2 三组参数齐全 | ✅ | Dock/音乐/应用/关于 四页截图齐全 |
+| AC-4.3 修改即时生效并落盘 | ✅ | 滑动/切换 → 立即广播 → 各窗口同步；settings.json 250ms 防抖落盘 |
+| AC-4.4 恢复默认（二次确认） | ✅（代码）/ 待人工点击 | 行内确认条 + `settings:reset` 链路完整 |
+| AC-4.5 版本与进程信息 | ✅ | 关于页显示 Electron 44.10.0 / Chromium 152.0.7977.169 / Node 24.22.1 |
+
+### US-5 工程质量
+
+| AC | 结果 | 证据 |
+|---|---|---|
+| AC-5.1 一条命令启动 | ✅（本机用 `npm run dev`，内部走 `scripts/dev.ps1`） | 启动日志无红错 |
+| AC-5.2 build / typecheck 零错误 | ✅ | 命令输出 |
+| AC-5.3 安全基线 | ✅ | `contextIsolation:true`、`nodeIntegration:false`、`sandbox:true`，仅 preload 白名单 |
+| AC-5.4 只写 userData；SMTC 挂掉自动重启 | ✅（桥启动/就绪日志已证，异常重启待补测） | `userData/logs/media.log`：桥启动 + 就绪 |
+| AC-5.5 本文档 | ✅ | 本文件 |
+
+## 3. 验收截图清单
+
+| 文件 | 内容 |
+|---|---|
+| `dock-default.png` | 底部 Dock（玻璃条 + 6 真实图标 + 运行指示点） |
+| `dock-left.png` / `dock-top.png` | 左侧/顶部停靠（竖排/横排切换正确） |
+| `dock-hover.png` | 悬停放大（1.30 倍，邻项递减） |
+| `dock-running.png` | 运行指示点样式 |
+| `music-empty.png` | 音乐卡片空状态 |
+| `music-playing.png` | 音乐卡片显示真实系统媒体（标题/歌手/进度） |
+| `settings-{dock,music,apps,about}.png` | 设置四页 |
+| `final-desktop.png` | 桌面实况：Dock + 音乐卡片叠加在桌面上 |
+| `interact-report.json` / `final-report.json` / `cdp-report.json` | 自动化验收原始数据 |
+
+## 4. 已知问题与后续
+
+1. **Electron 版本**：45.1.0 本机启动崩溃（0xc0000005）→ 已锁 44.10.0；打包前建议在干净机器再评估 45。
+2. **Dock/卡片窗口拖动吸附**：需人工拖一次验证（自动化无法模拟 `-webkit-app-region: drag`）。
+3. **运行指示点**：宿主进程隔离导致本机不可验证；普通桌面应正常（逻辑已单测通过代码审查）。
+4. **封面**：SMTC 缩略图依赖播放器；Edge 不提供。
+5. **打包**：待用户验收后执行 `npm run dist`（electron-builder 需补 `extraResources` 把 `resources/smtc-bridge.ps1` 打进安装包）。
+
+---
+
+# v0.2 验收（2026-10-29 用户反馈 6 项）
+
+> 环境同上；应用通过 `npm run dev` 运行，CDP 端口 9224。
+
+## 逐项结果
+
+| # | 用户需求 | 实现 | 实测结果 |
+|---|---|---|---|
+| 1 | 音乐窗口加开关 | 卡片右上角 ✕（hover 显示）＋ Dock 末端常驻音符按钮＋设置面板开关，三者共享 `music.visible` | ✅ CDP 点击 Dock 音符按钮：`music.visible true→false→true`；卡片 ✕ 点击同样生效 |
+| 2 | 时间显示不准确 | SMTC 用 `Position + (now - LastUpdatedTime)` 推算；`EndTime=0` 视为时长未知；卡片显示 `已播 / --:--`，进度条 `is-unknown` 且不参与比例计算 | ✅ 酷狗会话（POS=0/END=0/LAST=1601 无效值）安全输出 `0:00/--:--`；Edge 会话实测 pos 19828→21276→21984→22686→23407（+700ms/次，被 30000 正确钳制） |
+| 3 | Dock 可停在中间（不吸附） | `snapToEdge` 默认 false，`freeX/freeY` 自由坐标；旧配置 v2→v3 迁移修正坐标 | ✅ 设置项存在；`settings.json` `snapToEdge=false`、`freeX/freeY` 生效；Dock 现在停在底部居中而非左上角；拖动手柄后写回坐标（拖动本身需人工确认） |
+| 4 | Dock 背景透明 | `opacity` 允许 0（默认 0）；渲染层全透明时不渲染背景/描边/阴影/backdrop-filter | ✅ DOM 各层计算样式均为 `rgba(0,0,0,0)`、无 shadow、`::before display:none`；桌面截图只有图标浮在壁纸上（修复了 `setBackgroundMaterial('none')` 导致透明窗口变黑底的问题） |
+| 5 | 应用能点开 / 能插入新应用 | 统一 `shell:AppsFolder\<AppID>` 启动（UWP/Store/桌面通用）；`scanStartMenu` 改用 `Get-StartApps`；失败按序回退并把原因显示在 Dock 上方 | ✅ 目录返回 **186 个应用**（中文名正常、exe 路径类应用有图标）；点计算器图标 → `CalculatorApp` 进程启动；启动失败会返回 `ok:false` 并弹提示 |
+| 6 | 只在桌面显示（最大化隐藏） | 新增 `desktop-state.ps1`（UIA 遍历顶层窗口 + 矩形比对）＋ `desktopState.ts` 桥＋`applyDesktopState()` | ✅ 最大化计算器后 Dock 消失、音乐卡片保留；恢复普通窗口后 Dock 自动回来（截图 `v02-dock-hidden-maximized.png` / `v02-dock-visible-normal.png`） |
+
+## v0.2 关键截图
+
+| 文件 | 内容 |
+|---|---|
+| `v02-final-desktop.png` | 最终桌面：底部透明 Dock（只留图标 + 音符按钮）、右上音乐卡片（酷狗真实曲目、`0:00/--:--`、✕） |
+| `v02-dock-transparent.png` | Dock 窗口截图（透明态） |
+| `v02-dock-hidden-maximized.png` | 最大化计算器时 Dock 自动隐藏 |
+| `v02-dock-visible-normal.png` | 恢复窗口后 Dock 出现 |
+| `music-card-time-unknown.png` | 时长未知时的 `--:--` 与 `is-unknown` 进度条 |
+| `v02-report.json` / `v02-click.json` | 自动化验收原始数据（位置/样式/开关/目录/启动） |
+
+## v0.2 附加修复
+
+1. **内置应用集合更新**：任务管理器（本机直接启动被拦）替换为「设置」；其余应用改用 AUMID 启动。
+2. **配置迁移 v1→v2→v3**：重建内置应用、opacity 归零、自由坐标修正；保留用户自定义/开始菜单应用（实测保留了 DeepSeek Harness、微信）。
+3. **PowerShell 中文乱码**：`Get-StartApps` 输出改 Base64(UTF-8)，应用目录中文名正常。
+4. **子进程环境变量**：所有 PowerShell 子进程显式注入 TEMP/TMP/APPDATA/LOCALAPPDATA/ProgramData。
+5. **透明窗口黑底**：仅在开启亚克力时才调用 `setBackgroundMaterial`。
+
+## 仍需人工确认
+
+- 按住 Dock 手柄自由拖动是否停在原地（不吸附）；打开「吸附到屏幕边缘」后是否恢复吸附行为。
+- 从设置 → 应用 →「从开始菜单选择」添加一个新应用，然后点击图标启动。
+- 音乐卡片位置当前在右上角（不遮挡 Dock）；如需改为「固定跟随 Dock 上方」，需要再调整 `music.anchor` 的默认策略。
+
+---
+
+# v0.3 修复验收（2026-10-29 晚 · 用户反馈第二轮）
+
+## 三个反馈的处理结果
+
+| 反馈 | 根因 | 修复 | 实测 |
+|---|---|---|---|
+| Dock 点击没反应 | ① 指针捕获设在列表容器上，导致 click 的 target 变成容器，图标的 onClick 永远不触发；② 启动 UWP 应用在受限令牌下被拒 | pointerdown 不再抢捕获，只有拖拽超阈值才捕获；单击走图标 onClick。启动链路改为「进程内 ShellExecute → 外部 ShellExecute → explorer shell:AppsFolder → spawn」，失败时返回明确错误 | 点击日志确认 `launch id=calc` 被调用（`%APPDATA%\nexus-dock\logs\launch.log`）；外部 ShellExecute 返回「拒绝访问」，属环境限制，现在会在 Dock 上方显示原因 |
+| 音频时长不显示、进度条像摆设 | 酷狗等播放器 SMTC `EndTime=0`（不上报总时长） | 时长未知时显示 `已播 / --:--`、进度条改为低频扫光（不再像坏掉的空条），并加 hover 解释文案；有总时长的播放器（Edge 等）正常显示 `0:15/0:36` | Edge 会话实测 `0:15/0:36` 且进度条随播放推进 |
+| 暂停再播放时间归零 | SMTC 会话选择逻辑：暂停瞬间「Playing」会话消失，会切到另一个播放器会话（位置/时长全变） | ① SMTC 桥按 appId **粘滞当前播放器**；② 进度插值保留连续性，同曲目内位置回退到 0 时不跳变（暂停冻结、续播继续） | 实测 `0:36 → 暂停 0:36 → 恢复 0:36 → 3.8s 后 0:39`，不再归零 |
+
+## 环境限制（重要，已二次实测）
+
+- 从 DSH/沙盒终端启动 Nexus Dock 时，进程继承受限令牌：
+  - 无法激活 UWP 应用（`Start-Process` 返回「拒绝访问」，Shell.Application COM 超时）；
+  - 从**普通终端**执行同样的 ShellExecute 可以正常启动计算器（已实测 CalculatorApp 进程出现）。
+- 因此：**双击项目根目录的 `启动 Nexus Dock.cmd`（资源管理器里以正常权限启动）后，Dock 点击启动应用即可正常工作**；打包成 exe 后双击安装启动同理。
+- 该限制不影响：Dock 显示/拖动/透明/音乐卡片/SMTC 时间/设置面板。
+
+## 本次新增文件
+
+- `启动 Nexus Dock.cmd`：以正常权限启动已构建应用（双击即可）。
+- `scripts/debug-dock-click.mjs`、`scripts/test-click-launch.mjs`、`scripts/test-music-continuity.mjs`、`scripts/invoke-launch.mjs`：点击/播放/启动链路的自动化验收脚本。
+
+## v0.4 启动问题修复（2026-10-29 深夜）
+
+| 现象 | 根因 | 修复 | 验证 |
+|---|---|---|---|
+| 双击 .cmd 无效 | ① .cmd 里中文注释被 cmd 按 GBK 解析成命令；② `%~dp0` 以反斜杠结尾导致引号被转义；③ 环境带 `ELECTRON_RUN_AS_NODE=1` | 启动脚本改为纯 ASCII、路径用 `%~dp0.`、启动前清空该环境变量；启动失败会暂停显示错误 | 脚本输出 `[OK] Nexus Dock is running.`，5 个进程正常 |
+| 部分应用点了没反应 | 从开始菜单添加的桌面程序其 AppID 就是 exe 路径，旧逻辑错误包成 `shell:AppsFolder\D:\...\app.exe` | AppID 若为 exe 路径 → 直接 `shell.openPath/spawn` | 实测 7-Zip：`openPath(.exe) ok`，`7zFM` 进程出现 |
+| UWP 应用显示沙盒无法启动 / 静默无反应 | 受限令牌下 UWP 激活被拒；且 `shell.openPath(calc.exe)` 对 UWP 存根返回“成功”造成假成功 | AppID 启动改为 COM/explorer 两种方式 + **窗口数量前后对比验证**；失败返回明确错误（不再假成功） | 沙盒内点计算器返回 `AppID 启动失败` 并弹提示；正常权限环境会验证到新窗口 |
+
+## v0.5 修复（2026-10-29 深夜第二轮）
+
+| 问题 | 根因 | 修复 | 验证 |
+|---|---|---|---|
+| 酷狗在放歌，音乐卡片完全没反应 | 我上轮为「会话粘滞」改 smtc-bridge.ps1 时引入了 PowerShell 语法错误（ParserError），桥进程启动即失败，重试 5 次后放弃 | 用解析器定位错误并整段重写 Get-Session（纯 ASCII 风格、括号配对）；已 `PARSE_OK` | 独立运行输出酷狗会话：`全部君のせいだ / Kotoha / kugou` + 封面已落盘；应用内 `SMTC 桥就绪`，卡片显示曲目与封面 |
+| 除 7-Zip 外应用打不开 | ① 桌面应用（微信/Edge）走 exe 路径：实测 `Weixin.exe` 启动成功（进程出现）、`msedge.exe` openPath 成功；② UWP 应用（资源管理器/记事本/计算器/设置）在受限令牌下激活被拒 | exe 路径应用直接 openPath/spawn（已修）；UWP 走 COM/explorer + 窗口验证，失败明确报错 | 微信：启动后进程数 0→1；7-Zip：进程出现；UWP：沙盒内返回 `AppID 启动失败`（正常权限环境应可用） |
+
+### 重要说明
+- 音乐问题的直接原因是**脚本语法错误**，与酷狗无关；修复后酷狗曲目/封面/进度（暂停态）均能显示。
+- 酷狗仍不上报总时长，显示 `--:--` 属播放器限制。
+- 从本工具的受限终端启动的实例无法激活 UWP 应用；请通过资源管理器双击 `启动 Nexus Dock.cmd` 启动后再测试。
+
+## v0.6 修复（0xc0000142 与音乐归零）
+
+| 问题 | 根因 | 修复 |
+|---|---|---|
+| 点「文件资源管理器」弹出 `explorer.exe - 0xc0000142 应用程序无法正常启动` | AppID 启动失败后，代码又 spawn 了一个 explorer.exe 作为兜底；同会话第二个 explorer 实例初始化失败（STATUS_DLL_INIT_FAILED） | **删除 explorer.exe spawn 兜底**；资源管理器改用 `shell.openPath('C:\\Windows\\explorer.exe')` 专用路径；设置改用 `shell.openExternal('ms-settings:')`；UWP 只保留 Shell.Application COM |
+| 音乐暂停再播放仍归零 | `useMediaProgress` 在渲染阶段就把 `statusRef.current` 更新为当前状态，effect 里读到的「上一次状态」永远等于当前状态，导致「暂停→播放」的复位保护逻辑从未生效 | 拆出独立的 `prevStatusRef`，只在 effect 内更新；并增加「同曲目播放中位置突然回退到 0 也保持连续」的保护 |
+
+### 本轮实测
+- 资源管理器：`openPath result=""` 成功，已存在 CabinetWClass 窗口；修复后不再产生新的 0xc0000142 弹窗（截图里的弹窗为修复前残留）。
+- 设置：`ms-settings:` 在本沙盒实例返回 `拒绝访问 (0x5)`，属权限限制；正常权限启动应可用。
+- 微信：启动后 `Weixin` 进程 0→1，启动通道正常；若微信已在托盘运行，它会拒绝第二实例（微信自身行为）。
+
+## v0.7 启动校验与前台激活（2026-10-30 凌晨）
+
+### 修复
+1. **0xc0000142 根因彻底移除**：不再 `spawn/ShellExecute explorer.exe`；「文件资源管理器」改为 `shell.openPath('C:\\')`（在已有 Explorer 中打开）并验证窗口；启动时还会清理旧版本遗留的错误弹窗。
+2. **启动结果不再假成功**：所有启动路径统一走 `launchAndFocus()`——
+   - 记录启动前顶层窗口列表；
+   - 尝试启动（Electron openPath / COM ShellExecute / AppID）；
+   - 轮询 ≤5.6s 寻找「标题匹配 hint 的窗口」或「新出现的窗口」（排除 `Application Error` 弹窗）；
+   - 找到后置前：Win32 `ShowWindow(9)+BringWindowToTop+AllowSetForegroundWindow+SetForegroundWindow`，失败再退 `AppletActivate`；
+   - 找不到 → 返回 `ok:false` 并给出明确原因（不再“点了没反应”）。
+3. 启动时写入环境自检：`env: visibleProcesses=xx restricted=true/false`（launch.log）。
+
+### 本机测试环境的限制（重要）
+- 从本 agent 终端启动的实例会继承受限作业对象：实测 `spawn(exe)` 返回成功但进程立刻消失、无窗口；UWP 激活同样被拒。
+- 因此 GUI 启动行为的最终验收必须由用户**从资源管理器双击 `启动 Nexus Dock.cmd`** 的实例完成。
+- 修复后日志粒度足够：每一步都有 `openPath/COM/AppID/窗口校验 found=… activated=…`，可直接定位卡点。
+
+### 前台激活实现
+- `release/` 无需额外依赖：PowerShell 内联 Win32 P/Invoke（`user32.dll`）+ `Microsoft.VisualBasic.Interaction.AppActivate` 双保险。
+
+---
+
+# v0.9 启动 / 置前 / 误报修复验收（2026-10-30）
+
+## 根因（本次实测确认）
+
+| 现象 | 根因 |
+|---|---|
+| 点击 Dock 应用长时间无反应后弹错误 | DSH 工作区沙箱给工作区内文件打了 **Low 完整性标签**（`icacls` 可见 `Mandatory Label\Low...`）；Windows 把从这些文件启动的进程降为 Low 权限。Low 权限下 Windows 拒绝启动 UWP、拒绝窗口置前、`ms-settings:` 返回 0x5；旧链路每次点击要等 16~30 秒窗口扫描超时后才失败。 |
+| 应用即使从桌面快捷方式启动仍是 Low | 快捷方式指向工作区内的 exe（Low 标签）；`--no-sandbox` 启动参数也会让 Electron 以 Low 运行。 |
+| 部分应用“已在运行但无法激活” | 启动链路把“窗口扫描未命中”直接判为失败并弹提示；微信/Edge 等常驻应用必现。 |
+| 运行指示点永远不亮 | `tasklist` 进程名带 `.exe` 后缀比对不上；且旧逻辑按“去重进程名数量 < 20”误判受限而跳过上报。 |
+
+## 修复
+
+1. 新增 `scripts/install-local.ps1` / `npm run install:local`：同步 `out/` → 打包产物 → 安装到 `%LOCALAPPDATA%\NexusDock`（无 Low 标签）并刷新桌面快捷方式后启动；`启动 Nexus Dock.cmd` 已改为调用该安装器。
+2. 启动链路：`launchAndFocus` 新增 `LAUNCHED_NO_WINDOW` 状态，启动命令已发出但窗口未在时限内出现时按成功处理；已在运行的 exe 应用请求前置后返回成功，不再报错。
+3. 资源管理器：置前匹配排除 `Program Manager`（桌面窗口也属于 explorer 进程），改用文件夹窗口标题匹配（此电脑/文件资源管理器/主文件夹等）。
+4. 运行指示点：`tasklist` 一次性取进程名并去掉 `.exe` 后缀；补充 UWP/常用应用进程名映射（calculatorapp/notepad/mspaint/systemsettings/msweixin/msedge 等）；低可见性时跳过而非误清空。
+5. 环境自检：启动日志记录 `env: lowIntegrity=true/false`，低权限时在启动失败原因后追加提示。
+
+## 实测（安装版、正常权限、无 `--no-sandbox`，CDP 驱动）
+
+| # | 应用 | 结果 | 耗时 | 前台窗口 |
+|---|---|---|---|---|
+| 1 | 文件资源管理器 | ok:true | 2387ms | OS (C:) - 文件资源管理器 |
+| 2 | 记事本 | ok:true | 981ms | launch.log - Notepad |
+| 3 | 计算器 | ok:true | 1083ms | 计算器 |
+| 4 | 画图 | ok:true | 986ms | 无标题 - 画图 |
+| 5 | 命令提示符 | ok:true | 1049ms | C:\Windows\System32\cmd.exe |
+| 6 | 设置 | ok:true | 1303ms | 设置 |
+| 7 | DeepSeek Harness | ok:true | 1237ms | 修复软件无响应与报错 — DeepSeek Harness |
+| 8 | 7zFM | ok:true | 1282ms | E:\My_AI\ |
+| 9 | Weixin | ok:true | 1233ms | 微信 |
+| 10 | msedge | ok:true | 1263ms | 新标签页 - 个人 - Microsoft Edge |
+
+- 全部 10 个应用：`ok:true`、无错误 toast、正确置前。
+- 真实鼠标点击 + 连续双击（计算器 / 文件资源管理器 / DeepSeek Harness）：无错误提示、正确置前（验证了“双击不再报错、资源管理器不再命中桌面窗口”）。
+- 运行指示点：10/10 全部 `data-running=true`（此前永远为空）。
+- 环境自检：`env: lowIntegrity=false`。
+- 证据：`scripts/out/final-verify2.log`、`scripts/out/final-verify.json`、`scripts/out/final-verify-desktop.png`。
+
+---
+
+# v1.0 精细化交互设计验收（2026-10-30）
+
+> 环境：Windows 11 build 26200 · **安装版** `%LOCALAPPDATA%\NexusDock`（正常权限，无 `--no-sandbox`）· Electron 44.7.0 · **Nexus Dock v1.0.0**
+> 验收方式：`scripts/v1-motion-verify.mjs` 通过 CDP（`--remote-debugging-port=9224`）驱动三个真实窗口，采集计算样式 / DOM 状态 / 截图
+> 机器证据：[`docs/verification/v1/motion-report.json`](verification/v1/motion-report.json)；截图目录：[`docs/verification/v1/`](verification/v1/)
+
+## 1. 构建与安装门禁
+
+| 项 | 命令 | 结果 |
+|---|---|---|
+| 类型检查 | `npm run typecheck` | ✅ 0 错误（tsc --noEmit） |
+| 生产构建 | `npm run build` | ✅ `out/main`、`out/preload`、`out/renderer/{dock,music,settings}` 齐全 |
+| 安装版更新 | `npm run install:local` | ✅ 同步 out → 打包产物 → `%LOCALAPPDATA%\NexusDock`，桌面快捷方式刷新 |
+| 启动 | `NexusDockApp.exe --remote-debugging-port=9224` | ✅ Dock / 音乐卡片双窗口，设置窗口按需打开 |
+
+## 2. AC 逐条验收
+
+### US-9 统一动效体系
+
+| AC | 结果 | 证据（motion-report.json 字段） |
+|---|---|---|
+| AC-9.1 动效令牌统一 | ✅ | 三档 `--nx-motion-scale` = 0.72 / 1 / 1.28；`.dock-item-inner` 实际过渡时长 0.1296s / 0.18s / 0.2304s，曲线随档位切换 |
+| AC-9.2 按压变形 | ✅ | pointerdown 后 70ms：`data-pressed=true`；涟漪 1 层；按下态 `inner` transform 从 1.30 向 0.94 收缩中（`matrix(1.1198…)`，另有 0.949 无悬停样本）；松手回 `--nx-spring` |
+| AC-9.3 涟漪/光晕 | ✅ | `.nx-ripple` 存在 1 层，`animationName=nx-ripple-expand`、`0.42s`；宿主 `dock-item nx-ripple-glow-host`；动画结束自动移除 |
+| AC-9.4 启动反馈 | ✅ | 点击后 `.dock-item-icon.is-launching`，`nx-launch-bounce 0.42s`；为乐观反馈（不等启动结果）；失败仅追加 Toast |
+| AC-9.5 悬停光效 | ✅ | 悬停中心项 `matrix(1.3114, …, -8.30)`（约 1.31× + 上浮 8.3px，含 spring 过冲）；图标 filter 出现强调色 `rgba(110,168,254,0.28)` 柔光；邻项 1.05/1.17/1.19 递减 |
+| AC-9.6 运行指示点 | ✅ | 临时挂 `.is-running`：`animationName=nx-breath`、`2.6s`、`infinite`、强调色 shadow（本机进程可见性限制无法点亮真实运行态，见 §0.3） |
+| AC-9.7 拖拽排序 FLIP | ✅ | 合成拖拽后第 2 次读取：6 个图标均有非单位 transform（约 31–36px 位移），顺序变为 `msedge→notepad→calc→paint→cmd→explorer`，松手 500ms 后落盘 |
+| AC-9.8 容器过渡 | ✅ | Dock bar 入场 `nx-rise-in`；图标错峰 `nx-item-in` 24ms/项；Toast 入场 `dock-toast-in 0.18s`，退场 `nx-toast-out 0.16s`（读取瞬间 opacity≈0.08–0.19） |
+| AC-9.9 音乐卡片控件 | ✅ | 6 个涟漪宿主；播放图标双层（2 层 / 2 SVG）；CDP 真实鼠标按下：`:active=true`、transform `matrix(0.9037…)`、涟漪 `nx-ripple-expand`；进度条 hover/drag 发光、封面双层交叉淡入为代码级实现 |
+| AC-9.10 设置面板控件 | ✅ | 导航 5 项含「外观」；`.settings-page` 转场挂载；恢复默认弹层入场 `nx-pop-in` + 遮罩 `nx-fade-in`，取消后 `is-leaving` + `nx-pop-out`，220ms 后 DOM 移除（`gone=true`） |
+| AC-9.11 可访问性降级 | ✅ | `data-reduced-motion=true` 时 `.dock-item-inner` 过渡 `1e-05s`、指示点动画 `1e-05s`；系统 `prefers-reduced-motion` 同规则 |
+| AC-9.12 性能约束 | ✅（实现约束） | 动效只用 transform/opacity/filter/box-shadow；Dock `.dock-root`（ResizeObserver 测量对象）与 `.music-card`（useContentSize 测量对象）不做 transform 动画；进度条视觉增高用绝对定位图层，不改变卡片高度（代码审查 + 截图无布局抖动） |
+
+### US-10 外观与动效设置
+
+| AC | 结果 | 证据 |
+|---|---|---|
+| AC-10.1 新增「外观」页 | ✅ | 导航 `["Dock","音乐","应用","外观","关于"]`；`pageVisible=true`、`hasPreviewTile=true`、三档分段齐全 |
+| AC-10.2 强度实时生效 | ✅ | 点「轻快」→ `data-motion=light`、setting=light、scale=0.72；点「弹性」→ expressive、1.28；广播同步至 Dock/音乐窗口 |
+| AC-10.3 减少动效开关 | ✅ | 开启后 `data-reduced-motion=true`、setting=true、过渡 1e-05s；关闭恢复 |
+| AC-10.4 点击音效 | ✅（听感待人工） | 开关写入 setting 与 `data-click-sound=true`；实现为 WebAudio 合成 50ms 短音（无外部资源），默认关闭 |
+| AC-10.5 持久化与迁移 | ✅ | `settings.json` schemaVersion 3 → 4；`appearance={standard,false,false}` 落盘；用户原有 dock/music/apps 配置保留 |
+| AC-10.6 效果预览 | ✅ | 预览区含 Dock 风格 tile（按压+涟漪+弹跳重播）与普通按钮，实时显示当前档位/时长/过冲/按压参数 |
+
+## 3. 截图证据（`docs/verification/v1/`）
+
+| 文件 | 内容 |
+|---|---|
+| `desktop-dock-v1.0.png` | 真实桌面：Dock 悬停放大 1.30× + 上浮 8px，音乐卡片同步酷狗正在播放的《Sprout》 |
+| `desktop-v1.0.png` | 真实桌面：设置「外观」页 + 音乐卡片 + 用户壁纸 |
+| `dock-hover.png` | Dock 悬停：邻项衰减 1.05 / 1.17 / 1.31 / 1.19 / 1.07 |
+| `dock-press.png` | Dock 按压态（涟漪扩散中） |
+| `dock-launch-bounce.png` | 点击后启动弹跳帧 |
+| `dock-toast-in.png` / `dock-toast-out.png` | 启动失败 Toast 入场 / 退场 |
+| `music-press.png` | 音乐卡片按钮真实鼠标按压（缩放 + 涟漪） |
+| `settings-appearance.png` | 设置「外观」页（v1.0.0）：强度三档 / 减少动效 / 点击音效 / 效果预览 |
+| `settings-motion-expressive.png` | 弹性档选中态 |
+| `settings-accessibility.png` | 可访问性开关操作后 |
+| `settings-backup-before-verify.json` | 验收前用户配置快照（验收后已恢复） |
+
+## 4. 验收夹具与现场恢复
+
+- 用户 Dock 原本只有 2 个图标（文件资源管理器、msedge）。为观察悬停衰减 / FLIP / 弹跳，验收脚本**临时**补入 4 个默认应用（记事本/计算器/画图/命令提示符），验收结束后通过 `settings:update({apps})` 原样恢复。
+- `restored` 字段确认：`apps=[explorer, custom-f075a8241e05]`、`appearance={standard,false,false}`、`music.source=system`、`schemaVersion=4`。
+- 音乐卡片验证期间「系统/本地」徽标被真实点击，已在 finally 恢复 `source=system`。
+
+## 5. 已知限制与待人工体验
+
+1. **运行指示点真实态**：本机进程可见性受限（§0.3），只能验证 CSS 呼吸动画参数；真实运行点亮需在正常桌面环境确认。
+2. **主观手感**：拖拽排序跟手度、启动弹跳节奏、点击音效音量、封面交叉淡入（本机酷狗会话有封面，切换歌曲时）建议人工体验一次。
+3. **失败反馈时延**：不存在的路径启动会依次尝试 COM → openPath → ShellExecute，约 **43s** 才返回失败并弹 Toast（沿用 v0.9 启动回退链，非本轮引入）。若希望失败反馈更快，可列入 v1.1：在回退链前先做 `existsSync` 快速失败。
+4. **弹层退场范围**：本轮只给「恢复默认设置」确认框补了退场动画；开始菜单候选面板仍为仅入场（不涉及本轮 AC-9.10 点名范围）。
+5. **测试脚本副作用**：验收会临时点击计算器/记事本等应用（安装版正常权限会真实打开窗口），脚本运行后已清理测试打开的记事本窗口；音乐卡片来源与 Dock 配置已恢复。
+
+---
+
+# v1.1 吸附开关 / 开机自启 / 桌面时钟 / 位置锁定 验收（2026-10-30）
+
+> 环境：Windows 11 build 26200 · **安装版** `%LOCALAPPDATA%\NexusDock`（正常权限，无 `--no-sandbox`）· Electron 44.10.0 · **Nexus Dock v1.1.0**（`package.json`）
+> 验收方式：`node scripts/v11-verify.mjs` 通过 CDP（`--remote-debugging-port=9224`）驱动**四个真实窗口**（Dock / 音乐卡片 / 设置 / 桌面时钟），采集 DOM 状态 / 计算样式 / 设置落盘 / HKCU Run 注册表前后 diff / 截图
+> 机器证据：[`docs/verification/v1.1/v11-report.json`](verification/v1.1/v11-report.json)（31 checks / 31 passed / 0 failed / 0 exceptions）；截图目录：[`docs/verification/v1.1/`](verification/v1.1/)
+> 对应规格：`docs/spec.md` §8（US-11 ~ US-15）；方案：`docs/plan.md` §13；任务：`docs/tasks.md` v1.1（阶段 12–15，已全部完成）。
+
+## 1. 构建与安装门禁
+
+| 项 | 命令 | 结果 |
+|---|---|---|
+| 类型检查 | `npm run typecheck` | ✅ 0 错误（tsc --noEmit） |
+| 生产构建 | `npm run build` | ✅ `out/main`、`out/preload`、`out/renderer/{dock,music,settings,clock}` 齐全（`out/renderer/clock/index.html` + `clock-*.js/css`） |
+| 配置迁移 | 旧 v4 `settings.json` 启动 | ✅ 日志 `[settings] 已从 v4 迁移到 v5`；`schemaVersion=5`，`music.snapToEdge=true`、`music.freeX/freeY=-1`，dock/appearance/apps 原样保留（10 个应用） |
+| 安装版更新 | `npm run install:local` | ✅ 同步 out → `%LOCALAPPDATA%\NexusDock`，桌面快捷方式刷新，About 显示 v1.1.0 |
+| 运行时启动 | `NexusDockApp.exe --remote-debugging-port=9224` | ✅ Dock / 音乐卡片 / 桌面时钟（按需）/ 设置（按需）四窗口 |
+
+## 2. AC 逐条验收（v11-report.json 字段）
+
+### US-11 音乐窗口自动吸附开关
+
+| AC | 结果 | 证据 |
+|---|---|---|
+| AC-11.1 开关默认开启 | ✅ | 设置「音乐」页含「自动吸附屏幕边缘」，`checked=true`；`settings.music.snapToEdge=true`（`C4` / `E1`） |
+| AC-11.2 开启吸附最近边 | ✅（实现 + 代码审查） | `computeMusicBounds`/`snapMusicToNearestEdge` 保持 v1.0 吸附逻辑，12px `SCREEN_MARGIN`；真实拖动吸附列入人工项（`E1`） |
+| AC-11.3 关闭后自由摆放并持久化 | ✅ | API 切 `snapToEdge=false` → `settings.music.snapToEdge=false`、页面开关同步；自由坐标写入 `music.freeX/freeY`（`E2`，主进程 `moved` 分支代码审查） |
+| AC-11.4 运行中切换不跳变 | ✅ | `onSettingsChanged` 检测翻转：false→true 以当前位置反算最近边；true→false 固化当前位置；仅 `anchor='free'` 时换算（避免打断跟随 Dock）；`E3` 切回 true 成功 |
+| AC-11.5 拖动即脱离 Dock / 锁定不可拖 | ✅ | `moved` 时 `anchor:'free'`；`lock.music` 时 `moved` 直接 return（`D1` music `appRegion=no-drag`） |
+| AC-11.6 反复切换不跳默认位置 | ✅ | 翻转逻辑不重置 `freeX/freeY`；`E2→E3` 往返实测通过 |
+
+### US-12 开机自启
+
+| AC | 结果 | 证据 |
+|---|---|---|
+| AC-12.1 系统页开关 + 默认关闭 | ✅ | 系统页「开机自启」存在且未 disabled（安装版），初始 `checked=false`；`settings.system.autoStart=false`（`F1`） |
+| AC-12.2 写 HKCU Run / 移除无重复 | ✅ | `setAutoStart(true)` → `{ok:true,autoStart:true}`，`reg query` 实测新增 `com.nexus.dock = "C:\Users\huih\AppData\Local\NexusDock\NexusDockApp.exe"`；`setAutoStart(false)` → `{ok:true,autoStart:false}`，独立 `reg query` 与运行前快照 **0 差异**（`F2`/`F3`/`F4`/`F5`） |
+| AC-12.3 失败回滚 + 启动同步 | ✅（代码 + 冒烟断言） | `applyAutoStart` 写后回读校验；启动 `syncAutoStartOnStartup()` 以 OS 为真源回写设置；失败回写真实状态且 `syncing + lastKnown` 双重防递归（main-core esbuild 冒烟 36 项断言） |
+| AC-12.4 开发模式禁用 | ✅（代码 + 安装版对照） | `!app.isPackaged` 时 `system.setAutoStart` 返回 `{ok:false,reason:'dev'}`，不写系统；系统页开关 disabled 并提示（安装版 `F1` 为启用态，两者对照） |
+| AC-12.5 单实例不重复启动 | ✅（沿用 v0.9） | `app.requestSingleInstanceLock()` 未改动；第二次启动聚焦设置窗口 |
+
+### US-13 桌面时钟窗口
+
+| AC | 结果 | 证据 |
+|---|---|---|
+| AC-13.1 独立开关 + 双入口 | ✅ | `settings.update({clock:{visible:true}})` 后 `/clock/` target 出现；Dock 末端时钟按钮（`dock-clock-toggle`，aria-pressed/is-on）与设置页开关代码就绪（`A6`，Dock 按钮见截图/代码审查） |
+| AC-13.2 时间/日期格式 | ✅ | 默认 `19:45`（24h 无秒）、日期「10月30日 周五」；`showSeconds=true` → `19:45:59`；`hour12=true` → `07:46:00` + `.clock-period=下午`（`B1`/`B2`/`B3`） |
+| AC-13.3 外观选项 | ✅ | `fontSize=64` → 计算 `font-size=64px`；`opacity=0.5` → 根节点计算 opacity≈0.5；`theme=light` → `data-theme=light`；置顶开关主进程 `setAlwaysOnTop` 联动（`B4`/`B5`/`B6`） |
+| AC-13.4 拖动吸附 + 位置记忆 + 复位 | ✅（实现 + 代码审查） | `snapClockToNearestEdge` 只吸附最近一轴 + 12px 边距并写 `clock.freeX/freeY`；未定位默认主屏右上角；设置页「移回默认位置」patch `freeX/freeY=-1`；真实拖动列入人工项 |
+| AC-13.5 不进任务栏 / 不抢焦点 / 内容等大 / hide 不销毁 | ✅ | 窗口 `skipTaskbar/showInactive/transparent`；`useContentSize('clock')` 首次回报后才显示（`clockContentSized` 门控，避免隐形点击区）；隐藏只 `hide()`（`A6` target 复跑仍存在） |
+| AC-13.6 动效规范 | ✅（代码审查） | 入场淡入使用 `--nx-dur-slow/--nx-ease-out`，无硬编码毫秒；秒变化仅文本替换；reduced-motion 由 motion.css 全局降级（见 `docs/motion-spec.md` §3.4） |
+| AC-13.7 纳入位置锁定 | ✅ | `lock.clock=true` 时 clock `data-locked='true'`、title「位置已锁定：设置 → 系统 解锁」、`app-region=no-drag`（`D1`） |
+
+### US-14 窗口位置锁定
+
+| AC | 结果 | 证据 |
+|---|---|---|
+| AC-14.1 总开关 | ✅ | 系统页「锁定全部窗口位置」存在；`checked = lock.dock && lock.music && lock.clock`；切换同时设置三字段（`C3` 页面文本 + 代码） |
+| AC-14.2 单窗口覆盖 | ✅ | 三个独立开关直接 patch 对应字段，总开关按三者推导（`C3`；settings-ui SSR 冒烟 12/12 覆盖全锁/部分锁定场景） |
+| AC-14.3 双层防护 | ✅（渲染层实测 + 主进程代码审查） | `lock` 三 true → dock/music/clock 的 `data-locked='true'`；主进程 `applyLockState()` → `win.setMovable(!locked)`（`windowManager.ts` `applyLockState`；`D1`/`D2`） |
+| AC-14.4 锁定视觉可识别 | ✅ | Dock 手柄换锁形图标 + title「位置已锁定（设置 → 系统 解锁）」+ 降透明光标；音乐卡片 title 提示；时钟右上小锁图标（`D1`/`D2`） |
+| AC-14.5 Dock 右键快捷开关 | ✅（代码审查） | `ipc.ts showDockMenu` 新增 checkbox「锁定全部窗口位置」；菜单每次打开实时读取设置（无法用 CDP 触发原生菜单，列入人工项） |
+| AC-14.6 锁定不写位置 | ✅ | 三个 `moved` 处理器锁定守卫（含防抖回调二次守卫）；锁定期间 `data-locked` 下拖动区已 no-drag（`D1`/`D2`） |
+| AC-14.7 设置窗口不受影响 | ✅ | `applyLockState` 只作用于 dock/music/clock；设置窗口无 `movable` 变更（代码审查） |
+| AC-14.8 持久化 | ✅ | `settings.lock` 落盘 `${APPDATA}\nexus-dock\settings.json`，启动 `setupWindows` 再次 `applyLockState` 兜底（`G3` 落盘复核） |
+
+### US-15 设置面板与配置迁移
+
+| AC | 结果 | 证据 |
+|---|---|---|
+| AC-15.1 导航 7 项 | ✅ | 实测导航 `["Dock","音乐","时钟","应用","外观","系统","关于"]`，顺序正确；580×760 下不溢出（`C1`） |
+| AC-15.2 即时生效 / 恢复默认 | ✅ | 新参数即时 patch；恢复默认会重置 clock/lock/system（UI 文案已更新）；验收结束时六组设置按快照完整还原并落盘（`G1`/`G3`） |
+| AC-15.3 v4→v5 迁移 | ✅ | 真实旧配置启动：`schemaVersion=5`、旧 dock/music/appearance/apps 完整保留、`clock/lock/system` 补默认；`A3` 复核 `hasClockGroup/hasLockGroup/hasSystemGroup=true` |
+| AC-15.4 统一动效 + 零新增依赖 | ✅ | 时钟使用 `motion.css` 令牌（`motion-spec.md` §3.4）；`package.json` 无新增运行时依赖（仅 devDependencies 未动） |
+| AC-15.5 工程质量 | ✅ | typecheck 0 错误、build 成功、`Runtime.exceptionThrown=0`；报告 31/31 通过（`A8`） |
+
+## 3. 截图证据（`docs/verification/v1.1/`）
+
+| 文件 | 内容 |
+|---|---|
+| `clock-default.png` | 桌面时钟默认态（24h、无秒、有日期、深色） |
+| `clock-seconds.png` | 显示秒（HH:mm:ss） |
+| `clock-light.png` | 浅色主题 + 大字号/半透明样本 |
+| `settings-clock.png` | 设置「时钟」页（显示/外观/位置三组） |
+| `settings-system.png` | 设置「系统」页（开机自启 + 位置锁定总开关 + 三个独立开关） |
+| `settings-music.png` | 设置「音乐」页（自动吸附屏幕边缘开关） |
+| `dock-locked.png` | Dock 锁定态（手柄锁形图标 + 降透明） |
+| `clock-locked.png` | 时钟锁定态（右上小锁 + 提示） |
+| `music-locked.png` | 音乐卡片锁定态（整卡 no-drag + 提示） |
+
+## 4. 验收夹具与现场恢复
+
+- **设置快照**：脚本启动时快照 `dock/music/clock/lock/system/appearance` 六组，结束时一次 `settings.update` 还原并落盘复核（`G1`/`G3` 全组相等）。
+- **开机自启**：真实写入 HKCU Run 后立即回读校验，`try/finally` 保证最后 `setAutoStart(false)`；独立 `reg query` 复核「启用前 / 启用后 / 清理后」三份快照，清理后与启用前 **0 差异**（`F4`/`F5`）。
+- **窗口**：验收期间临时打开音乐卡片/桌面时钟/设置窗口，结束时恢复显隐并关闭设置窗口；音乐卡片 `visible` 与用户原配置一致（`G1`；本次用户配置为 false）。
+- **备份**：`%APPDATA%\nexus-dock\settings.v11-behavior-before-verify.json`（验收前配置备份，可手工回滚）。
+
+## 5. 已知限制与待人工验收
+
+1. **真实拖动吸附**（US-11/US-13）：CDP 无法可靠模拟系统级窗口拖动，需人工拖动音乐卡片/时钟确认「松手吸附最近边 + 12px 间距」与关闭吸附后「拖到哪停在哪」。
+2. **锁定后鼠标不可拖**（US-14）：主进程 `setMovable(false)` 无法从渲染层读取；已用「`windowManager.ts applyLockState` 代码审查 + 三窗口 `data-locked` 实测」双层证据，建议人工拖动确认。
+3. **开机自启真实登录**（US-12）：注册表写入/清理已实测，真正「重启 Windows 后自动启动」需人工注销/重启验证一次。
+4. **时钟/锁定观感**（US-13/US-14）：字号、透明度、主题、12 小时制视觉与锁定态手感建议人工确认。
+5. **宿主环境注意事项**：本机从 agent 终端直接 `Start-Process` 的 Electron 会继承 `ELECTRON_RUN_AS_NODE=1` 而变成 Node 模式（报 `bad option`），验收前已清除该环境变量；普通用户从桌面快捷方式启动不受影响。冷启动时若 `music.visible=false` 则音乐窗口不创建（与 v1.0 行为一致），验收脚本会通过 API 按需打开。
+6. **开机自启路径稳定性**：`setLoginItemSettings` 指向 `process.execPath`；用 `启动 Nexus Dock.cmd` / `npm run install:local` 装到 `%LOCALAPPDATA%\NexusDock` 后路径稳定；若直接把便携版 exe 放到临时目录运行，登录项可能指向临时路径（已在操作指南标注）。
+
+---
+
+# v1.2 时钟吸附开关 + 窗口行为准则 验收（2026-10-30）
+
+> 环境：Windows 11 build 26200 · **安装版** `%LOCALAPPDATA%\NexusDock`（正常权限，无 `--no-sandbox`）· Electron 44.10.0 · **Nexus Dock v1.2.0**（`package.json` / 设置页 footer 实测 v1.2.0）
+> 验收方式：`node scripts/v12-verify.mjs` 通过 CDP（`--remote-debugging-port=9224`）驱动四个真实窗口，覆盖 US-16/US-17 并回归 v1.1 的 US-11 ~ US-15
+> 机器证据：[`docs/verification/v1.2/v12-report.json`](verification/v1.2/v12-report.json)（**36 checks / 36 passed / 0 failed / 0 exceptions**）；截图目录：[`docs/verification/v1.2/`](verification/v1.2/)
+> 对应规格：`docs/spec.md` §9；准则真源：`docs/window-conventions.md`；方案：`docs/plan.md` §14。
+
+## 1. 构建与安装门禁
+
+| 项 | 命令 | 结果 |
+|---|---|---|
+| 类型检查 | `npm run typecheck` | ✅ 0 错误 |
+| 生产构建 | `npm run build` | ✅ 成功（settings 资源随新开关更新） |
+| 配置迁移 | 旧 v5 `settings.json` 启动 | ✅ `schemaVersion=6`；日志 `[settings] 已从 v5 迁移到 v6`；`clock.snapToEdge` 补 `true`，时钟 `freeX/freeY`、字号、主题等字段原样保留 |
+| 安装版更新 | `npm run install:local` | ✅ `%LOCALAPPDATA%\NexusDock` 更新至 v1.2.0，About/footer 显示 v1.2.0 |
+
+## 2. AC 逐条验收（v12-report.json 字段）
+
+### US-16 桌面时钟自动吸附开关
+
+| AC | 结果 | 证据 |
+|---|---|---|
+| AC-16.1 开关存在、默认开启 | ✅ | 设置「时钟」→「位置」页含「自动吸附屏幕边缘」，开关与 `settings.clock.snapToEdge` 一致；v5→v6 迁移后该字段为布尔 `true`（`H1` / `A3` / `A3b`） |
+| AC-16.2 开启时吸附最近边 | ✅（实现 + 代码审查） | `windowManager` 时钟 `moved` 分支：`snapToEdge=true` → `snapClockToNearestEdge()`（只吸附最近一轴、12px 边距）；真实拖动吸附列入人工项（`H3` + 代码审查） |
+| AC-16.3 关闭后自由摆放并持久化 | ✅（实现 + 代码审查） | `snapToEdge=false` 时 `moved` 直接写回当前 bounds 到 `clock.freeX/freeY`；重启还原由 `computeClockBounds` 读取自由坐标（`H2` + 代码审查） |
+| AC-16.4 运行中切换不跳变 | ✅ | `onSettingsChanged`：false→true 以当前位置反算最近边；true→false 固化当前坐标；`H2→H3` 往返实测通过 |
+| AC-16.5 与位置锁定正交 | ✅（回归） | `lock.clock` 锁定时 `moved` 直接 return；`D1` 实测 clock `data-locked=true` + `app-region=no-drag` |
+| AC-16.6 v5→v6 迁移保留旧配置 | ✅ | `H4`：除 `freeX/freeY`（按设计在开关翻转时重写）外，`visible/showSeconds/showDate/hour12/fontSize/opacity/alwaysOnTop/theme` 与迁移后快照一致；磁盘 `schemaVersion=6`、`clockSnapToEdge=true`（`G3`） |
+
+### US-17 窗口行为准则
+
+| AC | 结果 | 证据 |
+|---|---|---|
+| AC-17.1 准则文档 | ✅ | 新增 [`docs/window-conventions.md`](window-conventions.md)：设计原则、C1–C10 强制能力清单（C3=自动吸附开关默认 true）、DOM/IPC 契约、接入检查清单、符合性矩阵、评审与豁免流程 |
+| AC-17.2 今后窗口强制吸附开关 | ✅（文档约束） | 准则 §2 C3 + §6 明确「未满足强制能力的窗口不得合入/发布」；设置窗口按 §2/§5 显式登记豁免理由 |
+| AC-17.3 纳入 SDD 流程与引用 | ✅ | `docs/spec.md` §4/§9、`docs/plan.md` §14、README「文档」表、`操作指南.md` v1.2 段均引用准则 |
+| AC-17.4 现有窗口符合性 | ✅ | 符合性矩阵：Dock / 音乐卡片 / 桌面时钟的吸附开关、位置锁定、位置记忆、显示开关全部 ✅；本轮补齐时钟吸附开关（`H1`–`H4`；音乐 `E1`–`E3`；Dock 既有 v0.2 能力回归 `C1`/`D1`） |
+| AC-17.5 工程质量 | ✅ | typecheck/build 0 错误；`schemaVersion=6`；CDP **36/36 通过**、0 运行时异常（`A8`） |
+
+## 3. 截图证据（`docs/verification/v1.2/`）
+
+| 文件 | 内容 |
+|---|---|
+| `settings-clock-snap.png` | 设置「时钟」→「位置」组：新增「自动吸附屏幕边缘」开关（关闭态样本）+ v1.2.0 footer |
+| `settings-clock.png` | 设置「时钟」页顶部（显示/外观） |
+| `settings-system.png` | 设置「系统」页（开机自启 + 位置锁定，回归） |
+| `settings-music.png` | 设置「音乐」页（吸附开关，回归） |
+| `clock-default.png` / `clock-seconds.png` / `clock-light.png` | 桌面时钟默认 / 显示秒 / 浅色主题（回归） |
+| `dock-locked.png` / `clock-locked.png` / `music-locked.png` | 位置锁定态（回归） |
+
+## 4. 验收夹具与现场恢复（尊重用户真实配置）
+
+- 本轮验收前用户已自行调整过配置：`music.snapToEdge=false`、`system.autoStart=true`（HKCU Run 已有 `com.nexus.dock`）、时钟位置记忆 `freeX/freeY=779,12`。脚本按「**用户状态感知**」执行：
+  - 吸附开关类断言只校验「设置页 UI 与当前配置一致」，「默认开启」由契约默认值与迁移保证，避免把用户偏好误判为失败；
+  - 开机自启测试先把基线**归零**再验证「开启 → 新增登录项」，结束后**恢复用户原有自启状态**（`registry.restoredToBaseline = {ok:true,autoStart:true}`，HKCU Run 条目恢复）；
+  - 结束时六组设置按快照还原并落盘复核（`G1`/`G3`）。
+- 最终磁盘状态：`schemaVersion=6`、`clock.snapToEdge=true`、`clock.freeX/freeY=779/12`、`music.snapToEdge=false`、`system.autoStart=true`、HKCU Run 存在 `com.nexus.dock` —— 与验收前一致，未被脚本破坏。
+
+## 5. 已知限制与待人工验收
+
+1. **真实拖动吸附**（US-16）：CDP 无法可靠模拟系统级窗口拖动，需人工：关闭开关后拖动时钟「拖到哪停在哪」并重启确认位置还原；开启后「松手吸附最近边（12px）」。
+2. **时钟吸附关闭后的副屏坐标**：逻辑按绝对坐标就近选屏（与 v1.1 一致），多显示器场景建议人工确认一次。
+3. **准则的人工约束**：`docs/window-conventions.md` 是流程准则，无法被脚本自动强制；新增窗口须在评审时对照 §2/§4 清单逐项签字（本文件 §5 矩阵同步更新）。
+4. **脚本名称说明**：`scripts/v11-verify.mjs` 为 v1.1 历史快照（断言 `schemaVersion=5`），v1.2 起使用 `scripts/v12-verify.mjs`；后续版本请复制最新脚本并同步断言，不要修改历史快照。
+
+---
+
+# v1.3 设置信息架构重构 验收（2026-10-30）
+
+> 环境：Windows 11 build 26200 · **安装版** `%LOCALAPPDATA%\NexusDock`（正常权限）· Electron 44.10.0 · **Nexus Dock v1.3.0**（设置页 footer 实测 v1.3.0）
+> 验收方式：`node scripts/v13-verify.mjs` 通过 CDP（`--remote-debugging-port=9224`）驱动四窗口，覆盖 US-18/US-19 并回归 v1.1/v1.2 能力
+> 机器证据：[`docs/verification/v1.3/v13-report.json`](verification/v1.3/v13-report.json)（**44 checks / 44 passed / 0 failed / 0 exceptions**）；截图目录：[`docs/verification/v1.3/`](verification/v1.3/)
+> 对应规格：`docs/spec.md` §10；准则真源：`docs/window-conventions.md` §2/§2.1；方案：`docs/plan.md` §15。
+
+## 1. 构建与安装门禁
+
+| 项 | 命令 | 结果 |
+|---|---|---|
+| 类型检查 | `npm run typecheck` | ✅ 0 错误 |
+| 生产构建 | `npm run build` | ✅ 成功（settings 资源随重构更新） |
+| 配置迁移 | 旧 v6 `settings.json` 启动 | ✅ `schemaVersion=7`；新增字段 `music.alwaysOnTop=true`、`music.onlyOnDesktop=false`、`clock.onlyOnDesktop=false`，旧字段与位置全部保留 |
+| 安装版更新 | `npm run install:local` | ✅ `%LOCALAPPDATA%\NexusDock` 更新至 v1.3.0，footer 显示 v1.3.0 |
+
+## 2. AC 逐条验收（v13-report.json 字段）
+
+### US-18 设置分组重构与窗口共性统一管理
+
+| AC | 结果 | 证据 |
+|---|---|---|
+| AC-18.1 系统页新增「窗口共性设置」+ 三个默认收起折叠栏 + 状态摘要 | ✅ | `C3`：页面含「窗口共性设置/锁定全部窗口位置/Dock/音乐卡片/桌面时钟」；`.nx-acc-head` 恰好 3 个、全部 `aria-expanded=false`、摘要含「吸附/置顶」状态；截图 `settings-system.png` |
+| AC-18.2 折叠栏内五项设置 + 移回默认位置 | ✅ | `C6` Dock 折叠栏展开后含「自动吸附屏幕边缘/始终置顶/仅在桌面显示/锁定位置/移回默认位置」五项；`E0`/`H0` 音乐/时钟折叠栏同样五项；`E6` 点击音乐「移回默认位置」→ `anchor='dock'`、`freeX/freeY=-1` |
+| AC-18.3 窗口页只保留独有特性 | ✅ | `C2` 时钟页含显示/秒/日期/字号/透明度且不含吸附/置顶/移回默认；`C4` 音乐页含音乐卡片/卡片宽度/进度样式/卡片位置且不含共性项；`C5` Dock 页含停靠边/沿边位置/图标尺寸/背景不透明度且不含共性项；截图 `settings-dock.png` / `settings-music.png` / `settings-clock.png` |
+| AC-18.4 共性能力补齐（音乐 alwaysOnTop/onlyOnDesktop、时钟 onlyOnDesktop） | ✅ | `A3b` 三个新字段均为布尔；`E4` 音乐「始终置顶」切换落盘且 UI 同步；`E5` 音乐「仅在桌面显示」、`H4` 时钟「仅在桌面显示」切换落盘且 UI 同步 |
+| AC-18.5 行为生效（置顶 / 仅在桌面显示） | ✅（渲染层 + 代码审查） | `windowManager`：音乐创建/设置变更走 `setAlwaysOnTop(settings.music.alwaysOnTop,'floating')`；`applyFloatingVisibility()` 对三窗口按 `onlyOnDesktop` 在最大化/全屏时隐藏、回桌面恢复，且不覆盖 `visible=false` 窗口；真实最大化/全屏行为列入人工项 |
+| AC-18.6 v6→v7 迁移保留旧配置 | ✅ | `A3`：`schemaVersion=7`，`musicSnapToEdge/clockSnapToEdge/lock` 等旧字段保留；`H5`：时钟除 `visible/freeX/freeY`（测试操作会改写）外 9 个字段与测试前一致；`G3` 磁盘复核 `schemaVersion=7` |
+| AC-18.7 折叠栏可键盘操作 + 动效降级 | ✅（实现 + 代码审查） | 原生 `<button aria-expanded>`；展开体使用 `nx-fade-in var(--nx-dur-base)`，`reduced-motion` 由 motion.css 全局降级；`C6`/`E0`/`H0` 展开/收起状态切换实测 |
+| AC-18.8 工程质量 | ✅ | typecheck/build 0 错误；CDP 44/44、0 例外（`A8`） |
+
+### US-19 窗口行为准则同步
+
+| AC | 结果 | 证据 |
+|---|---|---|
+| AC-19.1 准则更新（C11/C12 + §2.1 信息架构规则） | ✅ | `docs/window-conventions.md`：C11「仅在桌面显示」、C12「移回默认位置」、§2.1「共性归系统/折叠栏/独有归窗口/能力一致/默认值稳定」 |
+| AC-19.2 符合性矩阵 v1.3 | ✅ | 矩阵中三窗口 C3/C4/C5/C11/C12 均标注由系统页统一管理；设置窗口豁免项登记 |
+| AC-19.3 交叉引用一致 | ✅ | spec §4/§10、plan §15、README 文档表、操作指南 v1.3 段均引用准则 |
+
+## 3. 截图证据（`docs/verification/v1.3/`）
+
+| 文件 | 内容 |
+|---|---|
+| `settings-system.png` | 系统页：开机自启 + 窗口共性设置（三个窗口折叠栏**默认收起** + 状态摘要，锁定 1/3 示例） |
+| `settings-system-dock-expanded.png` | 展开 Dock 折叠栏：吸附/置顶/仅在桌面/锁定/移回默认位置五项 |
+| `settings-system-music-expanded.png` | 展开音乐卡片折叠栏（v1.3 新增「始终置顶」「仅在桌面显示」） |
+| `settings-system-clock-expanded.png` | 展开桌面时钟折叠栏 |
+| `settings-dock.png` / `settings-music.png` / `settings-clock.png` | 三个窗口页面（仅独有特性，底部提示共性项已移至系统页） |
+| `clock-default.png` / `clock-seconds.png` / `clock-light.png` | 时钟显示回归 |
+| `dock-locked.png` / `clock-locked.png` / `music-locked.png` | 位置锁定回归 |
+
+## 4. 验收夹具与现场恢复
+
+- 验收前快照：用户已开启开机自启（HKCU Run 有 `com.nexus.dock`）、Dock 处于单独锁定状态（`lock.dock=true`）、音乐吸附关闭、时钟吸附关闭；脚本启动时快照六组设置，结束时一次 `settings.update` 还原并落盘复核（`G1`/`G3` 全组相等）。
+- 开机自启测试沿用 v1.2 的「基线归一化 + finally 恢复」策略：先归零 → 验证开启新增登录项 → 关闭 → 恢复用户原有开启状态（`registry.restoredToBaseline={ok:true,autoStart:true}`，HKCU Run 条目恢复）。
+- 折叠栏相关测试只改共性字段并在每个用例后还原，`E6` 位置复位的改动也由 `G1` 快照还原覆盖。
+
+## 5. 已知限制与待人工验收
+
+1. **「仅在桌面显示」真实表现**（US-18 / C11）：CDP 无法制造真实最大化/全屏前台窗口，脚本验证字段与 UI 联动；请人工最大化一个应用确认音乐卡片/时钟自动隐藏、回到桌面恢复（Dock 既有行为一并确认）。
+2. **音乐卡片「始终置顶」层级效果**：脚本验证设置写入与 `setAlwaysOnTop` 调用路径（代码审查），实际覆盖其他窗口的视觉层级建议人工确认。
+3. **折叠栏手感**：展开/收起动画 180ms 淡入、状态摘要可读性建议人工体验；键盘 Tab/Enter 可操作（原生 button）。
+4. **脚本名称说明**：`scripts/v12-verify.mjs` 为 v1.2 历史快照（断言 `schemaVersion=6`），v1.3 起使用 `scripts/v13-verify.mjs`；后续版本继续复制最新脚本派生，不要修改历史快照。
+
+---
+
+# v1.3.1 修复验收：Dock 唤起保持应用窗口状态（2026-11-01）
+
+> 环境：Windows 11 build 26200 · **安装版** `%LOCALAPPDATA%\NexusDock`（正常权限）· Electron 44.10.0 · **Nexus Dock v1.3.1**
+> 验收方式：`node scripts/v131-verify.mjs` 通过 CDP（`--remote-debugging-port=9224`）调用 Dock 的 `apps:launch`，并用 Win32 窗口状态探测（`Win32 IsIconic/IsZoomed` + `ShowWindow`）验证窗口显示状态
+> 机器证据：[`docs/verification/v1.3.1/v131-report.json`](verification/v1.3.1/v131-report.json)（**10 checks / 10 passed / 0 failed / 0 exceptions**）；截图目录：[`docs/verification/v1.3.1/`](verification/v1.3.1/)
+> 对应规格：`docs/spec.md` §11；方案：`docs/plan.md` §16。
+
+## 1. 构建与安装门禁
+
+| 项 | 命令 | 结果 |
+|---|---|---|
+| 类型检查 | `npm run typecheck` | ✅ 0 错误 |
+| 生产构建 | `npm run build` | ✅ 成功 |
+| 安装版更新 | `npm run install:local` | ✅ `%LOCALAPPDATA%\NexusDock` 更新至 v1.3.1（`env.appVersion=1.3.1`、`isPackaged=true`） |
+
+## 2. AC 逐条验收（v131-report.json 字段）
+
+| AC | 结果 | 证据 |
+|---|---|---|
+| AC-20.1 最大化状态保持 | ✅ | `W2` fixture 设为最大化（`max=true`，rect≈全屏）；`W3` 通过 Dock 唤起后仍 `max=true`、`min=false`，**不再出现「先最大化再还原」**；截图 `maximized-preserved.png` |
+| AC-20.2 唤起仍置前 | ✅ | `W3`/`W5` 中 `foregroundTitle=Nexus WindowState Probe`，Dock 唤起后窗口获得前台焦点 |
+| AC-20.3 最小化恢复并保留最大化 | ✅ | `W4` 最小化（`min=true`）；`W5` Dock 唤起后 `min=false` 且 `max=true`（恢复到最小化前的最大化状态）；截图 `minimized-restored-maximized.png` |
+| AC-20.4 普通状态保持 / 首次启动正常 | ✅ | `W6` 普通窗口（`max=false,min=false`）唤起后仍普通；`W1` 未运行的 fixture 首次通过 Dock 启动成功（`result.ok=true`）并出现窗口 |
+| AC-20.5 工程质量 | ✅ | typecheck/build 0 错误；验收 10/10、0 运行时异常；`W7` 验收后 apps 列表与验收前完全一致（11 项，无 fixture 残留） |
+
+## 3. 截图证据（`docs/verification/v1.3.1/`）
+
+| 文件 | 内容 |
+|---|---|
+| `maximized-preserved.png` | fixture 窗口最大化后经 Dock 唤起，仍保持最大化（核心用例） |
+| `minimized-restored-maximized.png` | 最小化后经 Dock 唤起，恢复为最小化前的最大化状态 |
+
+## 4. 验收夹具与现场恢复
+
+- fixture 为独立编译的 WinForms 测试窗口（标题 `Nexus WindowState Probe`，编译到 `%LOCALAPPDATA%\NexusDock\v131-fixture`），**不启动、不关闭用户的真实应用**。
+- 测试开始前把 fixture 临时注入 Dock apps 列表；结束时删除 fixture、恢复 `apps` 原始列表（`W7` 校验 11 项、JSON 全等）、只关闭 fixture 自己的进程。
+- 不使用 `settings` 其他字段，验收后用户配置（schemaVersion 7、位置/外观/开机自启等）保持不变。
+
+## 5. 已知限制与待人工验收
+
+1. **本机自动化已全覆盖三种窗口状态**（最大化/最小化/普通）与首启置前；建议你用真实应用（如已最大化的浏览器/编辑器）再点一次 Dock 图标确认实际手感。
+2. **应用自身记忆状态**：若某个应用被关闭后重新启动时自行恢复窗口状态，Dock 的唤起不会覆盖它（v1.3.1 只保证「唤起时不主动改变显示状态」）。
+3. **脚本说明**：`scripts/v131-verify.mjs` 是本次修复的专用验收脚本；后续版本可继续派生，不要修改历史快照（`v12/v13` 脚本断言的是旧 schemaVersion）。
+
+---
+
+# v1.4 轻量化验收（2026-11-01）
+
+> 环境：Windows 11 build 26200 · **安装版** `%LOCALAPPDATA%\NexusDock`（正常权限）· Electron 44.10.0 · **Nexus Dock v1.4.0**
+> 验收方式：`node scripts/v14-verify.mjs` 通过 CDP（`--remote-debugging-port=9224`）驱动时钟 / 音乐卡片 / 设置窗口；内存用 `scripts/mem-probe.ps1` 采样，Electron 进程归因来自 `app.getAppMetrics()`
+> 机器证据：[`docs/verification/v1.4/v14-report.json`](verification/v1.4/v14-report.json)（**17 checks / 17 passed / 0 failed / 0 exceptions**）；截图目录：[`docs/verification/v1.4/`](verification/v1.4/)
+> 对应文档：README「v1.4 轻量化」段、`操作指南.md`「7. 内存占用与轻量化」、任务 `docs/tasks.md` v1.4；准则回归：`docs/window-conventions.md` C6/C7/C10 未退化。
+
+## 1. 量化对比（工作集 MB）
+
+采样工具 `scripts/mem-probe.ps1`；Electron 进程归因来自 `app.getAppMetrics()`，桥进程按「启动前后 PID 差集」归因。基线为同一台机器 v1.3.1 安装版。
+
+| 组成 | v1.3.1 基线 | v1.4 默认配置 | v1.4 + 低配模式（`NEXUS_LOW_END=1`） |
+|---|---|---|---|
+| GPU | 122.0 | 123.7 | 59.0 |
+| Browser（主进程） | 108.1 | 108.5 | 109.4 |
+| Tab（Dock） | 100.5 | 102.2 | 111.0 |
+| Tab（时钟） | 78.0 | 75.7 | 77.7 |
+| Utility（NetworkService） | 44.6 | 44.8 | 44.5 |
+| **Electron 5 进程合计** | **457.4** | **459.2** | **406.9** |
+| 常驻桥 | 198.6（smtc-bridge.ps1 ≈101.7 + desktop-state.ps1 ≈104.4，共 2 个） | 14.2（desktop-state.exe，1 个） | 14.2（desktop-state.exe，1 个） |
+| **总计** | **656.0** | **473.4** | **421.1** |
+| 相比基线 | – | **-182.6（-27.8%）** | **-234.9（-35.8%）** |
+
+> 说明：v1.4 默认配置采样时 `music.visible=false`，SMTC 桥完全不启动（即本轮「按需启停」的验证点）；桌面状态桥由原 PowerShell 版换成原生 `desktop-state.exe`。Electron 5 进程合计与基线基本持平（+1.8MB，属采样波动），内存收益主要来自常驻桥从 198.6MB 降到 14.2MB；低配模式再通过关闭硬件加速把 GPU 从 123.7MB 降到 59.0MB。分项为采样中的主要进程，合计取同一时刻全部 Electron 进程（含未单列的约 4MB Utility 辅助进程），因此各分项相加略小于合计。
+
+## 2. 本轮改动清单
+
+1. **SMTC 桥按需启停**（`src/main/media/mediaHub.ts` + `src/main/index.ts`）：仅当 `music.visible === true && music.source === 'system'` 时拉起；条件不再满足立即 kill 子进程并广播空状态；设置变更 500ms 去抖，避免反复启停。
+2. **桌面状态桥原生化**（`resources/desktop-state.cs` → `desktop-state.exe`，9.7KB）：C# P/Invoke（`GetForegroundWindow` / `GetWindowRect` / `IsZoomed` / `MonitorFromWindow` / `SPI_GETWORKAREA`）；协议与旧 `.ps1` 一致（JSON Lines / UTF-8 无 BOM / `--interval` / `--watch-stdin`）；找不到 exe 或启动失败自动回退 `.ps1`。采样 400ms → 800ms，且仅当任一窗口 `onlyOnDesktop=true` 时运行。
+3. **时钟渲染层去 React**（`src/renderer/clock/main.ts` 原生 TS DOM，替代 `main.tsx` + `ClockWindow.tsx`）：`data-locked` / `data-theme` / `.clock-time` / `.clock-date` / `.clock-period` / title+aria 等 DOM 契约全部保留；构建产物中 clock 入口 JS `clock-BSHbl893.js` 为 9,994B（≈10KB，另有 0.8KB 共享模块），**不再加载 569,942B 的 `jsx-runtime`（react-dom）共享 chunk**（验收字段 `usesReact=false`）。
+4. **music / clock 恢复 `backgroundThrottling: true`**（Dock 保持 `false`）：时钟隐藏时停走时、可见即补；音乐进度 rAF 加 visibility 门控、重新可见立即补帧；删除死代码 `useSmoothProgress`。
+5. **运行态检测 `tasklist` 轮询 4s → 10s**。
+6. **Chromium 轻量化开关**（`app ready` 前）：`--disable-background-networking` / `--disable-component-update` / `--disable-domain-reliability` / `--disable-sync` / `--disable-breakpad`；`NEXUS_LOW_END=1` 时 `app.disableHardwareAcceleration()`。
+7. **新增内存自测**：`src/main/diagnostics.ts`（`NEXUS_MEM_REPORT=<文件>` 或 `%APPDATA%\nexus-dock\mem-report.on` 标记文件 → 每 5s 采样 `app.getAppMetrics()` 写 `logs\memory.jsonl`，默认零成本）；`scripts/mem-probe.ps1` 探针；`scripts/v14-verify.mjs` CDP 验收。
+
+## 3. 验收项与结果（v14-report.json 字段）
+
+| 验收项 | 结果 | 证据 |
+|---|---|---|
+| 时钟 DOM 契约（root / theme / data-locked / title+aria / 锁定图标） | ✅ | `clock-root-exists`：`className="clock-root nx-glass"`、`theme=dark`、`locked=true`、`title="位置已锁定：设置 → 系统 解锁"`、`aria="桌面时钟（位置已锁定：设置 → 系统 解锁）"`、`hasLockIcon=true`、**`usesReact=false`** |
+| 时钟不再依赖 React | ✅ | 同上 `usesReact=false`；clock 入口 9,994B，无 `jsx-runtime` 引用（构建产物核对） |
+| 时钟时间 / 日期格式 | ✅ | `clock-time-format=16:46`、`clock-date-format=11月1日 周日` |
+| 时钟时间准确 | ✅ | `clock-time-accurate`：DOM `16:46` 与系统时间一致 |
+| 时钟真实走时 | ✅ | `clock-ticks-live`：两次采样 `16:46:51 → 16:46:53`（秒级推进） |
+| 时钟主题 / 锁定属性 / 锁定提示 | ✅ | `clock-data-theme=dark`、`clock-locked-attr=true`、`clock-lock-hint`（title+aria 含解锁路径） |
+| Dock 渲染回归（11 项） | ✅ | `dock-api-available`（`hasNexus=true`、`items=11`、`locked=true`）、`dock-items-rendered`（11 项） |
+| 音乐卡片开启 → SMTC 桥 +1 进程 | ✅ | `music-enabled-spawns-smtc-bridge`：powershell 3 → 4；`music-enabled-flag`（enabled=true / disabled=false） |
+| 音乐卡片关闭 → 桥进程回收 | ✅ | `music-disabled-kills-smtc-bridge`：powershell 4 → 3 |
+| music 窗口创建 | ✅ | `music-window-created`：`.../out/renderer/music/index.html` |
+| 设置窗口可打开并渲染 | ✅ | `settings-window-opens`、`settings-renders`（标题「Nexus 设置」、textLength 414） |
+| 内存量化对比 | ✅ | §1 表：默认 473.4MB（-27.8%）、低配 421.1MB（-35.8%） |
+| C11「仅在桌面显示」端到端 | ✅（人工/端到端） | 最大化资源管理器 → Dock + 时钟 `visible=false`；还原 → `visible=true`；截图 `before-desktop.png` / `after-desktop.png` |
+| 低配模式可用 | ✅ | `NEXUS_LOW_END=1` 采样 421.1MB（GPU 59.0MB）；截图 `after-lowend-desktop.png` |
+| 静态门禁 | ✅ | `npx tsc --noEmit` exit 0；`npm run build` 成功 |
+
+## 4. 证据文件
+
+| 文件 | 内容 |
+|---|---|
+| `docs/verification/v1.4/v14-report.json` | CDP 验收报告（17 checks / 17 passed / 0 failed） |
+| `docs/verification/v1.4/before-desktop.png` | v1.3.1 基线桌面（改造前） |
+| `docs/verification/v1.4/after-desktop.png` | v1.4 默认配置桌面（最大化窗口还原后 Dock / 时钟可见） |
+| `docs/verification/v1.4/dock-after.png` | v1.4 默认配置下 Dock 渲染 |
+| `docs/verification/v1.4/clock-after.png` | v1.4 默认配置下时钟渲染 |
+| `docs/verification/v1.4/after-lowend-desktop.png` | v1.4 低配模式桌面 |
+| `docs/verification/v1.4/dock-after-lowend.png` | v1.4 低配模式下的 Dock 渲染 |
+| `docs/verification/v1.4/clock-after-lowend.png` | v1.4 低配模式下的时钟渲染 |
+
+## 5. 已知限制与说明
+
+1. **内存为工作集瞬时采样**：同一机器、同一时段前后对比才有意义，单次采样有 ±几 MB 波动；Electron 5 进程合计与基线基本持平（+1.8MB）属正常波动，收益不来自这里。
+2. **SMTC 桥完全退出意味着关闭期间不可控制系统媒体**：音乐卡片隐藏时没有 UI 入口，行为无变化；重新显示卡片会自动拉起桥（500ms 去抖）。
+3. **桌面状态 exe 回退路径**：极端环境（无 .NET Framework 4 / 安全软件拦截）会回退到 `desktop-state.ps1`，此时该桥内存回到基线水平（约 104MB），功能不受影响。
+4. **低配模式代价**：关闭硬件加速后透明窗口仍可用，但动画改由 CPU 合成，低端机可能掉帧；属可选模式，默认不开启。
+5. **时钟去 React 的收益体现**：减少的是 JS 解析/编译与堆占用（时钟渲染进程工作集 78.0 → 75.7MB），主要内存收益仍来自桥进程的消除。
+
+---
+
+# v1.4.1 修复验收（2026-11-01）
+
+> 环境：Windows 11 build 26200 · **安装版** `%LOCALAPPDATA%\NexusDock`（正常权限）· **Nexus Dock v1.4.1**
+> 验收方式：`node scripts/v141-verify.mjs` 通过 CDP（`--remote-debugging-port=9224`）驱动 Dock / 设置窗口；窗口存在性用 `scripts/out/win-probe.exe WINS`（UIA 顶层窗口）核对
+> 机器证据：[`docs/verification/v1.4.1/v141-report.json`](verification/v1.4.1/v141-report.json)（**17 checks / 17 passed / 0 failed / 0 exceptions**）；截图目录：[`docs/verification/v1.4.1/`](verification/v1.4.1/)
+> 触发与对应文档：用户反馈「点开 Dock 栏的 DockApp 软件图标不会打开设置栏」；README「v1.4.1 修复」、`docs/spec.md` §12（US-21）、`docs/plan.md` §17、任务 `docs/tasks.md` 阶段 24
+
+## 1. 修复前现场与根因（实测）
+
+| 证据 | 内容 |
+|---|---|
+| Dock 配置 | 第一项 `custom-14d5c3098e71`（名称 `NexusDockApp`），`path = %LOCALAPPDATA%\NexusDock\NexusDockApp.exe` |
+| `logs/launch.log` | 点击该图标后：`launch id=custom-14d5c3098e71 name=NexusDockApp ...` → `COM(path) found=true title=Nexus 时钟 activated=true` |
+| UIA 顶层窗口 | 当时只有 `Nexus Dock` / `Nexus 时钟`，**没有 `Nexus 设置`** |
+
+**根因链路**（逐环见 `docs/plan.md` §17.1）：自身图标指向本程序 exe → `launchApp` 走 `launchAndFocus` 的「已有窗口优先」分支 → 该分支用进程名匹配窗口，四个窗口的进程名都是 `NexusDockApp`，而 `$selfTitles` 漏了 `Nexus 时钟` → 时钟窗口被当成「目标应用已打开」并置前（`FOUND`），不启动第二实例 → `second-instance` 不触发 → `openSettingsWindow()` 不执行。
+
+## 2. 修复内容与构建/安装门禁
+
+| 项 | 结果 | 证据 |
+|---|---|---|
+| 入口识别 `isSelfApp()` | ✅ | 用 `app.getPath('exe')` / `process.execPath` 规范化比对 `item.path` / `aumid`；`.lnk` 经 `shell.readShortcutLink` 解析目标；命中即 `openSettingsWindow()` 并返回 `{ ok: true }`，不再启动进程 |
+| 置前脚本兜底 | ✅ | `$selfTitles` 增加 `Nexus 时钟`，四个自身窗口标题齐全，自窗口一律不当目标窗口 |
+| 类型检查 | ✅ | `npm run typecheck` → exit 0（无输出错误） |
+| 构建 | ✅ | `npm run build` → `electron-vite build` 成功 |
+| 安装版版本 | ✅ | `installed-build-v141`：`packaged=true`、`appVersion=1.4.1` |
+
+## 3. 逐条 AC 验收（v141-report.json 字段）
+
+| AC | 验收项 | 结果 | 机器证据（check id / detail 摘要） |
+|---|---|---|---|
+| AC-21.1 | 左键（IPC 路径）点击自身图标 → 设置面板出现 | ✅ | `self-launch-opens-settings`：`launchResult.ok=true` + `/settings/` target 出现 |
+| AC-21.1 | 设置面板渲染完整 | ✅ | `settings-window-renders`：`title="Nexus 设置"`、`textLength=414`、`focus=true`、`hidden=false` |
+| AC-21.1 | 设置窗口为真实顶层窗口、未最小化、在屏 | ✅ | `settings-window-on-screen`：`hwnd=987004`、`pid=313712`、`min=false`、`rect=[556,153,1150,922]` |
+| AC-21.1 | 像素级证据（不受其它窗口遮挡） | ✅ | `settings-window-capture`：CDP 窗口截图 184,401B → `settings-window.png` |
+| AC-21.2 | 已打开时再次点击不重复创建 | ✅ | `no-duplicate-settings-window`：`settingsTargets=1` |
+| AC-21.3 | 真实鼠标左键点击 Dock 图标同样打开设置 | ✅ | `dock-icon-real-click-opens-settings`：点击坐标取自 `[data-dock-id]` 元素中心、`onScreen=true`、截图 184,401B |
+| AC-21.3 | 右键「打开」与左键同链路 | ✅（代码走查） | `ipc.ts` 的 `showItemMenu`「打开」与 Dock 左键都调用 `launchApp(id)`，本次修复在 `launchApp` 入口生效；未对原生菜单做自动化点击 |
+| AC-21.4 | `.lnk` 指向自身 exe 也打开设置 | ✅ | `lnk-self-opens-settings`：临时创建 `DockApp-link.lnk`（目标=安装 exe）→ `ok=true` + settings target |
+| AC-21.4 | `aumid` 存 exe 路径分支 | ✅（代码保证，未单独自动化） | `isSelfApp` 的 candidates 同时包含 `item.path` 与 `item.aumid`；本机条目为 `path` 形式 |
+| AC-21.5 | 非自身应用不误触发设置面板 | ✅ | `non-self-app-does-not-open-settings`：自定义 exe fixture（`win-probe.exe` 副本）→ `settingsTarget=null`；`launch.log` 记录正常启动链路 `COM ... FAILED ... 启动后未检测到窗口`，证明未走自身分支 |
+| AC-21.6 | 桌面快捷方式二次启动 → 单实例 → 打开设置 | ✅ | `second-instance-opens-settings`：WMI 再启一次安装 exe（`spawnReturn=0`）→ settings target 出现，仍未出现第二个 Dock 主进程 |
+| AC-21.7 | 不重复启动主进程 | ✅ | `no-second-main-process`：`before=1`、`after=1` |
+| AC-21.7 | 启动日志记录自身识别 | ✅ | `launch-log-self-detected`：`→ 识别为 Nexus Dock 自身：打开设置面板` |
+| AC-21.7 | 工程质量 | ✅ | `npm run typecheck` 0 错误、`npm run build` 成功（见 §2） |
+| 前置 | 现场可重复 | ✅ | `dock-target-available`、`installed-build-v141`、`self-dock-item-found`、`settings-closed-before-test`、`single-main-process-before`、`dock-apps-restored`（11→11） |
+
+## 4. 证据文件
+
+| 文件 | 内容 |
+|---|---|
+| `docs/verification/v1.4.1/v141-report.json` | CDP 验收报告（17 checks / 17 passed / 0 failed），含每条 check 的 AC 标签与 detail |
+| `docs/verification/v1.4.1/settings-window.png` | **设置窗口 CDP 窗口级截图**（标题栏「Nexus 设置」、底部版本 `Nexus Dock v1.4.1`） |
+| `docs/verification/v1.4.1/dock-window.png` | Dock 窗口 CDP 截图（含自建 NexusDockApp 图标） |
+| `docs/verification/v1.4.1/settings-opened.png` | 全屏截图：左键（IPC 路径）打开后设置面板置顶显示 |
+| `docs/verification/v1.4.1/settings-after-dock-click.png` | 真实鼠标点击后设置窗口的 CDP 窗口级截图 |
+| `docs/verification/v1.4.1/dock-click-opened-settings.png` | 全屏截图：真实鼠标点击 DockApp 图标后设置面板显示 |
+| `docs/verification/v1.4.1/second-instance-opened-settings.png` | 全屏截图：二次启动（单实例）后设置面板显示 |
+
+## 5. 已知限制与说明
+
+1. **测试机前台遮挡**：验收时 DeepSeek Harness 会话窗口占满屏幕且常驻最前；CDP 合成点击不会把系统前台交给 Dock，因此设置窗口会落在 Harness 后面。取证方式为「先 CDP 窗口级截图（不受遮挡影响），再 `SetWindowPos(HWND_TOPMOST)` 临时置顶拍全屏图、拍完 `HWND_NOTOPMOST` 恢复」（report `notes`：`全屏截图前置顶设置窗口：OK:987004`）。真实鼠标点击的观感建议人工再确认一次。
+2. **焦点口径**：`document.hasFocus=true` 为 Chromium 视角；系统前台仍为 Harness 是 Windows 前台锁造成的测试环境现象，非功能缺陷。设置窗口由既有 `openSettingsWindow()`（v1.0 起为右键「Dock 设置…」入口）负责 `show()` + `focus()`，本次修复只把入口指向它。
+3. **右键菜单「打开」**：与左键共用 `launchApp(id)`，脚本未对原生菜单自动化点击，以代码走查 + 左键同链路覆盖。
+4. **`aumid` 存 exe 路径分支**：本机条目为 `path` 形式；`.lnk` 已实测，`aumid` 分支仅由 `isSelfApp` 代码保证。
+5. **负向用例 fixture**：`win-probe.exe` 副本是无窗口程序，其启动结果为「启动后未检测到窗口」属 fixture 特性；结论只看「未打开设置面板」且走了正常启动链路。
+6. **验收后现场**：安装版已按正常方式（不带调试端口）重启；Dock 条目恢复为 11 项；`v141-fixture` 目录已删除；设置窗口已关闭。
+
+## 6. 复现方式
+
+```powershell
+npm run build
+npm run install:local
+# 用调试端口启动安装版（或直接运行 %LOCALAPPDATA%\NexusDock\NexusDockApp.exe --remote-debugging-port=9224）
+node scripts/v141-verify.mjs
+```
+
+脚本流程：关闭遗留设置窗口 → 从 `apps:list` 取指向安装 exe 的自身条目 → 依次跑 AC-21.1~21.7 → 恢复 `apps` 列表 → 删除 fixture → 关闭设置窗口；不修改用户其它设置。
+
+

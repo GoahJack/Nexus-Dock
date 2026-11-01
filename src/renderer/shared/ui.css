@@ -1,0 +1,321 @@
+/* 通用控件样式（配合 theme.css + motion.css 使用）
+   v1.0：所有控件补齐 hover / press / focus / disabled 四态，按压走 spring 曲线 */
+
+/* ------------------------------- 按钮 ------------------------------- */
+
+.ui-btn {
+  position: relative;
+  border-radius: var(--nx-radius-sm);
+  padding: 8px 14px;
+  font-size: var(--nx-font-md);
+  color: var(--nx-text);
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--nx-border);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.18);
+  transition:
+    transform var(--nx-dur-base) var(--nx-spring),
+    background-color var(--nx-dur-fast) var(--nx-ease-out),
+    border-color var(--nx-dur-fast) var(--nx-ease-out),
+    box-shadow var(--nx-dur-fast) var(--nx-ease-out),
+    color var(--nx-dur-fast) var(--nx-ease-out);
+}
+
+.ui-btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.14);
+  border-color: var(--nx-border-strong);
+  transform: translateY(-1px);
+  box-shadow: var(--nx-shadow-hover);
+}
+
+.ui-btn:active:not(:disabled) {
+  transform: scale(var(--nx-press-scale));
+  box-shadow: var(--nx-shadow-press);
+  transition:
+    transform var(--nx-dur-fast) var(--nx-ease-press),
+    box-shadow var(--nx-dur-fast) var(--nx-ease-press);
+}
+
+.ui-btn:focus-visible {
+  outline: 2px solid var(--nx-focus-color);
+  outline-offset: 2px;
+}
+
+.ui-btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+  box-shadow: none;
+}
+
+.ui-btn-primary {
+  background: linear-gradient(180deg, #7db3ff, var(--nx-accent));
+  color: #0b1020;
+  border-color: transparent;
+  font-weight: 600;
+  box-shadow: 0 2px 10px rgba(110, 168, 254, 0.28);
+}
+
+.ui-btn-primary:hover:not(:disabled) {
+  background: linear-gradient(180deg, #9ac5ff, var(--nx-accent-strong));
+  box-shadow: 0 6px 20px rgba(110, 168, 254, 0.42);
+}
+
+.ui-btn-ghost {
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+}
+
+.ui-btn-ghost:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.08);
+  box-shadow: none;
+}
+
+.ui-btn-danger {
+  color: var(--nx-danger);
+  border-color: rgba(255, 107, 107, 0.35);
+  background: rgba(255, 107, 107, 0.1);
+}
+
+.ui-btn-danger:hover:not(:disabled) {
+  background: rgba(255, 107, 107, 0.18);
+  border-color: rgba(255, 107, 107, 0.55);
+  box-shadow: 0 6px 18px rgba(255, 107, 107, 0.16);
+}
+
+.ui-btn-sm {
+  padding: 5px 10px;
+  font-size: var(--nx-font-sm);
+}
+
+/* ------------------------------- 行 / 字段 ------------------------------- */
+
+.ui-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 9px 0;
+}
+.ui-row.is-disabled {
+  opacity: 0.45;
+}
+.ui-row-label {
+  font-size: var(--nx-font-md);
+  color: var(--nx-text);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.ui-row-hint {
+  font-size: var(--nx-font-xs);
+  color: var(--nx-text-faint);
+  font-weight: 400;
+  line-height: 1.4;
+}
+.ui-row-control {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+/* ------------------------------- 开关 ------------------------------- */
+
+.ui-switch {
+  width: 42px;
+  height: 24px;
+  border-radius: var(--nx-radius-pill);
+  background: rgba(255, 255, 255, 0.14);
+  border: 1px solid var(--nx-border);
+  position: relative;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition:
+    background-color var(--nx-dur-base) var(--nx-ease-out),
+    border-color var(--nx-dur-base) var(--nx-ease-out),
+    box-shadow var(--nx-dur-base) var(--nx-ease-out),
+    transform var(--nx-dur-fast) var(--nx-ease-press);
+}
+
+.ui-switch:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.ui-switch:active {
+  transform: scale(0.96);
+}
+
+.ui-switch:focus-visible {
+  outline: 2px solid var(--nx-focus-color);
+  outline-offset: 3px;
+}
+
+.ui-switch.is-on {
+  background: linear-gradient(180deg, #7db3ff, var(--nx-accent));
+  border-color: transparent;
+  box-shadow: 0 0 14px rgba(110, 168, 254, 0.32);
+}
+
+.ui-switch.is-on:hover {
+  box-shadow: 0 0 20px rgba(110, 168, 254, 0.45);
+}
+
+.ui-switch-knob {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+  transition:
+    transform var(--nx-dur-base) var(--nx-spring),
+    box-shadow var(--nx-dur-fast) var(--nx-ease-out);
+}
+
+.ui-switch.is-on .ui-switch-knob {
+  transform: translateX(18px);
+  box-shadow: 0 1px 5px rgba(0, 0, 0, 0.3), 0 0 8px rgba(255, 255, 255, 0.35);
+}
+
+/* ------------------------------- 滑块 ------------------------------- */
+
+.ui-field {
+  padding: 9px 0;
+}
+.ui-field.is-disabled {
+  opacity: 0.45;
+}
+.ui-field-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+.ui-field-value {
+  font-size: var(--nx-font-sm);
+  color: var(--nx-text-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+.ui-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 4px;
+  border-radius: 4px;
+  outline: none;
+  background: linear-gradient(
+    to right,
+    var(--nx-accent) 0%,
+    var(--nx-accent) var(--pct, 50%),
+    rgba(255, 255, 255, 0.16) var(--pct, 50%),
+    rgba(255, 255, 255, 0.16) 100%
+  );
+  transition: box-shadow var(--nx-dur-fast) var(--nx-ease-out);
+}
+
+.ui-slider:hover:not(:disabled) {
+  box-shadow: 0 0 0 1px rgba(110, 168, 254, 0.18), 0 0 12px rgba(110, 168, 254, 0.12);
+}
+
+.ui-slider:focus-visible {
+  box-shadow: 0 0 0 3px rgba(110, 168, 254, 0.28);
+}
+
+.ui-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
+  cursor: pointer;
+  transition:
+    transform var(--nx-dur-fast) var(--nx-spring),
+    box-shadow var(--nx-dur-fast) var(--nx-ease-out);
+}
+
+.ui-slider:hover:not(:disabled)::-webkit-slider-thumb {
+  transform: scale(1.15);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4), 0 0 10px rgba(110, 168, 254, 0.5);
+}
+
+.ui-slider:active:not(:disabled)::-webkit-slider-thumb {
+  transform: scale(1.3);
+  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.45), 0 0 14px rgba(110, 168, 254, 0.65);
+}
+
+/* ---------------------------- 分段选择器 ---------------------------- */
+
+.ui-segmented {
+  display: flex;
+  gap: 4px;
+  background: rgba(0, 0, 0, 0.28);
+  border: 1px solid var(--nx-border);
+  border-radius: 12px;
+  padding: 3px;
+}
+.ui-seg {
+  position: relative;
+  flex: 1;
+  padding: 7px 8px;
+  border-radius: 9px;
+  font-size: 12.5px;
+  color: var(--nx-text-dim);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  transition:
+    transform var(--nx-dur-base) var(--nx-spring),
+    background-color var(--nx-dur-fast) var(--nx-ease-out),
+    color var(--nx-dur-fast) var(--nx-ease-out),
+    box-shadow var(--nx-dur-base) var(--nx-ease-out);
+}
+.ui-seg:hover {
+  color: var(--nx-text);
+  background: rgba(255, 255, 255, 0.06);
+}
+.ui-seg:active {
+  transform: scale(0.97);
+  transition: transform var(--nx-dur-fast) var(--nx-ease-press);
+}
+.ui-seg:focus-visible {
+  outline: 2px solid var(--nx-focus-color);
+  outline-offset: 1px;
+}
+.ui-seg.is-active {
+  background: var(--nx-accent-soft);
+  color: #cfe1ff;
+  box-shadow: inset 0 0 0 1px rgba(110, 168, 254, 0.35), 0 2px 10px rgba(110, 168, 254, 0.12);
+}
+.ui-seg.is-active:hover {
+  background: rgba(110, 168, 254, 0.24);
+}
+.ui-seg:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+/* ------------------------------- 区块 ------------------------------- */
+
+.ui-section {
+  padding: 4px 0 12px;
+}
+.ui-section-head h2 {
+  margin: 0;
+  font-size: var(--nx-font-lg);
+  font-weight: 600;
+  letter-spacing: 0.2px;
+}
+.ui-section-head p {
+  margin: 4px 0 0;
+  font-size: var(--nx-font-sm);
+  color: var(--nx-text-faint);
+  line-height: var(--nx-leading);
+}
+.ui-section-body {
+  margin-top: 6px;
+}
