@@ -1267,3 +1267,169 @@
 .settings-error-retry:hover {
   background: rgba(255, 255, 255, 0.18);
 }
+
+/* ============================================================
+   v1.6：Dock 应用自定义显示名称 / 图标
+   - 列表行多一个 ✎ 入口与「自定义」徽标
+   - 编辑弹层复用 .nx-apps-overlay 遮罩，面板独立尺寸
+   ============================================================ */
+
+.nx-app-badge.is-custom {
+  border-color: rgba(255, 191, 92, 0.38);
+  background: rgba(255, 191, 92, 0.14);
+  color: #ffe3b5;
+}
+
+.nx-app-edit {
+  width: 100%;
+  max-width: 384px;
+  display: flex;
+  flex-direction: column;
+  border-radius: 14px;
+  background: var(--nx-bg-elev);
+  border: 1px solid var(--nx-border-strong);
+  box-shadow: var(--nx-shadow);
+  overflow: hidden;
+  animation: nx-pop-in var(--nx-dur-base) var(--nx-ease-out) both;
+}
+
+.nx-app-edit-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 12px 10px 14px;
+  border-bottom: 1px solid var(--nx-border);
+}
+
+.nx-app-edit-head h3 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.nx-app-edit-head p {
+  margin: 3px 0 0;
+  font-size: 11.5px;
+  color: var(--nx-text-faint);
+}
+
+.nx-app-edit-body {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 14px;
+  max-height: 420px;
+  overflow-y: auto;
+}
+
+/* 预览：56px 图标 + 当前显示名 + 启动路径 */
+.nx-app-edit-preview {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--nx-border);
+  background:
+    radial-gradient(120% 140% at 8% 0%, rgba(110, 168, 254, 0.12), rgba(110, 168, 254, 0) 62%),
+    rgba(0, 0, 0, 0.22);
+}
+
+.nx-app-edit-preview .nx-app-icon {
+  flex: 0 0 56px;
+  width: 56px;
+  height: 56px;
+  border-radius: 14px;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.07);
+}
+
+.nx-app-edit-preview .nx-app-icon-fallback {
+  font-size: 24px;
+}
+
+.nx-app-edit-preview-text {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.nx-app-edit-preview-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--nx-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.nx-app-edit-preview-sub {
+  font-size: 11px;
+  color: var(--nx-text-faint);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.nx-app-edit-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.nx-app-edit-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--nx-text-dim);
+}
+
+.nx-app-edit-input {
+  width: 100%;
+  padding: 8px 11px;
+  border-radius: 9px;
+  border: 1px solid var(--nx-border);
+  background: rgba(0, 0, 0, 0.32);
+  color: var(--nx-text);
+  font-family: inherit;
+  font-size: 13px;
+  outline: none;
+  transition:
+    border-color var(--nx-dur-fast) var(--nx-ease-out),
+    box-shadow var(--nx-dur-base) var(--nx-ease-out);
+}
+
+.nx-app-edit-input::placeholder {
+  color: var(--nx-text-faint);
+}
+
+.nx-app-edit-input:focus {
+  border-color: rgba(110, 168, 254, 0.7);
+  box-shadow: 0 0 0 3px rgba(110, 168, 254, 0.16);
+}
+
+.nx-app-edit-hint {
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--nx-text-faint);
+}
+
+.nx-app-edit-icon-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.nx-app-edit-foot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px 14px;
+  border-top: 1px solid var(--nx-border);
+}
+
+.nx-app-edit-foot-spacer {
+  flex: 1 1 auto;
+}
+

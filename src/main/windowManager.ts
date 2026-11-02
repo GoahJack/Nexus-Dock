@@ -1,6 +1,7 @@
 import { BrowserWindow, screen } from 'electron'
 import { join } from 'node:path'
 import {
+  IPC,
   isHorizontalEdge,
   SCREEN_MARGIN,
   type ClockConfig,
@@ -738,6 +739,8 @@ export function openSettingsWindow(): BrowserWindow {
   })
   win.on('closed', () => {
     settingsWin = null
+    // 窗口在消费请求前被关掉：丢弃待处理请求，避免下次打开设置时莫名弹出编辑弹层
+    pendingEditAppId = null
   })
   hardenWindow(win)
   installRendererSelfHeal(win, 'settings')
@@ -745,6 +748,40 @@ export function openSettingsWindow(): BrowserWindow {
 }
 
 /* ------------------------------ 公共能力 ------------------------------ */
+
+/**
+ * v1.6：Dock 右键菜单「编辑名称与图标…」的跨窗口定位。
+ * 主进程记一条待处理请求：设置窗口还没创建 → 挂载后 consume 取走；
+ * 设置窗口已存在 → 直接转发 apps:editRequest 事件，切到「应用」页并打开弹层。
+ */
+let pendingEditAppId: string | null = null
+
+export function requestAppEditor(id: string): void {
+  if (typeof id !== 'string' || id.length === 0) return
+  const win = openSettingsWindow()
+  // 已加载完成的窗口：直接转发事件（消费后清空待处理请求，避免下次手动打开设置时又弹出旧弹层）
+  if (!win.webContents.isLoadingMainFrame()) {
+    pendingEditAppId = null
+    setTimeout(() => {
+      if (win.isDestroyed()) return
+      try {
+        win.webContents.send(IPC.appsEditRequest, id)
+      } catch (error) {
+        logToFile('main', `[settings] 转发应用编辑请求失败：${String(error)}`)
+      }
+    }, 50)
+    return
+  }
+  // 新窗口：只走「挂载后 consume」这一条路径，避免事件 + consume 双路径重复打开弹层
+  pendingEditAppId = id
+}
+
+/** 设置窗口挂载时消费一次待处理的编辑请求（新开窗口的主要路径） */
+export function consumePendingAppEditor(): string | null {
+  const id = pendingEditAppId
+  pendingEditAppId = null
+  return id
+}
 
 export function setContentSize(target: WindowTarget, size: Size): void {
   if (target !== 'dock' && target !== 'music' && target !== 'clock') return

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { CSSProperties, JSX, MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent } from 'react'
 import type { DockEdge, DockItem } from '@shared/types'
+import { displayIconOf, displayNameOf } from '@shared/types'
 import { spawnRipple } from '../shared/motion'
 
 /**
@@ -73,10 +74,10 @@ export function DockItemView(props: DockItemViewProps): JSX.Element {
   const [imageFailed, setImageFailed] = useState(false)
   const iconRef = useRef<HTMLDivElement | null>(null)
 
-  // 图标地址变化（例如主进程补齐了真实图标）时重试加载
+  // 图标地址变化（例如主进程补齐了真实图标 / 用户改了自定义图标）时重试加载
   useEffect(() => {
     setImageFailed(false)
-  }, [item.icon])
+  }, [item.icon, item.customIcon])
 
   /**
    * 启动弹跳：类名由这里手动挂/摘。
@@ -117,10 +118,12 @@ export function DockItemView(props: DockItemViewProps): JSX.Element {
           ? `translateX(${lift}px)`
           : `translateX(${-lift}px)`
 
-  const icon = item.icon?.trim() ?? ''
+  const icon = displayIconOf(item)
   const imageSrc = icon.startsWith('icon://') || icon.startsWith('data:') ? icon : ''
   const showImage = imageSrc.length > 0 && !imageFailed
-  const letter = firstChar(item.name)
+  /** v1.6：Dock 显示自定义名称（回退原始名称），tooltip / 无障碍标签同步 */
+  const displayName = displayNameOf(item)
+  const letter = firstChar(displayName)
 
   // 放大时按衰减程度抬高层级，避免放大后的图标被相邻图标盖住
   const stackZIndex = factor > 0 ? Math.round(factor * 100) : undefined
@@ -138,9 +141,9 @@ export function DockItemView(props: DockItemViewProps): JSX.Element {
       className="dock-item nx-ripple-glow-host"
       role="button"
       tabIndex={props.tabIndex}
-      aria-label={item.name}
+      aria-label={displayName}
       aria-haspopup="menu"
-      title={item.name}
+      title={displayName}
       style={itemStyle}
       data-dock-id={item.id}
       data-dragging={dragging ? 'true' : undefined}

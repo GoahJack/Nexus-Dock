@@ -113,6 +113,8 @@ function LoadingSkeleton(): JSX.Element {
 export function SettingsApp(): JSX.Element {
   const { settings, error, retry, patch, reset } = useSettings()
   const [tab, setTab] = useState<TabKey>('dock')
+  /** v1.6：Dock 右键菜单「编辑名称与图标…」→ 切到「应用」页并打开对应条目弹层 */
+  const [editAppId, setEditAppId] = useState<string | null>(null)
   const [resetOpen, setResetOpen] = useState(false)
   const [resetClosing, setResetClosing] = useState(false)
   const [resetting, setResetting] = useState(false)
@@ -125,6 +127,33 @@ export function SettingsApp(): JSX.Element {
     },
     []
   )
+
+  // v1.6：接收主进程转发的「编辑某个应用显示」请求。
+  // 新开设置窗口时事件可能早于订阅 → 挂载时主动消费一次；窗口已挂载但请求迟到（仍在加载）→ 聚焦时再消费一次。
+  useEffect(() => {
+    let alive = true
+    const open = (id: string): void => {
+      if (!alive || !id) return
+      setTab('apps')
+      setEditAppId(id)
+    }
+    const consume = (): void => {
+      void window.nexus.apps
+        .consumeEditRequest()
+        .then((id) => {
+          if (id) open(id)
+        })
+        .catch(() => undefined)
+    }
+    const off = window.nexus.apps.onEditRequest(open)
+    consume()
+    window.addEventListener('focus', consume)
+    return () => {
+      alive = false
+      off()
+      window.removeEventListener('focus', consume)
+    }
+  }, [])
 
   /** 弹层关闭：先播退场动画再卸载（AC-9.10 弹层进出动画） */
   const closeReset = useCallback(() => {
@@ -179,7 +208,14 @@ export function SettingsApp(): JSX.Element {
       case 'clock':
         return <ClockSection settings={settings} patch={safePatch} />
       case 'apps':
-        return <AppsSection settings={settings} patch={safePatch} />
+        return (
+          <AppsSection
+            settings={settings}
+            patch={safePatch}
+            editRequestId={editAppId}
+            onEditRequestHandled={() => setEditAppId(null)}
+          />
+        )
       case 'appearance':
         return <AppearanceSection settings={settings} patch={safePatch} />
       case 'system':

@@ -88,6 +88,11 @@ function migrate(settings: Settings, fromVersion: number): Settings {
     }
   }
 
+  // v8 → v9（v1.6）：Dock 应用新增自定义显示名称 / 图标（customName / customIcon，均为可选字段）。
+  // 纯增量迁移：旧条目不写这两个字段 → 显示回退到 name / icon，配置零丢失；
+  // 非法值由 sanitizeSettings 的 normalizeCustomName / normalizeCustomIcon 统一剔除。
+  // 这里只提升 schemaVersion（见函数末尾），无需改写历史数据。
+
   return sanitizeSettings({ ...next, schemaVersion: DEFAULT_SETTINGS.schemaVersion })
 }
 

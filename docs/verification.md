@@ -881,3 +881,75 @@ node scripts/v15-overflow-check.mjs
 
 - 安装版已按正常方式重启（不带调试端口），5 个进程在跑，用户配置零改动（仅 `music.theme` 新增默认值、`schemaVersion` 升到 8）。
 - 迁移前配置备份：`%APPDATA%\nexus-dock\settings.v141-<时间戳>.json`；旧安装树备份：`dist/_backup-v141-<时间戳>/`。
+
+---
+
+# v1.6 验收（2026-11-02）：Dock 应用自定义显示名称与图标
+
+> 环境：Windows 11 · **开发构建**（`out/`，Electron 44.7.0）· **Nexus Dock v1.6.0**
+> 验收方式：`scripts/v16-verify.mjs` —— 隔离 userData（`.userdata\v16`）+ `--remote-debugging-port=9344` + CDP 驱动 Dock / 设置窗口，原生文件对话框用 user32/uia 关闭。
+> 机器证据：[`docs/verification/v1.6/v16-report.json`](verification/v1.6/v16-report.json)（**18 checks / 18 passed / 0 failed / 0 exceptions**，23 张截图）+ [`docs/verification/v1.6/v16-pick.json`](verification/v1.6/v16-pick.json)（真实选图补测 2/2，含 `importEvidence`）。
+> 安全边界：用户安装版 `NexusDockApp` 6 个进程 PID 全程未变；未读写 `%APPDATA%\nexus-dock`（测试日志确认 `[userData] 使用目录：E:\AI WorkRegion\app_creator\.userdata\v16`）。
+
+## 1. 验收项与结果
+
+| AC | 验收项 | 结果 | 证据 |
+|---|---|---|---|
+| AC-26.1 | 版本 1.6.0 + 设置 v8→v9 迁移零丢失 | ✅ | `version=1.6.0`、`schemaVersion=9`、6 应用名称/图标齐全、`dock.alongPercent=62`/`iconSize=46` 保留、主进程日志出现 `[settings] 已从 v8 迁移到 v9`、落盘配置无 customName/customIcon |
+| AC-26.2 | Dock 改名（`updateItem(customName)`） | ✅ | `.dock-item[data-dock-id="explorer"]` 的 `aria-label`/`title` 均为「测试新名字」，设置侧 `customName` 同步 |
+| AC-26.3a | 自定义 PNG 图标真实渲染 | ✅ | `icon://v16-test.png`，`<img> naturalWidth=64`、`complete=true`，截图 `dock-custom-icon-png.png` |
+| AC-26.3b | 自定义 SVG 图标：MIME + 渲染 | ✅ | CDP `Network.responseReceived`：`icon://v16-test.svg` → 200、`Content-Type: image/svg+xml`；`<img> naturalWidth=64`，截图 `dock-custom-icon-svg.png` |
+| AC-26.4 | 恢复默认：DOM 回原值、配置无残留 | ✅ | 名称/图标回默认，`settings.get()` 中该条目 `customName/customIcon` 为 undefined（无 null/空串），`noResidue=true` |
+| AC-26.5a | 设置页每行有 ✎，点开弹层且输入框自动聚焦 | ✅ | 6 行 / 6 个编辑按钮，`.nx-app-edit` 唯一，`.nx-app-edit-input focused=true`，截图 `settings-app-edit-open.png` |
+| AC-26.5b | 设置页改名保存：弹层关闭、行显示新名+「自定义」徽标、Dock 同步 | ✅ | 受控输入真实改值 → 点「保存」→ 行 `name=设置页改名`、`badge=自定义`、title 含原名，Dock `aria-label` 同步，截图 `settings-apps-customized.png` / `dock-settings-rename.png` |
+| AC-26.5c | `requestEdit(id)`（Dock 右键路径）：切「应用」页并打开唯一弹层 | ✅ | 弹层 `count=1`、`previewSub=C:\Windows\explorer.exe`；1.2s 后仍为 1（无重复打开），截图 `settings-request-edit.png` |
+| AC-26.5d | 关闭 requestEdit 弹层后不自动复弹 | ✅ | 取消关闭后 1.2s `.nx-app-edit` 数量 0，`consumeEditRequest()` 返回 null（主进程无残留请求） |
+| AC-26.5e | 弹层内「恢复默认」生效 | ✅ | Dock 名称/图标回默认，条目对象只剩 `id/name/path/aumid/icon/source`，截图 `settings-apps-after-reset.png` / `dock-after-edit-reset.png` |
+| AC-26.6 | 「选择图片…」原生对话框真实打开并可取消 | ✅ | UIA/user32 找到 `#32770`「选择自定义图标图片」→ 截图 `native-icon-dialog.png` → WM_CLOSE 关闭、无残留窗口、IPC 返回 `{ok:false,error:'canceled'}` |
+| AC-26.7 | 回归：设置 Dock/应用/音乐/系统四页渲染、无错误条 | ✅ | 四页 `errorBanner=false`、正文长度正常，截图 `settings-*-regression.png` |
+| AC-26.8 | 回归：Dock 图标数=配置数、重载后无自身 console error | ✅ | `itemCount=6/6`、`hasRoot=true`、`hasEmpty=false`；页面自身 error 0（已过滤测试探测产生的跨源 fetch 噪声并注明原因） |
+| AC-26.9 | 回归：音乐卡片仍可创建并渲染 | ✅ | `data-theme=dark`、进度条存在，截图 `music-card-v16.png` |
+| AC-26.10 | 主进程日志无协议/核心异常 | ✅ | 无 protocol/apps 失败、无 Unhandled rejection / TypeError |
+| AC-26.11 | 质量门禁：typecheck + 15 tests + build | ✅ | `scripts/out/v16-gates.json`：`checkExit=0`、`testsPassed=15`、`buildExit=0`（18:33 独立复跑） |
+| AC-26.6b | 原生对话框真实选 PNG → `importCustomIcon` 归一化导入 → Dock 渲染 | ✅ | 源 640×512 / 5068B → `icon://custom-ef2f9576143e.png`；落盘 7492B、PNG magic + IHDR、**256×205**（最长边 256、比例保持）；Dock `<img naturalWidth=256>`，截图 `dock-pick-png.png` |
+| AC-26.6c | 原生对话框真实选 SVG → 原样导入（MIME）→ Dock 渲染 | ✅ | `icon://custom-04c0da75edb8.svg`；导入文件与源**字节级一致**；CDP Network：200 + `Content-Type: image/svg+xml`；Dock `<img naturalWidth=96>`，截图 `dock-pick-svg.png` |
+
+## 2. 补测：真实图片选择完整链路（AC-26.6b/c，2/2 PASS）
+
+AC-26.3 的自定义图标是把夹具直接写进 `icons\` 目录，绕过了 `importCustomIcon()`；AC-26.6 只验证了对话框打开/取消。为覆盖「用户真的选一张图」的完整链路，追加 `--pick` 模式补测：
+
+1. 从 Dock 页面调用 `window.nexus.apps.pickIcon()`（不 await，挂到 `window`）；
+2. 原生「打开」对话框用 **user32 子窗口**驱动：`EnumChildWindows` 命中 `ComboBoxEx32 → ComboBox → Edit`（`GetDlgCtrlID=1148`）与 `Button(id=1, 打开(&O))`，`WM_SETTEXT` 写入绝对路径 → `CBN_EDITCHANGE` 刷新按钮状态 → `BM_CLICK` 点「打开」；
+3. `await window.__pick` 返回 `{ok:true, icon:'icon://custom-<hash>.<ext>'}`；检查隔离 userData 的 `icons\` 落盘文件、PNG magic/IHDR、尺寸与比例；
+4. `updateItem` 后 Dock `<img>` 真实加载并截图。
+
+| 用例 | 源文件 | 导入结果 | 断言 |
+|---|---|---|---|
+| PNG | 640×512 / 5068B | `icon://custom-ef2f9576143e.png`（7492B） | magic `89 50 4E 47`、IHDR **256×205**（比例 640:512 保持）、Dock `naturalWidth=256` |
+| SVG | `pick-source.svg` | `icon://custom-04c0da75edb8.svg` | 导入文件与源**字节级一致**；CDP Network：200 + `Content-Type: image/svg+xml`；Dock `naturalWidth=96` |
+
+证据：`docs/verification/v1.6/v16-pick.json`（`importEvidence` 含 dialog/automation、源尺寸、导入头、Network MIME）、截图 `dock-pick-png.png` / `dock-pick-svg.png` / `native-pick-dialog.png`（PrintWindow 渲染对话框本身）。
+
+> 方法说明：本机中文 Win11「打开」对话框的 UIA 树不暴露文件名框与「打开」按钮（42 个 Edit 全是文件列表属性与搜索框），因此改用上面 user32 子窗口方案；对话框选择后自行关闭，`leftoverDialogs=0`。
+
+## 3. 测试方法说明（避免误判）
+
+1. **不要用页面 `fetch('icon://…')` 验证协议**：`file://` 页面请求自定义协议属跨源，Electron 自定义协议默认不开放 CORS，会误报 `Failed to fetch`；产品设计只用 `<img>` 渲染图标。MIME 断言改用 CDP `Network.responseReceived` 的响应头，并静态核对 `protocol.ts` 的 `ICON_MIME` 映射。
+2. 设置页分组切换有 220ms 转场，读取正文前需等待；图标选择是原生模态对话框，测试必须确保对话框已关闭，否则会阻塞整个测试实例。
+3. 测试实例使用独立 `--user-data-dir`，因此单实例锁与用户正在运行的安装版互不干扰；结束时按 PID + 命令行含 `.userdata\v16` 清理。
+
+## 4. 需人工确认
+
+1. 自定义图标在真实桌面缩放比例（125%/150%/多屏）下的观感。
+2. 选择 1–8MB 大图时的缩放效果（已限制 ≤8MB 并缩到最长边 256px，文件大小会显著下降）。
+3. Dock 右键菜单的视觉与点击手感（菜单项文字已由代码与 UI 快照覆盖，但原生菜单不参与自动化截图）。
+
+## 5. 验收后现场（真实安装版）
+
+- 已执行 `scripts/install-local.ps1` 把 v1.6.0 同步到 `%LOCALAPPDATA%\NexusDock`：manifest 版本 **1.6.0**、桌面快捷方式已刷新；旧安装树 `dist/NexusDock-portable` 作为同步源保留。
+- 安装前备份用户配置：`%APPDATA%\nexus-dock\settings.v15-backup-20261102-185016.json`。
+- 真机迁移结果：`schemaVersion` **8 → 9**；`apps=12`、`dock.edge=bottom`、`iconSize=45`、`freeX/freeY`、`alongPercent` 全部保留；旧条目没有新增 `customName/customIcon` 字段（零污染）。
+- 以正常权限运行确认：`launch.log` 记录 `env: lowIntegrity=false`（经 Explorer 启动，5 个进程）；托盘创建成功。
+- 真机 UI 本地证据（PNG 已被 gitignore，保留在目录内供复核）：`docs/verification/v1.6/installed-settings-apps.png`（安装版「应用」页：每行 ✎ + 页脚 `Nexus Dock v1.6.0`）、`installed-settings-editor.png`（编辑弹层真实打开）、`installed-settings-editor-closed.png`（Esc 关闭；关闭后 `customFields=0`，未改动用户配置）。
+- 说明：安装脚本以 `Start-Process` 直接拉起时会被 DSH 宿主注入的 `ELECTRON_RUN_AS_NODE=1` 影响（Electron 以 Node 模式启动后立即退出，属宿主环境已知问题）；本次改用 Explorer 启动以同时获得正常权限与干净环境变量。日常请双击根目录「启动 Nexus Dock.cmd」或桌面快捷方式。
+

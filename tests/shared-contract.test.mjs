@@ -14,10 +14,13 @@ import { readFileSync, existsSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
 import {
+  CUSTOM_NAME_MAX_LENGTH,
   DEFAULT_APPS,
   DEFAULT_SETTINGS,
   IPC,
   SCREEN_MARGIN,
+  displayIconOf,
+  displayNameOf,
   isHorizontalEdge,
   mergeSettings,
   sanitizeSettings
@@ -117,6 +120,68 @@ test('mergeSettings：patch 非法值同样被夹紧', () => {
   const base = sanitizeSettings(undefined)
   const merged = mergeSettings(base, { clock: { fontSize: 9999 } })
   assert.equal(merged.clock.fontSize, 96)
+})
+
+test('sanitizeSettings：自定义显示名称/图标合法值保留、非法值剔除', () => {
+  const settings = sanitizeSettings({
+    apps: [
+      {
+        id: 'a',
+        name: 'A',
+        path: 'C:\\a.exe',
+        source: 'custom',
+        customName: '  我的 A\u0007  ',
+        customIcon: 'icon://custom-abc.png'
+      },
+      {
+        id: 'b',
+        name: 'B',
+        path: 'C:\\b.exe',
+        source: 'custom',
+        customName: '   ',
+        // 只允许本地 icon:// 与 data:image/，外部 URL 必须被丢弃（不能让 Dock 去加载网络图片）
+        customIcon: 'https://evil.example/x.png'
+      },
+      {
+        id: 'c',
+        name: 'C',
+        path: 'C:\\c.exe',
+        source: 'custom',
+        customName: 'x'.repeat(200),
+        customIcon: 'data:image/png;base64,AAA'
+      }
+    ]
+  })
+  assert.equal(settings.apps[0].customName, '我的 A', '应去控制字符与首尾空白')
+  assert.equal(settings.apps[0].customIcon, 'icon://custom-abc.png')
+  assert.equal(settings.apps[1].customName, undefined, '纯空白名称应被丢弃')
+  assert.equal(settings.apps[1].customIcon, undefined, '外部 URL 图标应被丢弃')
+  assert.equal(Array.from(settings.apps[2].customName).length, CUSTOM_NAME_MAX_LENGTH, '超长名称按码点截断')
+  assert.equal(settings.apps[2].customIcon, 'data:image/png;base64,AAA')
+})
+
+test('显示辅助：自定义名称/图标优先，否则回退默认值', () => {
+  const base = { id: 'a', name: '原名称', path: 'C:\\a.exe', icon: 'icon://default.png', source: 'custom' }
+  assert.equal(displayNameOf(base), '原名称')
+  assert.equal(displayIconOf(base), 'icon://default.png')
+  assert.equal(displayNameOf({ ...base, customName: '新名字' }), '新名字')
+  assert.equal(displayIconOf({ ...base, customIcon: 'icon://custom-1.png' }), 'icon://custom-1.png')
+  // 非法自定义图标不能覆盖默认图标
+  assert.equal(displayIconOf({ ...base, customIcon: 'https://evil.example/a.png' }), 'icon://default.png')
+  // 空字符串走回退，便于「恢复默认」只清空字段
+  assert.equal(displayNameOf({ ...base, customName: '  ' }), '原名称')
+})
+
+test('mergeSettings：自定义显示字段随 apps 整体替换保留', () => {
+  const base = sanitizeSettings(undefined)
+  const merged = mergeSettings(base, {
+    apps: [
+      { id: 'x', name: 'X', path: 'C:\\x.exe', source: 'custom', customName: '小X', customIcon: 'icon://c.png' }
+    ]
+  })
+  assert.equal(merged.apps.length, 1)
+  assert.equal(merged.apps[0].customName, '小X')
+  assert.equal(merged.apps[0].customIcon, 'icon://c.png')
 })
 
 test('默认设置自身必须合法（sanitize 幂等）', () => {

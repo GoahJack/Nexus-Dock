@@ -1,6 +1,7 @@
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron'
 import {
   IPC,
+  type AppCustomPatch,
   type AutoStartResult,
   type DeepPartial,
   type DockItem,
@@ -9,6 +10,7 @@ import {
   type MediaAction,
   type MediaState,
   type NexusApi,
+  type PickIconResult,
   type Point,
   type Settings,
   type Size,
@@ -53,6 +55,12 @@ const api: NexusApi = {
     dockMenu: (point: Point) => ipcRenderer.invoke(IPC.appsContextMenuDock, point) as Promise<void>,
     scanStartMenu: () => ipcRenderer.invoke(IPC.appsScanStartMenu) as Promise<DockItem[]>,
     addFromStartMenu: (item: DockItem) => ipcRenderer.invoke(IPC.appsAddFromStartMenu, item) as Promise<DockItem[]>,
+    updateItem: (id: string, patch: AppCustomPatch) =>
+      ipcRenderer.invoke(IPC.appsUpdateItem, id, patch) as Promise<DockItem[]>,
+    pickIcon: () => ipcRenderer.invoke(IPC.appsPickIcon) as Promise<PickIconResult>,
+    requestEdit: (id: string) => ipcRenderer.invoke(IPC.appsRequestEdit, id) as Promise<void>,
+    consumeEditRequest: () => ipcRenderer.invoke(IPC.appsConsumeEditRequest) as Promise<string | null>,
+    onEditRequest: (cb) => subscribe<string>(IPC.appsEditRequest, cb),
     onRunning: (cb) => subscribe<Record<string, boolean>>(IPC.appsRunning, cb)
   },
   window: {

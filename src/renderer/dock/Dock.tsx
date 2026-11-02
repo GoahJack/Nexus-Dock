@@ -6,7 +6,7 @@ import type {
   MouseEvent as ReactMouseEvent,
   PointerEvent as ReactPointerEvent
 } from 'react'
-import { isHorizontalEdge, SCREEN_MARGIN } from '@shared/types'
+import { displayNameOf, isHorizontalEdge, SCREEN_MARGIN } from '@shared/types'
 import type { DockItem, Point, Settings, ThemeMode } from '@shared/types'
 import { useContentSize, useSettings } from '../shared/hooks'
 import { prefersReducedMotion, spawnRipple } from '../shared/motion'
@@ -411,17 +411,19 @@ function DockView({ settings }: { settings: Settings }): JSX.Element {
 
   const launch = useCallback(
     (item: DockItem) => {
+      // v1.6：提示文案用用户看到的显示名（自定义名称优先）
+      const label = displayNameOf(item)
       void window.nexus.apps
         .launch(item.id)
         .then((result) => {
           if (!result.ok) {
             const detail = result.error?.trim()
-            showError(detail ? `无法启动「${item.name}」：${detail}` : `无法启动「${item.name}」`)
+            showError(detail ? `无法启动「${label}」：${detail}` : `无法启动「${label}」`)
           }
         })
         .catch((reason: unknown) => {
           const detail = reason instanceof Error ? reason.message : String(reason)
-          showError(`无法启动「${item.name}」：${detail}`)
+          showError(`无法启动「${label}」：${detail}`)
         })
     },
     [showError]

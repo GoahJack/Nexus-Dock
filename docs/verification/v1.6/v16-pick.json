@@ -1,0 +1,317 @@
+{
+  "mode": "--pick",
+  "title": "v1.6 补充验收：原生对话框真实选图 → importCustomIcon 导入 → Dock 渲染",
+  "at": "2026-11-02T10:45:37.197Z",
+  "cdpPort": 9345,
+  "userDataDir": "E:\\AI WorkRegion\\app_creator\\.userdata\\v16-pick",
+  "durationMs": 15330,
+  "passed": 2,
+  "failed": 0,
+  "results": [
+    {
+      "id": "AC-26.6b",
+      "title": "原生对话框真实选择 640×512 PNG → importCustomIcon 归一化导入（≤256px）→ Dock 渲染",
+      "ok": true,
+      "detail": {
+        "dialog": {
+          "hwnd": 2821220,
+          "pid": 292496,
+          "left": 0,
+          "top": 0,
+          "right": 1280,
+          "bottom": 800,
+          "title": "选择自定义图标图片",
+          "mine": true
+        },
+        "dialogCapture": {
+          "pid": 292496,
+          "width": 1280,
+          "ok": true,
+          "path": "docs/verification/v1.6/native-pick-dialog.png",
+          "method": "printwindow",
+          "title": "选择自定义图标图片",
+          "height": 800
+        },
+        "dialogGone": true,
+        "automation": {
+          "ok": true,
+          "hwnd": 2821220,
+          "title": "选择自定义图标图片",
+          "editFound": true,
+          "editId": 1148,
+          "comboFound": true,
+          "buttonFound": true,
+          "buttonName": "打开(&O)",
+          "setMethod": "WM_SETTEXT",
+          "invoked": true,
+          "error": ""
+        },
+        "pickResult": {
+          "ok": true,
+          "icon": "icon://custom-ef2f9576143e.png"
+        },
+        "iconShapeOk": true,
+        "imported": {
+          "path": ".userdata/v16-pick/icons/custom-ef2f9576143e.png",
+          "fileSize": 7492,
+          "magic": true,
+          "ihdrTag": "IHDR",
+          "width": 256,
+          "height": 205
+        },
+        "expectedResize": {
+          "width": 256,
+          "height": 205
+        },
+        "dimsOk": true,
+        "ratioOk": true,
+        "dom": {
+          "aria": "文件资源管理器",
+          "title": "文件资源管理器",
+          "imgSrc": "icon://custom-ef2f9576143e.png",
+          "imgNaturalWidth": 256,
+          "imgComplete": true,
+          "letter": null
+        },
+        "safetyClosed": false,
+        "leftoverDialogs": 0
+      },
+      "screenshots": [
+        "docs/verification/v1.6/dock-pick-png.png"
+      ]
+    },
+    {
+      "id": "AC-26.6c",
+      "title": "原生对话框真实选择 SVG → 原样导入（image/svg+xml）→ Dock 渲染",
+      "ok": true,
+      "detail": {
+        "dialog": {
+          "hwnd": 4195370,
+          "pid": 292496,
+          "left": 0,
+          "top": 0,
+          "right": 1280,
+          "bottom": 800,
+          "title": "选择自定义图标图片",
+          "mine": true
+        },
+        "dialogCapture": {
+          "pid": 292496,
+          "width": 1280,
+          "ok": true,
+          "path": "docs/verification/v1.6/native-pick-dialog.png",
+          "method": "printwindow",
+          "title": "选择自定义图标图片",
+          "height": 800
+        },
+        "dialogGone": true,
+        "automation": {
+          "ok": true,
+          "hwnd": 4195370,
+          "title": "选择自定义图标图片",
+          "editFound": true,
+          "editId": 1148,
+          "comboFound": true,
+          "buttonFound": true,
+          "buttonName": "打开(&O)",
+          "setMethod": "WM_SETTEXT",
+          "invoked": true,
+          "error": ""
+        },
+        "pickResult": {
+          "ok": true,
+          "icon": "icon://custom-04c0da75edb8.svg"
+        },
+        "iconShapeOk": true,
+        "importedFile": ".userdata/v16-pick/icons/custom-04c0da75edb8.svg",
+        "contentMatchesSource": true,
+        "network": {
+          "url": "icon://custom-04c0da75edb8.svg/",
+          "status": 200,
+          "contentType": "image/svg+xml"
+        },
+        "dom": {
+          "aria": "文件资源管理器",
+          "title": "文件资源管理器",
+          "imgSrc": "icon://custom-04c0da75edb8.svg",
+          "imgNaturalWidth": 96,
+          "imgComplete": true,
+          "letter": null
+        },
+        "safetyClosed": false,
+        "leftoverDialogs": 0
+      },
+      "screenshots": [
+        "docs/verification/v1.6/dock-pick-svg.png"
+      ]
+    }
+  ],
+  "screenshots": [
+    "docs/verification/v1.6/native-pick-dialog.png",
+    "docs/verification/v1.6/dock-pick-png.png",
+    "docs/verification/v1.6/dock-pick-svg.png"
+  ],
+  "importEvidence": [
+    {
+      "kind": "png",
+      "source": ".userdata/v16-pick/pick-source.png",
+      "sourceBytes": 5068,
+      "icon": "icon://custom-ef2f9576143e.png",
+      "importedFile": ".userdata/v16-pick/icons/custom-ef2f9576143e.png",
+      "importedHeader": {
+        "fileSize": 7492,
+        "magic": true,
+        "ihdrTag": "IHDR",
+        "width": 256,
+        "height": 205
+      },
+      "expectedResize": {
+        "width": 256,
+        "height": 205
+      },
+      "dialog": {
+        "title": "选择自定义图标图片",
+        "hwnd": 2821220
+      },
+      "dialogCapture": {
+        "pid": 292496,
+        "width": 1280,
+        "ok": true,
+        "path": "docs/verification/v1.6/native-pick-dialog.png",
+        "method": "printwindow",
+        "title": "选择自定义图标图片",
+        "height": 800
+      },
+      "dialogGone": true,
+      "automation": {
+        "ok": true,
+        "hwnd": 2821220,
+        "title": "选择自定义图标图片",
+        "editFound": true,
+        "editId": 1148,
+        "comboFound": true,
+        "buttonFound": true,
+        "buttonName": "打开(&O)",
+        "setMethod": "WM_SETTEXT",
+        "invoked": true,
+        "error": ""
+      },
+      "dom": {
+        "aria": "文件资源管理器",
+        "title": "文件资源管理器",
+        "imgSrc": "icon://custom-ef2f9576143e.png",
+        "imgNaturalWidth": 256,
+        "imgComplete": true,
+        "letter": null
+      }
+    },
+    {
+      "kind": "svg",
+      "source": ".userdata/v16-pick/pick-source.svg",
+      "icon": "icon://custom-04c0da75edb8.svg",
+      "importedFile": ".userdata/v16-pick/icons/custom-04c0da75edb8.svg",
+      "importedBytes": 198,
+      "contentMatchesSource": true,
+      "networkContentType": "image/svg+xml",
+      "dialog": {
+        "title": "选择自定义图标图片",
+        "hwnd": 4195370
+      },
+      "dialogCapture": {
+        "pid": 292496,
+        "width": 1280,
+        "ok": true,
+        "path": "docs/verification/v1.6/native-pick-dialog.png",
+        "method": "printwindow",
+        "title": "选择自定义图标图片",
+        "height": 800
+      },
+      "dialogGone": true,
+      "automation": {
+        "ok": true,
+        "hwnd": 4195370,
+        "title": "选择自定义图标图片",
+        "editFound": true,
+        "editId": 1148,
+        "comboFound": true,
+        "buttonFound": true,
+        "buttonName": "打开(&O)",
+        "setMethod": "WM_SETTEXT",
+        "invoked": true,
+        "error": ""
+      },
+      "dom": {
+        "aria": "文件资源管理器",
+        "title": "文件资源管理器",
+        "imgSrc": "icon://custom-04c0da75edb8.svg",
+        "imgNaturalWidth": 96,
+        "imgComplete": true,
+        "letter": null
+      }
+    }
+  ],
+  "diagnostics": {
+    "total": 0,
+    "errors": [],
+    "ignored": 0,
+    "probeFiltered": 0
+  },
+  "iconNetworkResponses": [
+    {
+      "page": "dock-pick",
+      "url": "icon://13617a808edd.png/",
+      "status": 200,
+      "mimeType": "image/png",
+      "contentType": "image/png"
+    },
+    {
+      "page": "dock-pick",
+      "url": "icon://af52e0e26ce9.png/",
+      "status": 200,
+      "mimeType": "image/png",
+      "contentType": "image/png"
+    },
+    {
+      "page": "dock-pick",
+      "url": "icon://3b8bde4e6588.png/",
+      "status": 200,
+      "mimeType": "image/png",
+      "contentType": "image/png"
+    },
+    {
+      "page": "dock-pick",
+      "url": "icon://593fb582ce8d.png/",
+      "status": 200,
+      "mimeType": "image/png",
+      "contentType": "image/png"
+    },
+    {
+      "page": "dock-pick",
+      "url": "icon://473a3c8fa7e7.png/",
+      "status": 200,
+      "mimeType": "image/png",
+      "contentType": "image/png"
+    },
+    {
+      "page": "dock-pick",
+      "url": "icon://fd42d4dbe853.png/",
+      "status": 200,
+      "mimeType": "image/png",
+      "contentType": "image/png"
+    },
+    {
+      "page": "dock-pick",
+      "url": "icon://custom-ef2f9576143e.png/",
+      "status": 200,
+      "mimeType": "image/png",
+      "contentType": "image/png"
+    },
+    {
+      "page": "dock-pick",
+      "url": "icon://custom-04c0da75edb8.svg/",
+      "status": 200,
+      "mimeType": "image/svg+xml",
+      "contentType": "image/svg+xml"
+    }
+  ]
+}

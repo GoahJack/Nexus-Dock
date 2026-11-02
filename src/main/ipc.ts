@@ -3,12 +3,14 @@ import { basename, extname } from 'node:path'
 import {
   DEFAULT_MEDIA_STATE,
   IPC,
+  type AppCustomPatch,
   type AutoStartResult,
   type DeepPartial,
   type DockItem,
   type LocalTrack,
   type MediaAction,
   type MediaState,
+  type PickIconResult,
   type Point,
   type Settings,
   type Size,
@@ -18,9 +20,11 @@ import {
   addStartMenuItem,
   launchApp,
   pickAppFiles,
+  pickCustomIcon,
   removeApp,
   reorderApps,
-  scanStartMenu
+  scanStartMenu,
+  updateAppCustom
 } from './apps'
 import { applyAutoStart } from './autostart'
 import { allowMediaFile } from './protocol'
@@ -28,10 +32,12 @@ import { getSettings, resetSettings, updateSettings } from './settingsStore'
 import type { MediaHub } from './media/mediaHub'
 import {
   broadcast,
+  consumePendingAppEditor,
   getDockWindow,
   getSettingsWindow,
   isDockVisible,
   openSettingsWindow,
+  requestAppEditor,
   setContentSize,
   setDockVisible,
   snapDockToEdge
@@ -90,12 +96,23 @@ function showDockMenu(window: BrowserWindow | null): void {
 function showItemMenu(window: BrowserWindow | null, id: string): void {
   const item = getSettings().apps.find((a) => a.id === id)
   if (!item) return
+  const hasCustom = !!(item.customName || item.customIcon)
   const menu = Menu.buildFromTemplate([
     {
       label: '打开',
       click: () => {
         void launchApp(id)
       }
+    },
+    {
+      // v1.6：自定义显示名称与图标，直接跳转到设置「应用」页并打开该条目的编辑弹层
+      label: '编辑名称与图标…',
+      click: () => requestAppEditor(id)
+    },
+    {
+      label: '恢复默认名称与图标',
+      enabled: hasCustom,
+      click: () => updateAppCustom(id, { customName: null, customIcon: null })
     },
     {
       label: '在资源管理器中显示',
@@ -153,6 +170,13 @@ function registerAppIpc(): void {
   ipcMain.handle(IPC.appsReorder, (_event, ids: string[]): DockItem[] => reorderApps(ids))
   ipcMain.handle(IPC.appsScanStartMenu, (): Promise<DockItem[]> => scanStartMenu())
   ipcMain.handle(IPC.appsAddFromStartMenu, (_event, item: DockItem): DockItem[] => addStartMenuItem(item))
+  // v1.6：自定义显示名称 / 图标
+  ipcMain.handle(IPC.appsUpdateItem, (_event, id: string, patch: AppCustomPatch): DockItem[] =>
+    updateAppCustom(id, patch ?? {})
+  )
+  ipcMain.handle(IPC.appsPickIcon, (): Promise<PickIconResult> => pickCustomIcon())
+  ipcMain.handle(IPC.appsRequestEdit, (_event, id: string): void => requestAppEditor(id))
+  ipcMain.handle(IPC.appsConsumeEditRequest, (): string | null => consumePendingAppEditor())
   ipcMain.handle(IPC.appsMenu, (event, id: string, point: Point): void => {
     sanitizePoint(point)
     showItemMenu(BrowserWindow.fromWebContents(event.sender), id)
@@ -283,6 +307,10 @@ export function disposeIpc(): void {
   ipcMain.removeHandler(IPC.appsReorder)
   ipcMain.removeHandler(IPC.appsScanStartMenu)
   ipcMain.removeHandler(IPC.appsAddFromStartMenu)
+  ipcMain.removeHandler(IPC.appsUpdateItem)
+  ipcMain.removeHandler(IPC.appsPickIcon)
+  ipcMain.removeHandler(IPC.appsRequestEdit)
+  ipcMain.removeHandler(IPC.appsConsumeEditRequest)
   ipcMain.removeHandler(IPC.appsMenu)
   ipcMain.removeHandler(IPC.appsContextMenuDock)
   ipcMain.removeHandler(IPC.windowCapture)

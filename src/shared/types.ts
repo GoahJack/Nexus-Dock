@@ -28,7 +28,13 @@ export const SCREEN_MARGIN = 12
 
 export interface DockItem {
   id: string
+  /** 原始名称（添加应用时得到）：用于启动窗口匹配、恢复默认显示名，不要被自定义名称覆盖 */
   name: string
+  /**
+   * v1.6 自定义显示名称：非空则 Dock / 设置列表显示它；缺省或空字符串 = 使用原始 name。
+   * 与 name 分离是为了不破坏标题匹配（titleHintFor）与「恢复默认」能力。
+   */
+  customName?: string
   /** 可执行文件或 .lnk 快捷方式路径；UWP 应用可为空字符串 */
   path: string
   /** UWP/打包应用的 AppUserModelID（通过 shell:AppsFolder 启动，兼容计算器/记事本等） */
@@ -36,7 +42,59 @@ export interface DockItem {
   args?: string[]
   /** 图标：'icon://<hash>.png' 或 data URL；空字符串表示使用字母占位图标 */
   icon?: string
+  /**
+   * v1.6 自定义显示图标：'icon://<hash>.png'（用户选择的图片已复制到 userData/icons）或 data URL；
+   * 缺省/空字符串 = 使用 icon（自动提取的应用图标）。恢复默认只需清空该字段。
+   */
+  customIcon?: string
   source: 'builtin' | 'startmenu' | 'custom'
+}
+
+/** v1.6 自定义显示信息补丁：undefined = 不修改，null / '' = 恢复默认 */
+export interface AppCustomPatch {
+  customName?: string | null
+  customIcon?: string | null
+}
+
+/** v1.6 选择自定义图标的结果（取消选择时 ok=false 且 error='canceled'） */
+export interface PickIconResult {
+  ok: boolean
+  /** 成功时为可直接写入 DockItem.customIcon 的 icon:// URL */
+  icon?: string
+  error?: string
+}
+
+/** 自定义显示名称最大长度（按 Unicode 码点计，避免截断 emoji） */
+export const CUSTOM_NAME_MAX_LENGTH = 48
+/** 自定义图标 data URL 长度上限（防止 settings.json 被超大图片撑爆；正常导入走 icon:// 文件） */
+export const CUSTOM_ICON_DATA_URL_MAX_LENGTH = 2_000_000
+
+/** 收敛自定义名称：去控制字符 / 首尾空白，空串或非字符串返回 undefined */
+export function normalizeCustomName(value: unknown): string | undefined {
+  if (typeof value !== 'string') return undefined
+  const cleaned = value.replace(/[\u0000-\u001f\u007f]/g, '').trim()
+  if (!cleaned) return undefined
+  return Array.from(cleaned).slice(0, CUSTOM_NAME_MAX_LENGTH).join('')
+}
+
+/** 收敛自定义图标：只接受本地图标缓存 icon:// 或 data:image/，其余一律丢弃 */
+export function normalizeCustomIcon(value: unknown): string | undefined {
+  if (typeof value !== 'string') return undefined
+  const trimmed = value.trim()
+  if (!trimmed) return undefined
+  if (trimmed.startsWith('icon://') && trimmed.length <= 512) return trimmed
+  if (trimmed.startsWith('data:image/') && trimmed.length <= CUSTOM_ICON_DATA_URL_MAX_LENGTH) return trimmed
+  return undefined
+}
+
+/** Dock / 设置列表实际显示的文本：自定义名称优先，回退原始名称 */
+export function displayNameOf(item: DockItem): string {
+  return normalizeCustomName(item.customName) ?? item.name
+}
+
+/** Dock / 设置列表实际显示的图标 URL：自定义图标优先，回退自动提取的图标 */
+export function displayIconOf(item: DockItem): string {
+  return normalizeCustomIcon(item.customIcon) ?? (typeof item.icon === 'string' ? item.icon.trim() : '')
 }
 
 export interface DockConfig {
@@ -207,6 +265,12 @@ export const IPC = {
   appsAddFromStartMenu: 'apps:addFromStartMenu',
   appsRunning: 'apps:running',
   appsContextMenuDock: 'apps:contextMenuDock',
+  /* v1.6 自定义显示名称 / 图标 */
+  appsUpdateItem: 'apps:updateItem',
+  appsPickIcon: 'apps:pickIcon',
+  appsRequestEdit: 'apps:requestEdit',
+  appsConsumeEditRequest: 'apps:consumeEditRequest',
+  appsEditRequest: 'apps:editRequest',
   /* 窗口 / 布局 */
   windowSetContentSize: 'window:setContentSize',
   windowOpenSettings: 'window:openSettings',
@@ -272,7 +336,8 @@ export const DEFAULT_APPS: DockItem[] = [
 ]
 
 export const DEFAULT_SETTINGS: Settings = {
-  schemaVersion: 8,
+  // v9（v1.6）：Dock 应用支持自定义显示名称 / 图标（customName / customIcon，可选字段）
+  schemaVersion: 9,
   dock: {
     edge: 'bottom',
     alongPercent: 50,
@@ -447,10 +512,12 @@ export function sanitizeSettings(raw: unknown): Settings {
         .map((a) => ({
           id: a.id,
           name: a.name,
+          customName: normalizeCustomName(a.customName),
           path: typeof a.path === 'string' ? a.path : '',
           aumid: typeof a.aumid === 'string' && a.aumid.length > 0 ? a.aumid : undefined,
           args: Array.isArray(a.args) ? a.args.filter((x): x is string => typeof x === 'string') : undefined,
           icon: typeof a.icon === 'string' ? a.icon : '',
+          customIcon: normalizeCustomIcon(a.customIcon),
           source: pick(a.source, ['builtin', 'startmenu', 'custom'] as const, 'custom')
         }))
     : null
@@ -507,6 +574,16 @@ export interface NexusApi {
     dockMenu: (point: Point) => Promise<void>
     scanStartMenu: () => Promise<DockItem[]>
     addFromStartMenu: (item: DockItem) => Promise<DockItem[]>
+    /** v1.6 修改单个应用的显示名称 / 图标（undefined 不改，null/'' 恢复默认） */
+    updateItem: (id: string, patch: AppCustomPatch) => Promise<DockItem[]>
+    /** v1.6 选择一张图片作为自定义图标（已复制到 userData/icons 并返回 icon:// URL） */
+    pickIcon: () => Promise<PickIconResult>
+    /** v1.6 从 Dock 右键菜单打开设置并定位到该应用的编辑弹层 */
+    requestEdit: (id: string) => Promise<void>
+    /** v1.6 设置窗口挂载时消费一次待处理的编辑请求 */
+    consumeEditRequest: () => Promise<string | null>
+    /** v1.6 设置窗口已打开时，接收主进程转发的编辑请求 */
+    onEditRequest: (cb: (id: string) => void) => () => void
     onRunning: (cb: (running: Record<string, boolean>) => void) => () => void
   }
   window: {

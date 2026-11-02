@@ -328,3 +328,33 @@
 - 真机：安装版已重装并重启，用户配置零丢失（11 应用 / 三窗口锁定 / Dock 自由坐标全保留，仅 `music.theme` 补默认值、schema 7→8）。
 - 需人工确认：托盘图标视觉与单击/双击手感、拖动吸附手感、锁定不可拖、开机自启真实登录行为、动效主观手感。
 - 明确不做（登记在 verification.md §v1.5.6）：Dock 自动隐藏、应用搜索/全局热键、拖拽添加应用、UWP 图标与运行点、启动链路去 UIA、多显示器选屏。
+
+---
+
+## v1.6 迭代（2026-11-02 用户需求：修改 Dock 栏内软件的显示图标和名字）
+
+> 用户诉求：Dock 里的应用可以自定义显示图标与显示名称。
+> 验收：`docs/verification.md` §v1.6（自动化 **18/18**，含原生对话框真实选图 → 导入 → 渲染完整链路）。
+
+### 阶段 26 — v1.6 交付
+
+| # | 任务 | 归属 | 文件 | 状态 |
+|---|---|---|---|---|
+| 26.1 | 共享契约：`DockItem.customName/customIcon` + `displayNameOf`/`displayIconOf` + 收敛函数 + schemaVersion 8→9 + IPC 通道 | lead | `src/shared/types.ts` | ✅ |
+| 26.2 | 主进程：`importCustomIcon`（nativeImage ≤256px PNG / SVG / 位图兜底）、`pickCustomIcon`、`updateAppCustom` | lead | `src/main/apps.ts` | ✅ |
+| 26.3 | 主进程：`apps:updateItem`/`apps:pickIcon`/`apps:requestEdit`/`apps:consumeEditRequest` handler + 右键菜单双入口 | lead | `src/main/ipc.ts` | ✅ |
+| 26.4 | 跨窗口定位：Dock 右键 → 设置「应用」页并打开对应条目的编辑弹层（新窗口 consume / 已打开事件 / 关窗丢弃） | lead | `src/main/windowManager.ts`、`src/renderer/settings/SettingsApp.tsx` | ✅ |
+| 26.5 | icon:// 协议支持自定义格式：显式 Content-Type（png/svg/jpg/webp/bmp/ico/gif） | lead | `src/main/protocol.ts` | ✅ |
+| 26.6 | preload API：`updateItem`/`pickIcon`/`requestEdit`/`consumeEditRequest`/`onEditRequest` | lead | `src/preload/index.ts` | ✅ |
+| 26.7 | Dock 渲染层：显示自定义名称/图标、toast 显示名、无障碍标签同步 | lead | `src/renderer/dock/Dock.tsx`、`DockItemView.tsx` | ✅ |
+| 26.8 | 设置页：行内 ✎ + 编辑弹层（预览/改名/选图/恢复默认图标/恢复默认）+「自定义」徽标 + 样式 | lead | `src/renderer/settings/sections/AppsSection.tsx`、`settings.css` | ✅ |
+| 26.9 | 契约单测 +3（自定义字段收敛 / 显示回退 / apps 替换保留），共 15 项 | lead | `tests/shared-contract.test.mjs` | ✅ |
+| 26.10 | 端到端验收脚本（隔离 userData + CDP + 原生对话框取消 + SVG MIME 取证） | verifier-v16 | `scripts/v16-verify.mjs`、`docs/verification/v1.6/` | ✅ |
+| 26.11 | 文档与版本：README v1.6、操作指南 3.1、verification §v1.6、本任务表、版本号 1.6.0 | lead | `README.md`、`操作指南.md`、`docs/verification.md`、`docs/tasks.md`、`package.json` | ✅ |
+
+### 验收结论与遗留
+
+- 自动化：18/18（版本迁移/改名/PNG 图标/SVG MIME+渲染/恢复默认/设置弹层五步/原生对话框取消/四页回归/Dock 回归/音乐卡片/主进程日志/门禁 + 真实选图导入 PNG/SVG 两项）。
+- 真实图片选择（对话框选文件 → `importCustomIcon` → icons 落盘 → Dock 渲染）已补测通过，见 verification §v1.6.2。
+- 需人工确认：自定义图标在你的实际桌面缩放/多屏下的观感；选择超大壁纸类图片时的缩放效果（已限 8MB 且缩到 ≤256px）。
+

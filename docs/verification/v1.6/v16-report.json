@@ -1,0 +1,800 @@
+{
+  "version": "1.6.0",
+  "title": "Nexus Dock v1.6 独立验收（隔离 userData + CDP）",
+  "cdpPort": 9344,
+  "userDataDir": "E:\\AI WorkRegion\\app_creator\\.userdata\\v16",
+  "seed": {
+    "schemaVersion": 8,
+    "apps": 6,
+    "note": "启动前写入 v8 基线配置，验证 v8→v9 纯增量迁移"
+  },
+  "startedAt": "2026-11-02T10:45:53.187Z",
+  "durationMs": 15379,
+  "passed": 18,
+  "failed": 0,
+  "fatal": null,
+  "screenshots": [
+    "docs/verification/v1.6/dock-v16.png",
+    "docs/verification/v1.6/dock-rename-v16.png",
+    "docs/verification/v1.6/dock-custom-icon-png.png",
+    "docs/verification/v1.6/dock-custom-icon-svg.png",
+    "docs/verification/v1.6/dock-restored.png",
+    "docs/verification/v1.6/settings-app-edit-open.png",
+    "docs/verification/v1.6/settings-apps-v16.png",
+    "docs/verification/v1.6/settings-apps-customized.png",
+    "docs/verification/v1.6/dock-settings-rename.png",
+    "docs/verification/v1.6/settings-request-edit.png",
+    "docs/verification/v1.6/settings-apps-after-reset.png",
+    "docs/verification/v1.6/dock-after-edit-reset.png",
+    "docs/verification/v1.6/native-icon-dialog.png",
+    "docs/verification/v1.6/settings-dock-regression.png",
+    "docs/verification/v1.6/settings-apps-regression.png",
+    "docs/verification/v1.6/settings-music-regression.png",
+    "docs/verification/v1.6/settings-system-regression.png",
+    "docs/verification/v1.6/dock-regression.png",
+    "docs/verification/v1.6/settings-regression.png",
+    "docs/verification/v1.6/music-card-v16.png",
+    "docs/verification/v1.6/native-pick-dialog.png",
+    "docs/verification/v1.6/dock-pick-png.png",
+    "docs/verification/v1.6/dock-pick-svg.png"
+  ],
+  "results": [
+    {
+      "id": "AC-26.1",
+      "title": "版本 1.6.0 + 设置 v8→v9 迁移零丢失（6 应用/名称/图标）",
+      "ok": true,
+      "detail": {
+        "version": "1.6.0",
+        "schemaVersion": 9,
+        "appsCount": 6,
+        "names": [
+          "文件资源管理器",
+          "记事本",
+          "计算器",
+          "画图",
+          "设置",
+          "命令提示符"
+        ],
+        "missingIcons": [],
+        "dockPreserved": {
+          "alongPercent": 62,
+          "iconSize": 46
+        },
+        "diskSchemaVersion": 9,
+        "diskHasNoCustom": true,
+        "migratedLog": true
+      },
+      "screenshots": []
+    },
+    {
+      "id": "AC-26.2",
+      "title": "Dock 改名：updateItem(customName) 后 aria-label/title 同步为「测试新名字」",
+      "ok": true,
+      "detail": {
+        "dom": {
+          "aria": "测试新名字",
+          "title": "测试新名字",
+          "imgSrc": "icon://473a3c8fa7e7.png",
+          "imgNaturalWidth": 48,
+          "imgComplete": true,
+          "letter": null
+        },
+        "settingsCustomName": "测试新名字"
+      },
+      "screenshots": [
+        "docs/verification/v1.6/dock-rename-v16.png"
+      ]
+    },
+    {
+      "id": "AC-26.3a",
+      "title": "自定义 PNG 图标：icon:// 真实渲染（naturalWidth > 0）",
+      "ok": true,
+      "detail": {
+        "dom": {
+          "aria": "测试新名字",
+          "title": "测试新名字",
+          "imgSrc": "icon://v16-test.png",
+          "imgNaturalWidth": 64,
+          "imgComplete": true,
+          "letter": null
+        },
+        "settingsCustomIcon": "icon://v16-test.png"
+      },
+      "screenshots": [
+        "docs/verification/v1.6/dock-custom-icon-png.png"
+      ]
+    },
+    {
+      "id": "AC-26.3b",
+      "title": "自定义 SVG 图标：响应 Content-Type=image/svg+xml 且 <img> 真实渲染（Network 响应头取证）",
+      "ok": true,
+      "detail": {
+        "network": {
+          "url": "icon://v16-test.svg/",
+          "status": 200,
+          "mimeType": "image/svg+xml",
+          "contentType": "image/svg+xml"
+        },
+        "contentTypeSource": "network.responseReceived",
+        "protocolMimeStatic": true,
+        "dom": {
+          "aria": "测试新名字",
+          "title": "测试新名字",
+          "imgSrc": "icon://v16-test.svg",
+          "imgNaturalWidth": 64,
+          "imgComplete": true,
+          "letter": null
+        },
+        "note": "不用页面 fetch 判定：file:// 页面 fetch 自定义协议属跨源（CORS 默认关闭），产品只用 <img> 加载图标"
+      },
+      "screenshots": [
+        "docs/verification/v1.6/dock-custom-icon-svg.png"
+      ]
+    },
+    {
+      "id": "AC-26.4",
+      "title": "恢复默认：Dock 名称/图标回到原值，配置无 customName/customIcon 残留",
+      "ok": true,
+      "detail": {
+        "dom": {
+          "aria": "文件资源管理器",
+          "title": "文件资源管理器",
+          "imgSrc": "icon://473a3c8fa7e7.png",
+          "imgNaturalWidth": 48,
+          "imgComplete": true,
+          "letter": null
+        },
+        "customName": "(undefined)",
+        "customIcon": "(undefined)",
+        "noResidue": true
+      },
+      "screenshots": [
+        "docs/verification/v1.6/dock-restored.png"
+      ]
+    },
+    {
+      "id": "AC-26.5a",
+      "title": "设置页每行有 ✎ 编辑入口；点击后弹层出现且名称输入框自动聚焦",
+      "ok": true,
+      "detail": {
+        "appsUi": {
+          "rowCount": 6,
+          "editButtonCount": 6,
+          "editLabels": [
+            "编辑 文件资源管理器 的显示名称与图标",
+            "编辑 记事本 的显示名称与图标",
+            "编辑 计算器 的显示名称与图标",
+            "编辑 画图 的显示名称与图标",
+            "编辑 设置 的显示名称与图标",
+            "编辑 命令提示符 的显示名称与图标"
+          ],
+          "activeNav": "应用",
+          "hasTip": true
+        },
+        "clickedEdit": true,
+        "editor": {
+          "count": 1,
+          "aria": "编辑「文件资源管理器」的显示名称与图标",
+          "input": {
+            "exists": true,
+            "value": "",
+            "focused": true
+          },
+          "activeNav": "应用",
+          "previewName": "文件资源管理器",
+          "previewSub": "C:\\Windows\\explorer.exe",
+          "buttons": [
+            "✕",
+            "选择图片…",
+            "恢复默认图标",
+            "恢复默认",
+            "取消",
+            "保存"
+          ],
+          "text": "编辑名称与图标\n\n只改变 Dock 里的显示，不会修改应用本身。\n\n✕\n文件资源管理器\nC:\\Windows\\explorer.exe\n显示名称\n留空则使用原名称「文件资源管理器」，最多 48 个字符。\n显示图标\n选择图片…\n恢复默认图标\n支持 PNG / JPG / WebP / ICO / SVG，最大 8MB；图片会复制到图标缓存，原文件移动后仍可用。\n恢复默认\n取消\n保存"
+        }
+      },
+      "screenshots": [
+        "docs/verification/v1.6/settings-apps-v16.png",
+        "docs/verification/v1.6/settings-app-edit-open.png"
+      ]
+    },
+    {
+      "id": "AC-26.5b",
+      "title": "设置页改名保存：弹层关闭、列表显示新名 +「自定义」徽标、Dock 同步",
+      "ok": true,
+      "detail": {
+        "inputTyped": {
+          "found": true,
+          "value": "设置页改名"
+        },
+        "inputState": {
+          "value": "设置页改名",
+          "previewName": "设置页改名"
+        },
+        "clickedSave": {
+          "ok": true
+        },
+        "overlayClosed": true,
+        "savedRow": {
+          "name": "设置页改名",
+          "badge": "自定义",
+          "title": "设置页改名（原名：文件资源管理器）"
+        },
+        "settingsCustomName": "设置页改名",
+        "dock": {
+          "aria": "设置页改名",
+          "title": "设置页改名",
+          "imgSrc": "icon://473a3c8fa7e7.png",
+          "imgNaturalWidth": 48,
+          "imgComplete": true,
+          "letter": null
+        }
+      },
+      "screenshots": [
+        "docs/verification/v1.6/settings-apps-customized.png",
+        "docs/verification/v1.6/dock-settings-rename.png"
+      ]
+    },
+    {
+      "id": "AC-26.5c",
+      "title": "requestEdit(id)：设置窗口切到「应用」并打开唯一编辑弹层（弹层内是目标应用）",
+      "ok": true,
+      "detail": {
+        "requestEditSent": true,
+        "overlay": {
+          "count": 1,
+          "aria": "编辑「设置页改名」的显示名称与图标",
+          "input": {
+            "exists": true,
+            "value": "设置页改名",
+            "focused": true
+          },
+          "activeNav": "应用",
+          "previewName": "设置页改名",
+          "previewSub": "C:\\Windows\\explorer.exe",
+          "buttons": [
+            "✕",
+            "选择图片…",
+            "恢复默认图标",
+            "恢复默认",
+            "取消",
+            "保存"
+          ],
+          "text": "编辑名称与图标\n\n只改变 Dock 里的显示，不会修改应用本身。\n\n✕\n设置页改名\nC:\\Windows\\explorer.exe\n显示名称\n留空则使用原名称「文件资源管理器」，最多 48 个字符。\n显示图标\n选择图片…\n恢复默认图标\n支持 PNG / JPG / WebP / ICO / SVG，最大 8MB；图片会复制到图标缓存，原文件移动后仍可用。\n恢复默认\n取消\n保存"
+        },
+        "countAfter1200ms": 1,
+        "matchedPath": true
+      },
+      "screenshots": [
+        "docs/verification/v1.6/settings-request-edit.png"
+      ]
+    },
+    {
+      "id": "AC-26.5d",
+      "title": "关闭 requestEdit 弹层后不自动复弹，主进程无残留待处理请求",
+      "ok": true,
+      "detail": {
+        "closedByCancel": true,
+        "noReopenCount": 0,
+        "pendingLeft": null
+      },
+      "screenshots": []
+    },
+    {
+      "id": "AC-26.5e",
+      "title": "弹层内「恢复默认」：Dock 名称与图标回到默认，自定义字段清空",
+      "ok": true,
+      "detail": {
+        "resetOverlay": true,
+        "clickedRestore": {
+          "ok": true
+        },
+        "resetOverlayClosed": true,
+        "dock": {
+          "aria": "文件资源管理器",
+          "title": "文件资源管理器",
+          "imgSrc": "icon://473a3c8fa7e7.png",
+          "imgNaturalWidth": 48,
+          "imgComplete": true,
+          "letter": null
+        },
+        "itemAfterReset": {
+          "id": "explorer",
+          "name": "文件资源管理器",
+          "path": "C:\\Windows\\explorer.exe",
+          "aumid": "Microsoft.Windows.Explorer",
+          "icon": "icon://473a3c8fa7e7.png",
+          "source": "builtin"
+        }
+      },
+      "screenshots": [
+        "docs/verification/v1.6/settings-apps-after-reset.png",
+        "docs/verification/v1.6/dock-after-edit-reset.png"
+      ]
+    },
+    {
+      "id": "AC-26.6",
+      "title": "图标选择对话框：原生对话框真实打开、已取消关闭、IPC 返回 canceled",
+      "ok": true,
+      "detail": {
+        "dialog": [
+          {
+            "hwnd": 4915554,
+            "pid": 310656,
+            "left": 0,
+            "top": 0,
+            "right": 1280,
+            "bottom": 800,
+            "title": "选择自定义图标图片",
+            "mine": true
+          }
+        ],
+        "capture": {
+          "pid": 310656,
+          "width": 1280,
+          "ok": true,
+          "path": "E:\\AI WorkRegion\\app_creator\\docs\\verification\\v1.6\\native-icon-dialog.png",
+          "method": "printwindow",
+          "title": "选择自定义图标图片",
+          "height": 800
+        },
+        "closeSteps": [
+          {
+            "action": "wm_close",
+            "remaining": 0
+          }
+        ],
+        "gone": true,
+        "result": {
+          "ok": false,
+          "error": "canceled"
+        },
+        "error": null
+      },
+      "screenshots": [
+        "docs/verification/v1.6/native-icon-dialog.png"
+      ]
+    },
+    {
+      "id": "AC-26.7",
+      "title": "设置四个页面（Dock/应用/音乐/系统）均可渲染且无错误提示条",
+      "ok": true,
+      "detail": {
+        "Dock": {
+          "clicked": true,
+          "nav": "Dock",
+          "errorBanner": false,
+          "contentLength": 388
+        },
+        "应用": {
+          "clicked": true,
+          "nav": "应用",
+          "errorBanner": false,
+          "contentLength": 417
+        },
+        "音乐": {
+          "clicked": true,
+          "nav": "音乐",
+          "errorBanner": false,
+          "contentLength": 244
+        },
+        "系统": {
+          "clicked": true,
+          "nav": "系统",
+          "errorBanner": false,
+          "contentLength": 384
+        }
+      },
+      "screenshots": [
+        "docs/verification/v1.6/settings-dock-regression.png",
+        "docs/verification/v1.6/settings-apps-regression.png",
+        "docs/verification/v1.6/settings-music-regression.png",
+        "docs/verification/v1.6/settings-system-regression.png"
+      ]
+    },
+    {
+      "id": "AC-26.8",
+      "title": "Dock 回归：图标数=配置数、重载后无渲染层 console error",
+      "ok": true,
+      "detail": {
+        "dockItemsAfterReload": 6,
+        "settingsApps": 6,
+        "dockBeforeReload": {
+          "itemCount": 6,
+          "hasEmpty": false,
+          "hasRoot": true
+        },
+        "consoleErrors": [],
+        "ignoredCount": 0,
+        "probeFiltered": 0,
+        "filterNote": "过滤已知网络/媒体噪声与验收脚本探测产生的 CORS 条目；页面自身错误不过滤"
+      },
+      "screenshots": [
+        "docs/verification/v1.6/dock-regression.png",
+        "docs/verification/v1.6/settings-regression.png"
+      ]
+    },
+    {
+      "id": "AC-26.9",
+      "title": "音乐卡片窗口仍可创建并渲染（附带回归）",
+      "ok": true,
+      "detail": {
+        "musicState": {
+          "found": true,
+          "theme": "dark",
+          "hasProgress": true
+        },
+        "errors": []
+      },
+      "screenshots": [
+        "docs/verification/v1.6/music-card-v16.png"
+      ]
+    },
+    {
+      "id": "AC-26.10",
+      "title": "主进程日志无协议/核心异常（证据扫描）",
+      "ok": true,
+      "detail": {
+        "logErrors": [],
+        "paths": [
+          "scripts/out/v16-out.log",
+          "scripts/out/v16-err.log"
+        ]
+      },
+      "screenshots": []
+    },
+    {
+      "id": "AC-26.11",
+      "title": "质量门禁：typecheck + 15 tests + build 全部通过（独立复跑）",
+      "ok": true,
+      "detail": {
+        "gatesFile": "scripts/out/v16-gates.json",
+        "gates": {
+          "checkExit": 0,
+          "buildExit": 0,
+          "testsPassed": 15,
+          "testsFailed": 0,
+          "buildSucceeded": true,
+          "typecheck": true,
+          "at": "2026-11-02T18:33:39.8175269+08:00",
+          "checkLog": "scripts/out/v16-check.log",
+          "buildLog": "scripts/out/v16-build.log"
+        },
+        "error": null
+      },
+      "screenshots": []
+    },
+    {
+      "id": "AC-26.6b",
+      "title": "原生对话框真实选择 640×512 PNG → importCustomIcon 归一化导入（≤256px）→ Dock 渲染",
+      "ok": true,
+      "detail": {
+        "dialog": {
+          "hwnd": 2821220,
+          "pid": 292496,
+          "left": 0,
+          "top": 0,
+          "right": 1280,
+          "bottom": 800,
+          "title": "选择自定义图标图片",
+          "mine": true
+        },
+        "dialogCapture": {
+          "pid": 292496,
+          "width": 1280,
+          "ok": true,
+          "path": "docs/verification/v1.6/native-pick-dialog.png",
+          "method": "printwindow",
+          "title": "选择自定义图标图片",
+          "height": 800
+        },
+        "dialogGone": true,
+        "automation": {
+          "ok": true,
+          "hwnd": 2821220,
+          "title": "选择自定义图标图片",
+          "editFound": true,
+          "editId": 1148,
+          "comboFound": true,
+          "buttonFound": true,
+          "buttonName": "打开(&O)",
+          "setMethod": "WM_SETTEXT",
+          "invoked": true,
+          "error": ""
+        },
+        "pickResult": {
+          "ok": true,
+          "icon": "icon://custom-ef2f9576143e.png"
+        },
+        "iconShapeOk": true,
+        "imported": {
+          "path": ".userdata/v16-pick/icons/custom-ef2f9576143e.png",
+          "fileSize": 7492,
+          "magic": true,
+          "ihdrTag": "IHDR",
+          "width": 256,
+          "height": 205
+        },
+        "expectedResize": {
+          "width": 256,
+          "height": 205
+        },
+        "dimsOk": true,
+        "ratioOk": true,
+        "dom": {
+          "aria": "文件资源管理器",
+          "title": "文件资源管理器",
+          "imgSrc": "icon://custom-ef2f9576143e.png",
+          "imgNaturalWidth": 256,
+          "imgComplete": true,
+          "letter": null
+        },
+        "safetyClosed": false,
+        "leftoverDialogs": 0
+      },
+      "screenshots": [
+        "docs/verification/v1.6/dock-pick-png.png"
+      ]
+    },
+    {
+      "id": "AC-26.6c",
+      "title": "原生对话框真实选择 SVG → 原样导入（image/svg+xml）→ Dock 渲染",
+      "ok": true,
+      "detail": {
+        "dialog": {
+          "hwnd": 4195370,
+          "pid": 292496,
+          "left": 0,
+          "top": 0,
+          "right": 1280,
+          "bottom": 800,
+          "title": "选择自定义图标图片",
+          "mine": true
+        },
+        "dialogCapture": {
+          "pid": 292496,
+          "width": 1280,
+          "ok": true,
+          "path": "docs/verification/v1.6/native-pick-dialog.png",
+          "method": "printwindow",
+          "title": "选择自定义图标图片",
+          "height": 800
+        },
+        "dialogGone": true,
+        "automation": {
+          "ok": true,
+          "hwnd": 4195370,
+          "title": "选择自定义图标图片",
+          "editFound": true,
+          "editId": 1148,
+          "comboFound": true,
+          "buttonFound": true,
+          "buttonName": "打开(&O)",
+          "setMethod": "WM_SETTEXT",
+          "invoked": true,
+          "error": ""
+        },
+        "pickResult": {
+          "ok": true,
+          "icon": "icon://custom-04c0da75edb8.svg"
+        },
+        "iconShapeOk": true,
+        "importedFile": ".userdata/v16-pick/icons/custom-04c0da75edb8.svg",
+        "contentMatchesSource": true,
+        "network": {
+          "url": "icon://custom-04c0da75edb8.svg/",
+          "status": 200,
+          "contentType": "image/svg+xml"
+        },
+        "dom": {
+          "aria": "文件资源管理器",
+          "title": "文件资源管理器",
+          "imgSrc": "icon://custom-04c0da75edb8.svg",
+          "imgNaturalWidth": 96,
+          "imgComplete": true,
+          "letter": null
+        },
+        "safetyClosed": false,
+        "leftoverDialogs": 0
+      },
+      "screenshots": [
+        "docs/verification/v1.6/dock-pick-svg.png"
+      ]
+    }
+  ],
+  "diagnostics": {
+    "total": 0,
+    "errors": [],
+    "ignored": 0,
+    "probeFiltered": 0,
+    "notes": "只统计页面自身 error：ignored=已知网络/媒体噪声，probeFiltered=验收脚本探测动作产生的 CORS 噪声"
+  },
+  "iconNetworkResponses": [
+    {
+      "page": "dock",
+      "url": "icon://v16-test.png/",
+      "status": 200,
+      "mimeType": "image/png",
+      "contentType": "image/png"
+    },
+    {
+      "page": "dock",
+      "url": "icon://v16-test.svg/",
+      "status": 200,
+      "mimeType": "image/svg+xml",
+      "contentType": "image/svg+xml"
+    }
+  ],
+  "pickMode": {
+    "at": "2026-11-02T10:45:37.197Z",
+    "cdpPort": 9345,
+    "userDataDir": "E:\\AI WorkRegion\\app_creator\\.userdata\\v16-pick",
+    "durationMs": 15330,
+    "passed": 2,
+    "failed": 0,
+    "importEvidence": [
+      {
+        "kind": "png",
+        "source": ".userdata/v16-pick/pick-source.png",
+        "sourceBytes": 5068,
+        "icon": "icon://custom-ef2f9576143e.png",
+        "importedFile": ".userdata/v16-pick/icons/custom-ef2f9576143e.png",
+        "importedHeader": {
+          "fileSize": 7492,
+          "magic": true,
+          "ihdrTag": "IHDR",
+          "width": 256,
+          "height": 205
+        },
+        "expectedResize": {
+          "width": 256,
+          "height": 205
+        },
+        "dialog": {
+          "title": "选择自定义图标图片",
+          "hwnd": 2821220
+        },
+        "dialogCapture": {
+          "pid": 292496,
+          "width": 1280,
+          "ok": true,
+          "path": "docs/verification/v1.6/native-pick-dialog.png",
+          "method": "printwindow",
+          "title": "选择自定义图标图片",
+          "height": 800
+        },
+        "dialogGone": true,
+        "automation": {
+          "ok": true,
+          "hwnd": 2821220,
+          "title": "选择自定义图标图片",
+          "editFound": true,
+          "editId": 1148,
+          "comboFound": true,
+          "buttonFound": true,
+          "buttonName": "打开(&O)",
+          "setMethod": "WM_SETTEXT",
+          "invoked": true,
+          "error": ""
+        },
+        "dom": {
+          "aria": "文件资源管理器",
+          "title": "文件资源管理器",
+          "imgSrc": "icon://custom-ef2f9576143e.png",
+          "imgNaturalWidth": 256,
+          "imgComplete": true,
+          "letter": null
+        }
+      },
+      {
+        "kind": "svg",
+        "source": ".userdata/v16-pick/pick-source.svg",
+        "icon": "icon://custom-04c0da75edb8.svg",
+        "importedFile": ".userdata/v16-pick/icons/custom-04c0da75edb8.svg",
+        "importedBytes": 198,
+        "contentMatchesSource": true,
+        "networkContentType": "image/svg+xml",
+        "dialog": {
+          "title": "选择自定义图标图片",
+          "hwnd": 4195370
+        },
+        "dialogCapture": {
+          "pid": 292496,
+          "width": 1280,
+          "ok": true,
+          "path": "docs/verification/v1.6/native-pick-dialog.png",
+          "method": "printwindow",
+          "title": "选择自定义图标图片",
+          "height": 800
+        },
+        "dialogGone": true,
+        "automation": {
+          "ok": true,
+          "hwnd": 4195370,
+          "title": "选择自定义图标图片",
+          "editFound": true,
+          "editId": 1148,
+          "comboFound": true,
+          "buttonFound": true,
+          "buttonName": "打开(&O)",
+          "setMethod": "WM_SETTEXT",
+          "invoked": true,
+          "error": ""
+        },
+        "dom": {
+          "aria": "文件资源管理器",
+          "title": "文件资源管理器",
+          "imgSrc": "icon://custom-04c0da75edb8.svg",
+          "imgNaturalWidth": 96,
+          "imgComplete": true,
+          "letter": null
+        }
+      }
+    ],
+    "diagnostics": {
+      "total": 0,
+      "errors": [],
+      "ignored": 0,
+      "probeFiltered": 0
+    },
+    "iconNetworkResponses": [
+      {
+        "page": "dock-pick",
+        "url": "icon://13617a808edd.png/",
+        "status": 200,
+        "mimeType": "image/png",
+        "contentType": "image/png"
+      },
+      {
+        "page": "dock-pick",
+        "url": "icon://af52e0e26ce9.png/",
+        "status": 200,
+        "mimeType": "image/png",
+        "contentType": "image/png"
+      },
+      {
+        "page": "dock-pick",
+        "url": "icon://3b8bde4e6588.png/",
+        "status": 200,
+        "mimeType": "image/png",
+        "contentType": "image/png"
+      },
+      {
+        "page": "dock-pick",
+        "url": "icon://593fb582ce8d.png/",
+        "status": 200,
+        "mimeType": "image/png",
+        "contentType": "image/png"
+      },
+      {
+        "page": "dock-pick",
+        "url": "icon://473a3c8fa7e7.png/",
+        "status": 200,
+        "mimeType": "image/png",
+        "contentType": "image/png"
+      },
+      {
+        "page": "dock-pick",
+        "url": "icon://fd42d4dbe853.png/",
+        "status": 200,
+        "mimeType": "image/png",
+        "contentType": "image/png"
+      },
+      {
+        "page": "dock-pick",
+        "url": "icon://custom-ef2f9576143e.png/",
+        "status": 200,
+        "mimeType": "image/png",
+        "contentType": "image/png"
+      },
+      {
+        "page": "dock-pick",
+        "url": "icon://custom-04c0da75edb8.svg/",
+        "status": 200,
+        "mimeType": "image/svg+xml",
+        "contentType": "image/svg+xml"
+      }
+    ]
+  }
+}

@@ -22,6 +22,26 @@ npm run dev
 > npm run install:local   # 或直接双击根目录「启动 Nexus Dock.cmd」
 > ```
 
+## v1.6 更新（2026-11-02）
+
+> 当前版本：**v1.6.0**（`package.json`）。主题：**Dock 图标 / 名称个性化**。
+
+### 新增：修改 Dock 应用的显示图标与名字
+
+- **两个入口**：
+  - 设置 →「应用」→ 列表行内 **✎** → 编辑弹层；
+  - Dock 图标 **右键 →「编辑名称与图标…」**：自动打开设置并定位到该条目的弹层（设置已打开则直接切换过去）；右键菜单另有「恢复默认名称与图标」，无自定义时置灰。
+- **显示名称**：自定义名称只影响 Dock / 设置列表的显示，不覆盖原始 `name`（启动窗口标题匹配、恢复默认都依赖它）；留空或点「恢复默认」回到原名，最长 48 个字符。
+- **显示图标**：`选择图片…` 支持 PNG / JPG / WebP / ICO / SVG（≤ 8MB）。主进程用 `nativeImage` 解码、最长边缩到 256px 后统一转 PNG，复制进 `%APPDATA%\nexus-dock\icons\` 并以 `icon://` 引用（原图移动/删除不影响 Dock）；SVG 原样保存，由 `icon://` 以 `image/svg+xml` 返回（v1.6 起 `icon://` 显式设置 Content-Type，旧实现只认 PNG）。
+- **数据模型**：`DockItem` 新增可选 `customName` / `customIcon`；`sanitizeSettings` 统一收敛（去控制字符、按码点限长、只接受 `icon://` 或 `data:image/`，外部 URL 丢弃）；`schemaVersion` 8→9，旧配置零丢失（无自定义字段的条目自动回退 `name` / `icon`）。
+- **即时同步与可发现性**：保存后经设置广播同步到 Dock 与设置列表；列表行显示「自定义」徽标（悬停看原名）；Dock 启动失败提示、`aria-label` / `title` 使用显示名。
+- **交互细节**：编辑弹层打开即聚焦名称输入框、Enter 保存、Esc 取消；图片选择中途取消不报错；保存中禁用关闭，避免误以为未生效。
+
+### 工程化
+
+- 契约测试新增 3 项（自定义字段收敛 / 显示回退辅助 / apps 替换保留），`npm test` 共 **15 项**。
+- `scripts/v16-verify.mjs`：隔离 userData + CDP 的端到端验收（版本迁移 / 改名 / 自定义图标真实渲染 / 恢复默认 / 设置页编辑弹层 / 右键菜单跨窗口定位 / 图标协议 MIME / 原生对话框真实选图导入 / 回归），**18/18 通过**，产物 `docs/verification/v1.6/v16-report.json` + `v16-pick.json` + 23 张截图。
+
 ## v1.5 更新（2026-11-01）
 
 > 当前版本：**v1.5.0**（`package.json`）；口径：规格 §13、任务阶段 25、验收 `docs/verification.md` §v1.5。
@@ -173,14 +193,15 @@ powershell -File scripts/mem-probe.ps1 -Label low-end -EnvPairs 'NEXUS_LOW_END=1
 | `npm run dev` | 开发模式（入口 `scripts/dev.ps1`：清宿主环境变量 + `--noSandbox` + 远程调试 9222） |
 | `npm run build` | 构建到 `out/` |
 | `npm run typecheck` | 全量类型检查 |
-| `npm test` | 共享契约单元测试（Node 内置 test runner，12 项，不需要 Electron） |
+| `npm test` | 共享契约单元测试（Node 内置 test runner，15 项，不需要 Electron） |
 | `npm run check` | `typecheck` + `test`（提交前门禁） |
 | `npm run dist` | 打包 Windows 便携版到 `dist/`（electron-builder 配置为 **portable** 单文件 exe；如需 NSIS 安装包请先在 `package.json` 的 `build.win.target` 增加 `nsis`） |
 | `powershell -File scripts/start.ps1` | 启动已构建产物（试用/验收），可加 `-DebugPort 9222` |
 
-## 当前状态（v1.5.0，开发态）
+## 当前状态（v1.6.0，开发态）
 
 - ✅ Dock：玻璃质感、四边停靠、沿边位置、悬停放大（1.30×，邻项递减）、拖拽排序、右键菜单、图标提取
+- ✅ **Dock 应用个性化（v1.6）**：可改显示名称与图标（PNG/JPG/WebP/ICO/SVG），设置页 ✎ 与 Dock 右键双入口，支持一键恢复默认
 - ✅ Dock 自身图标：点击打开设置面板并前置；`.lnk` / `aumid` 指向自身同样识别（v1.4.1）
 - ✅ Dock 手感：按压回弹、涟漪光晕、启动弹跳、悬停柔光、指示点呼吸、FLIP 排序过渡、入场动画
 - ✅ Dock 溢出：图标多时窗口夹紧 + 内部滚动 + 两端渐隐；末端开关始终可达（v1.5）
@@ -195,11 +216,11 @@ powershell -File scripts/mem-probe.ps1 -Label low-end -EnvPairs 'NEXUS_LOW_END=1
 - ✅ 稳定性：桥崩溃循环治理 + 桥看门狗 + 渲染进程崩溃自愈 + 日志轮转 + 窗口导航加固（v1.5）
 - ✅ 窗口行为准则：`docs/window-conventions.md`（新窗口强制能力清单与验收契约）
 - ✅ 内存轻量化（v1.4）：常驻桥按需启停 + 原生 `desktop-state.exe`、时钟去 React、隐藏窗口降频；工作集 656.0 → 473.4MB（低配模式 421.1MB）
-- ✅ 自动化门禁：`npm run check`（typecheck + 12 个契约测试）+ `scripts/v15-verify.mjs` + `scripts/v15-overflow-check.mjs`（v1.5）
+- ✅ 自动化门禁：`npm run check`（typecheck + 15 个契约测试）+ `scripts/v15-verify.mjs` + `scripts/v15-overflow-check.mjs` + `scripts/v16-verify.mjs`（v1.6）
 - ⏳ 待人工验证（只能靠真人，脚本无法替代）：托盘图标在你自己任务栏的**视觉与单击/双击手感**、Dock/音乐/时钟真实拖动吸附手感、锁定后鼠标不可拖、开机自启在真实登录后的行为、动效主观手感
 - ⏳ 待验收后打包：便携版单文件 exe（`npm run dist`）
 
-验收证据见 [docs/verification.md](docs/verification.md) §v1.5（9/9 + 5/5 通过，报告与截图在 `docs/verification/v1.5/`）；本机宿主环境限制见 [操作指南.md](操作指南.md) 末节。
+验收证据见 [docs/verification.md](docs/verification.md) §v1.6（18/18 通过，报告与截图在 `docs/verification/v1.6/`）与 §v1.5（9/9 + 5/5 通过）；本机宿主环境限制见 [操作指南.md](操作指南.md) 末节。
 
 ## 文档
 
@@ -210,8 +231,8 @@ powershell -File scripts/mem-probe.ps1 -Label low-end -EnvPairs 'NEXUS_LOW_END=1
 | [docs/window-conventions.md](docs/window-conventions.md) | 窗口行为准则：所有悬浮窗口的强制能力（吸附开关/位置记忆/位置锁定等）、接入清单与验收契约（**新窗口必读**） |
 | [docs/motion-spec.md](docs/motion-spec.md) | 动效设计规范（令牌/曲线/组件矩阵/降级，v1.0 唯一视觉真源） |
 | [docs/plan.md](docs/plan.md) | 技术方案与架构、IPC 契约（SDD 阶段 2，§12 为 v1.0 方案，§16、§17 为补丁方案） |
-| [docs/tasks.md](docs/tasks.md) | 任务分解与状态（SDD 阶段 3，阶段 9–11 为 v1.0 任务，阶段 24 为 v1.4.1，阶段 25 为 v1.5） |
-| [docs/verification.md](docs/verification.md) | 逐条 AC 验收记录与截图（§v1.5 = 9/9 + 5/5 通过） |
+| [docs/tasks.md](docs/tasks.md) | 任务分解与状态（SDD 阶段 3，阶段 9–11 为 v1.0 任务，阶段 24 为 v1.4.1，阶段 25 为 v1.5，阶段 26 为 v1.6） |
+| [docs/verification.md](docs/verification.md) | 逐条 AC 验收记录与截图（§v1.6 = 16/16 通过；§v1.5 = 9/9 + 5/5 通过） |
 
 ## 目录结构
 
@@ -234,6 +255,6 @@ scripts/               # 验收辅助脚本（截屏、CDP 验收、溢出压力
 
 ## 配置与日志
 
-- 设置：`%APPDATA%\nexus-dock\settings.json`（删除即恢复默认；`schemaVersion` 当前 **8**）
+- 设置：`%APPDATA%\nexus-dock\settings.json`（删除即恢复默认；`schemaVersion` 当前 **9**）
 - 图标缓存：`%APPDATA%\nexus-dock\icons\`
 - 日志：`%APPDATA%\nexus-dock\logs\`

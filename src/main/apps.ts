@@ -1,10 +1,17 @@
-import { app, dialog, shell } from 'electron'
+import { app, dialog, nativeImage, shell } from 'electron'
 import { spawn } from 'node:child_process'
 import { createHash } from 'node:crypto'
-import { existsSync, mkdirSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { basename, extname, join, resolve } from 'node:path'
-import type { DockItem, LaunchResult } from '@shared/types'
+import {
+  normalizeCustomIcon,
+  normalizeCustomName,
+  type AppCustomPatch,
+  type DockItem,
+  type LaunchResult,
+  type PickIconResult
+} from '@shared/types'
 import { logToFile } from './logger'
 import { iconsDir } from './protocol'
 import { getSettings, updateSettings } from './settingsStore'
@@ -108,6 +115,116 @@ export async function ensureIcon(exePath: string): Promise<string> {
 interface StartAppEntry {
   Name?: string
   AppID?: string
+}
+
+/* ------------------------- v1.6 自定义显示名称 / 图标 ------------------------- */
+
+/** 用户选择图标的上限：8MB（超过拒绝，避免把一张几十 MB 的壁纸塞进图标缓存） */
+const CUSTOM_ICON_MAX_BYTES = 8 * 1024 * 1024
+/** 图标规范化的最长边 px：Dock 图标最大 80px，256px 足够 3x 屏且显著减小文件 */
+const CUSTOM_ICON_MAX_EDGE = 256
+/** nativeImage 解不了、但 Chromium <img> 能直接渲染的位图扩展名（原样复制兜底） */
+const RASTER_ICON_EXTENSIONS = new Set(['.ico', '.bmp', '.gif'])
+
+/**
+ * 选择一张本地图片作为 Dock 图标。
+ * 取消选择返回 { ok:false, error:'canceled' }，UI 据此区分「取消」与「失败」。
+ */
+export async function pickCustomIcon(): Promise<PickIconResult> {
+  const result = await dialog.showOpenDialog({
+    title: '选择自定义图标图片',
+    properties: ['openFile'],
+    filters: [
+      { name: '图片', extensions: ['png', 'jpg', 'jpeg', 'webp', 'bmp', 'ico', 'gif', 'svg'] },
+      { name: '所有文件', extensions: ['*'] }
+    ]
+  })
+  if (result.canceled || result.filePaths.length === 0) return { ok: false, error: 'canceled' }
+  return importCustomIcon(result.filePaths[0])
+}
+
+/**
+ * 把用户选择的图片规范化后复制到 userData/icons，返回可直接写入 DockItem.customIcon 的 icon:// URL。
+ * 复制而不是引用原路径：原图片被移动/删除后 Dock 图标仍然可用。
+ */
+export async function importCustomIcon(filePath: string): Promise<PickIconResult> {
+  try {
+    const info = statSync(filePath)
+    if (!info.isFile()) return { ok: false, error: '选择的不是文件' }
+    if (info.size <= 0) return { ok: false, error: '图片文件为空' }
+    if (info.size > CUSTOM_ICON_MAX_BYTES) return { ok: false, error: '图片超过 8MB，请先压缩后再选择' }
+    const ext = extname(filePath).toLowerCase()
+    mkdirSync(iconsDir(), { recursive: true })
+
+    // 1) SVG：文本图标原样保存（Chromium 可直接渲染矢量图，缩放不糊）
+    if (ext === '.svg') {
+      const text = readFileSync(filePath, 'utf8')
+      if (!/<svg[\s>]/i.test(text)) return { ok: false, error: 'SVG 文件内容无效' }
+      const name = `custom-${createHash('sha1').update(text).digest('hex').slice(0, 12)}.svg`
+      writeFileSync(join(iconsDir(), name), text, 'utf8')
+      return { ok: true, icon: `icon://${name}` }
+    }
+
+    // 2) 常见位图：nativeImage 解码 → 最长边缩到 ≤256px → 统一转 PNG
+    const image = nativeImage.createFromPath(filePath)
+    if (!image.isEmpty()) {
+      const size = image.getSize()
+      const longest = Math.max(size.width, size.height)
+      const normalized =
+        longest > CUSTOM_ICON_MAX_EDGE
+          ? image.resize({
+              width: Math.max(1, Math.round((size.width * CUSTOM_ICON_MAX_EDGE) / longest)),
+              height: Math.max(1, Math.round((size.height * CUSTOM_ICON_MAX_EDGE) / longest)),
+              quality: 'best'
+            })
+          : image
+      const png = normalized.toPNG()
+      if (png.length === 0) return { ok: false, error: '无法解析该图片' }
+      const name = `custom-${createHash('sha1').update(png).digest('hex').slice(0, 12)}.png`
+      writeFileSync(join(iconsDir(), name), png)
+      logLaunch(`自定义图标已导入：${basename(filePath)} → ${name}（${png.length}B）`)
+      return { ok: true, icon: `icon://${name}` }
+    }
+
+    // 3) nativeImage 不支持的位图格式（个别 ICO/GIF/BMP）：原样复制，扩展名白名单保证可渲染。
+    // PNG/JPG/WebP 若 nativeImage 都解不了，说明文件已损坏 → 走下面的明确报错，不静默复制坏文件。
+    if (RASTER_ICON_EXTENSIONS.has(ext)) {
+      const bytes = readFileSync(filePath)
+      if (bytes.length === 0) return { ok: false, error: '图片文件为空' }
+      const name = `custom-${createHash('sha1').update(bytes).digest('hex').slice(0, 12)}${ext}`
+      writeFileSync(join(iconsDir(), name), bytes)
+      logLaunch(`自定义图标已复制：${basename(filePath)} → ${name}（${bytes.length}B）`)
+      return { ok: true, icon: `icon://${name}` }
+    }
+
+    return { ok: false, error: '无法解析该图片（文件可能已损坏），请换一张 PNG / JPG / WebP / ICO / SVG' }
+  } catch (error) {
+    console.warn('[apps] 导入自定义图标失败：', filePath, error)
+    return {
+      ok: false,
+      error: `读取图片失败：${error instanceof Error ? error.message : String(error)}`
+    }
+  }
+}
+
+/**
+ * 修改单个 Dock 条目的显示名称 / 图标（v1.6）。
+ * undefined = 该字段不修改；null / '' = 清空并恢复默认。返回最新的应用列表（所有窗口经广播同步）。
+ */
+export function updateAppCustom(id: string, patch: AppCustomPatch): DockItem[] {
+  const current = getSettings().apps
+  const target = current.find((item) => item.id === id)
+  if (!target) return current
+  const customName =
+    patch.customName === undefined ? target.customName : normalizeCustomName(patch.customName)
+  const customIcon =
+    patch.customIcon === undefined ? target.customIcon : normalizeCustomIcon(patch.customIcon)
+  if (customName === target.customName && customIcon === target.customIcon) return current
+  const next = current.map((item) => (item.id === id ? { ...item, customName, customIcon } : item))
+  logLaunch(
+    `自定义显示已更新 id=${id} name=${JSON.stringify(customName ?? '')} icon=${customIcon ?? '(默认)'}`
+  )
+  return updateSettings({ apps: next }).apps
 }
 
 const START_APPS_SCRIPT = String.raw`

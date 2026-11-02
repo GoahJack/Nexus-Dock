@@ -1,10 +1,9 @@
-import { app, net, protocol } from 'electron'
+import { app, protocol } from 'electron'
 import { existsSync } from 'node:fs'
 import { createReadStream } from 'node:fs'
-import { stat } from 'node:fs/promises'
+import { readFile, stat } from 'node:fs/promises'
 import { extname, join, resolve } from 'node:path'
 import { Readable } from 'node:stream'
-import { pathToFileURL } from 'node:url'
 
 const MEDIA_EXTENSIONS = new Set(['.mp3', '.wav', '.flac', '.m4a', '.ogg', '.aac', '.opus', '.wma'])
 
@@ -34,6 +33,21 @@ const MIME: Record<string, string> = {
   '.wma': 'audio/x-ms-wma'
 }
 
+/**
+ * v1.6：自定义图标允许 PNG（默认）/ SVG / JPG / WebP / ICO 等，
+ * 必须显式设置 Content-Type，否则 Chromium 可能把 SVG / ICO 当成二进制不渲染。
+ */
+const ICON_MIME: Record<string, string> = {
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.webp': 'image/webp',
+  '.bmp': 'image/bmp',
+  '.ico': 'image/x-icon',
+  '.gif': 'image/gif',
+  '.svg': 'image/svg+xml'
+}
+
 /** 必须在 app ready 之前调用 */
 export function registerSchemes(): void {
   protocol.registerSchemesAsPrivileged([
@@ -61,9 +75,18 @@ export function registerProtocolHandlers(): void {
       }
       const target = join(iconsDir(), name)
       if (!existsSync(target)) return new Response('not found', { status: 404 })
-      const response = await net.fetch(pathToFileURL(target).toString())
-      response.headers.set('Cache-Control', 'public, max-age=31536000, immutable')
-      return response
+      // v1.6：自定义图标可能是 SVG / ICO，直接读文件并显式给 Content-Type，
+      // 不依赖 net.fetch(file://) 的扩展名推断（旧实现只服务 PNG）。
+      const bytes = await readFile(target)
+      const contentType = ICON_MIME[extname(target).toLowerCase()] ?? 'application/octet-stream'
+      return new Response(bytes, {
+        status: 200,
+        headers: {
+          'Content-Type': contentType,
+          'Content-Length': String(bytes.length),
+          'Cache-Control': 'public, max-age=31536000, immutable'
+        }
+      })
     } catch (error) {
       console.error('[protocol] icon 失败', error)
       return new Response('error', { status: 500 })
