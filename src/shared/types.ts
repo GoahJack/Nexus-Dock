@@ -175,6 +175,101 @@ export interface ClockConfig {
   freeY: number
 }
 
+/** v1.7 桌面状态桥上报的前台窗口状态（协议见 resources/desktop-state.cs） */
+export interface DesktopState {
+  /** 前台窗口所属进程 ID；0 表示没有前台窗口 */
+  foregroundPid: number
+  maximized: boolean
+  fullscreen: boolean
+  desktop: boolean
+  className: string
+  /**
+   * v1.7：前台窗口是否被最小化。
+   * Windows「显示桌面」会让所有顶层窗口最小化，但 GetForegroundWindow() 仍可能返回最后一个
+   * 前台窗口；此时它并不占据桌面，必须当作「桌面空闲」处理（否则 Dock 的仅在桌面显示永远不恢复）。
+   */
+  minimized: boolean
+  /** v1.7：前台窗口是否可见（显示桌面还可能用 SW_HIDE 隐藏窗口） */
+  visible: boolean
+}
+
+/**
+ * 前台窗口是否「真的占据桌面」：最大化/全屏 + 可见 + 未最小化 + 不是本应用窗口。
+ * 纯函数，供主进程判定与契约测试共用（v1.7「显示桌面」bug 的核心判定）。
+ */
+export function isDesktopBusy(state: DesktopState | null, selfActive: boolean): boolean {
+  if (!state || selfActive) return false
+  if (state.minimized || state.visible === false) return false
+  return state.maximized || state.fullscreen
+}
+
+/** v1.7 窗口体系 ================================ */
+
+/** 窗口分类：内置窗口（随应用提供，Dock/音乐/时钟） / 附加窗口（后续接入的功能窗口） */
+export type WindowKindCategory = 'builtin' | 'extra'
+
+/**
+ * v1.7 附加窗口配置。
+ *
+ * 模型刻意做成「注册表声明类型 + 配置只存状态」：附加窗口的类型来自
+ * `EXTRA_WINDOW_KINDS` 注册表（见文件后部），配置里一个 kind 只对应一个窗口实例，
+ * 不需要用户手动增删窗口，也就不用额外的实例管理 UI。
+ * 以后新增功能窗口：注册表加一条 + 新建渲染页 + vite 入口，设置页/托盘/显隐/吸附/锁定
+ * 全部自动生效（见 docs/window-conventions.md「附加窗口接入」）。
+ */
+export interface ExtraWindowConfig {
+  /** 注册表 kind，同时是实例唯一键 */
+  kind: string
+  visible: boolean
+  snapToEdge: boolean
+  edge: DockEdge
+  alongPercent: number
+  freeX: number
+  freeY: number
+  alwaysOnTop: boolean
+  onlyOnDesktop: boolean
+  locked: boolean
+  theme: ThemeMode
+  /** 该窗口的独有选项（默认值来自注册表 defaultOptions；只保留 JSON 安全标量） */
+  options: Record<string, unknown>
+}
+
+/** v1.7 窗口类型描述：注册表条目，是「新增窗口」的唯一登记处 */
+export interface WindowKindSpec {
+  kind: string
+  label: string
+  /** 一句话描述，用于设置页/托盘提示 */
+  description: string
+  category: WindowKindCategory
+  /** 渲染页目录名（src/renderer/<page>/index.html），与 electron.vite.config.ts 的 renderer input 同名 */
+  page: string
+  /** 初始内容尺寸；真实尺寸由渲染层 useContentSize / setOwnContentSize 汇报 */
+  defaultSize: Size
+  /** 附加窗口默认行为；缺省值见 DEFAULT_EXTRA_WINDOW_BEHAVIOR */
+  defaults?: Partial<
+    Pick<
+      ExtraWindowConfig,
+      'visible' | 'snapToEdge' | 'edge' | 'alongPercent' | 'alwaysOnTop' | 'onlyOnDesktop' | 'locked' | 'theme'
+    >
+  >
+  /** 默认停靠边/沿边位置（snapToEdge=true 时生效） */
+  placement?: { edge?: DockEdge; alongPercent?: number }
+  /** 独有选项默认值 */
+  defaultOptions?: Record<string, unknown>
+}
+
+/** 附加窗口的缺省行为（未在注册表 defaults 里声明时使用） */
+export const DEFAULT_EXTRA_WINDOW_BEHAVIOR = {
+  visible: false,
+  snapToEdge: true,
+  edge: 'top' as DockEdge,
+  alongPercent: 50,
+  alwaysOnTop: true,
+  onlyOnDesktop: false,
+  locked: false,
+  theme: 'dark' as ThemeMode
+} as const
+
 /** v1.1 窗口位置锁定：三个悬浮窗独立锁定；「锁定全部」总开关在 UI 层按三者是否全锁推导 */
 export interface LockConfig {
   dock: boolean
@@ -207,6 +302,8 @@ export interface Settings {
   system: SystemConfig
   appearance: AppearanceConfig
   apps: DockItem[]
+  /** v1.7 附加窗口状态（一个注册类型对应一个实例；注册表见 EXTRA_WINDOW_KINDS） */
+  extraWindows: ExtraWindowConfig[]
 }
 
 export interface MediaState {
@@ -273,6 +370,8 @@ export const IPC = {
   appsEditRequest: 'apps:editRequest',
   /* 窗口 / 布局 */
   windowSetContentSize: 'window:setContentSize',
+  /** v1.7：附加窗口渲染层上报自己的内容尺寸（按 IPC sender 定位窗口，无需知道 kind） */
+  windowSetOwnContentSize: 'window:setOwnContentSize',
   windowOpenSettings: 'window:openSettings',
   windowCloseSettings: 'window:closeSettings',
   windowMinimizeSettings: 'window:minimizeSettings',
@@ -335,9 +434,205 @@ export const DEFAULT_APPS: DockItem[] = [
   }
 ]
 
+/* ======================= v1.7 窗口注册表（唯一登记处） =======================
+ *
+ * 内置窗口（Dock / 音乐卡片 / 桌面时钟）与附加窗口共用同一份元数据：
+ * 设置页分组、托盘入口、显隐、吸附、锁定、仅在桌面显示都从这张表驱动。
+ *
+ * 新增一个「附加窗口」（以后加功能窗口只需要这 4 步，其余全自动）：
+ *   1) 在 EXTRA_WINDOW_KINDS 里 push 一条 WindowKindSpec（page = 渲染页目录名）；
+ *   2) 新建 src/renderer/<page>/（index.html + main.tsx + 组件 + css）；
+ *   3) electron.vite.config.ts 的 renderer.input 增加 <page> 入口；
+ *   4) 如需独有选项，在设置页 ExtraWindowsSection 的 EXTRA_WINDOW_SETTINGS 里注册组件。
+ * 约束：一个 kind 同时只开一个窗口实例（配置数组按 kind 唯一化，重复/未知 kind 一律丢弃）。
+ */
+
+/** 内置窗口元数据（与 DEFAULT_SETTINGS 里的配置一一对应；显隐由各自配置决定） */
+export const BUILTIN_WINDOW_SPECS: readonly WindowKindSpec[] = [
+  {
+    kind: 'dock',
+    label: 'Dock',
+    description: '应用启动与窗口入口，可停靠任意屏幕边',
+    category: 'builtin',
+    page: 'dock',
+    defaultSize: { width: 640, height: 120 }
+  },
+  {
+    kind: 'music',
+    label: '音乐卡片',
+    description: '桌面音乐信息窗，跟随 Dock 或自由摆放',
+    category: 'builtin',
+    page: 'music',
+    defaultSize: { width: 340, height: 170 }
+  },
+  {
+    kind: 'clock',
+    label: '桌面时钟',
+    description: '可拖动的数字时钟悬浮窗',
+    category: 'builtin',
+    page: 'clock',
+    defaultSize: { width: 240, height: 120 }
+  }
+]
+
+/**
+ * 附加窗口注册表（v1.7 预留接入位，当前为空：设置页显示「暂无附加窗口」空状态）。
+ *
+ * 示例（以后真正接一个天气卡片时）：
+ *   {
+ *     kind: 'weather',
+ *     label: '天气卡片',
+ *     description: '当前城市天气与温度',
+ *     category: 'extra',
+ *     page: 'weather',
+ *     defaultSize: { width: 300, height: 200 },
+ *     defaults: { visible: false, alwaysOnTop: true, onlyOnDesktop: false },
+ *     placement: { edge: 'top', alongPercent: 72 },
+ *     defaultOptions: { city: '北京' }
+ *   }
+ */
+export const EXTRA_WINDOW_KINDS: readonly WindowKindSpec[] = []
+
+/** 按 kind 查注册表（内置 + 附加都查） */
+export function findWindowKind(kind: string): WindowKindSpec | null {
+  const all = [...BUILTIN_WINDOW_SPECS, ...EXTRA_WINDOW_KINDS]
+  return all.find((spec) => spec.kind === kind) ?? null
+}
+
+/** 该 kind 是否是已注册的附加窗口类型 */
+export function isExtraWindowKind(kind: string): boolean {
+  return EXTRA_WINDOW_KINDS.some((spec) => spec.kind === kind)
+}
+
+/** 附加窗口的默认配置（注册表 defaults / placement 驱动；不是注册类型返回 null） */
+export function defaultExtraWindowConfig(kind: string): ExtraWindowConfig | null {
+  const spec = EXTRA_WINDOW_KINDS.find((item) => item.kind === kind)
+  if (!spec) return null
+  const d = spec.defaults ?? {}
+  const b = DEFAULT_EXTRA_WINDOW_BEHAVIOR
+  return {
+    kind: spec.kind,
+    visible: d.visible ?? b.visible,
+    snapToEdge: d.snapToEdge ?? b.snapToEdge,
+    edge: d.edge ?? spec.placement?.edge ?? b.edge,
+    alongPercent: spec.placement?.alongPercent ?? b.alongPercent,
+    freeX: -1,
+    freeY: -1,
+    alwaysOnTop: d.alwaysOnTop ?? b.alwaysOnTop,
+    onlyOnDesktop: d.onlyOnDesktop ?? b.onlyOnDesktop,
+    locked: d.locked ?? b.locked,
+    theme: d.theme ?? b.theme,
+    options: sanitizeWindowOptions(spec.defaultOptions, spec.defaultOptions)
+  }
+}
+
+/** 所有已注册附加窗口的默认配置（启动/Settings 默认值使用） */
+export function defaultExtraWindowConfigs(): ExtraWindowConfig[] {
+  return EXTRA_WINDOW_KINDS.flatMap((spec) => {
+    const config = defaultExtraWindowConfig(spec.kind)
+    return config ? [config] : []
+  })
+}
+
+/**
+ * 收敛附加窗口独有选项：只保留 JSON 安全标量（字符串截断到 2000 字符），
+ * 未知键丢弃。注册表可在以后为某个窗口补更严格的校验，这里保证不会把脏数据写进 settings.json。
+ */
+export function sanitizeWindowOptions(
+  raw: unknown,
+  defaults?: Record<string, unknown>
+): Record<string, unknown> {
+  const out: Record<string, unknown> = {}
+  if (defaults && typeof defaults === 'object') {
+    for (const [key, value] of Object.entries(defaults)) {
+      if (typeof key === 'string' && key.length <= 64) out[key] = value
+    }
+  }
+  if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
+    for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
+      if (typeof key !== 'string' || key.length > 64) continue
+      if (value === null || typeof value === 'boolean') out[key] = value
+      else if (typeof value === 'string') out[key] = value.slice(0, 2000)
+      else if (typeof value === 'number' && Number.isFinite(value)) out[key] = value
+    }
+  }
+  return out
+}
+
+/**
+ * 收敛附加窗口配置：以注册表为准，逐 kind 生成配置并丢弃未知/重复 kind。
+ * 未注册类型（用户配置里残留的历史 kind）不会恢复；新增类型自动获得默认配置。
+ */
+export function normalizeExtraWindows(raw: unknown): ExtraWindowConfig[] {
+  const entries = Array.isArray(raw) ? raw : []
+  const byKind = new Map<string, Record<string, unknown>>()
+  for (const entry of entries) {
+    if (!entry || typeof entry !== 'object') continue
+    const value = entry as Record<string, unknown>
+    if (typeof value.kind !== 'string' || byKind.has(value.kind)) continue
+    byKind.set(value.kind, value)
+  }
+  return EXTRA_WINDOW_KINDS.flatMap((spec) => {
+    const fallback = defaultExtraWindowConfig(spec.kind)
+    if (!fallback) return []
+    const r = (byKind.get(spec.kind) ?? {}) as Partial<ExtraWindowConfig>
+    return [
+      {
+        kind: spec.kind,
+        visible: typeof r.visible === 'boolean' ? r.visible : fallback.visible,
+        snapToEdge: typeof r.snapToEdge === 'boolean' ? r.snapToEdge : fallback.snapToEdge,
+        edge: pick(r.edge, EDGES, fallback.edge),
+        alongPercent: clamp(r.alongPercent as number, 0, 100, fallback.alongPercent),
+        freeX: clamp(r.freeX as number, -10000, 10000, fallback.freeX),
+        freeY: clamp(r.freeY as number, -10000, 10000, fallback.freeY),
+        alwaysOnTop: typeof r.alwaysOnTop === 'boolean' ? r.alwaysOnTop : fallback.alwaysOnTop,
+        onlyOnDesktop: typeof r.onlyOnDesktop === 'boolean' ? r.onlyOnDesktop : fallback.onlyOnDesktop,
+        locked: typeof r.locked === 'boolean' ? r.locked : fallback.locked,
+        theme: pick(r.theme, ['dark', 'light'] as const, fallback.theme),
+        options: sanitizeWindowOptions(r.options, fallback.options)
+      }
+    ]
+  })
+}
+
+/** 是否有任一窗口开启「仅在桌面显示」（决定桌面状态桥要不要常驻） */
+export function hasOnlyOnDesktopWindow(settings: Settings): boolean {
+  if (settings.dock.onlyOnDesktop || settings.music.onlyOnDesktop || settings.clock.onlyOnDesktop) return true
+  return settings.extraWindows.some((item) => item.onlyOnDesktop)
+}
+
+/** 锁定状态汇总：内置 3 个窗口 + 所有附加窗口；「锁定全部」开关按此推导（n/N） */
+export function windowLockSummary(settings: Settings): { locked: number; total: number; allLocked: boolean } {
+  const extras = settings.extraWindows
+  const total = 3 + extras.length
+  const locked =
+    (settings.lock.dock ? 1 : 0) +
+    (settings.lock.music ? 1 : 0) +
+    (settings.lock.clock ? 1 : 0) +
+    extras.filter((item) => item.locked).length
+  return { locked, total, allLocked: locked === total }
+}
+
+/** 生成「锁定/解锁全部窗口」的补丁（内置 + 附加窗口一起） */
+export function withAllWindowsLocked(settings: Settings, locked: boolean): DeepPartial<Settings> {
+  return {
+    lock: { dock: locked, music: locked, clock: locked },
+    extraWindows: settings.extraWindows.map((item) => ({ ...item, locked }))
+  }
+}
+
+/** 修改单个附加窗口配置（返回新的完整数组，交给 settings.update 整体替换） */
+export function patchExtraWindows(
+  settings: Settings,
+  kind: string,
+  patch: Partial<ExtraWindowConfig>
+): ExtraWindowConfig[] {
+  return settings.extraWindows.map((item) => (item.kind === kind ? { ...item, ...patch } : item))
+}
+
 export const DEFAULT_SETTINGS: Settings = {
-  // v9（v1.6）：Dock 应用支持自定义显示名称 / 图标（customName / customIcon，可选字段）
-  schemaVersion: 9,
+  // v10（v1.7）：新增 extraWindows（附加窗口接入机制，当前注册表为空 → 空数组）
+  schemaVersion: 10,
   dock: {
     edge: 'bottom',
     alongPercent: 50,
@@ -402,7 +697,9 @@ export const DEFAULT_SETTINGS: Settings = {
     reducedMotion: false,
     clickSound: false
   },
-  apps: DEFAULT_APPS
+  apps: DEFAULT_APPS,
+  // v1.7：附加窗口默认配置由注册表 EXTRA_WINDOW_KINDS 生成（当前为空）
+  extraWindows: defaultExtraWindowConfigs()
 }
 
 export const DEFAULT_MEDIA_STATE: MediaState = {
@@ -529,7 +826,9 @@ export function sanitizeSettings(raw: unknown): Settings {
     lock,
     system,
     appearance,
-    apps: apps ?? d.apps
+    apps: apps ?? d.apps,
+    // v1.7：附加窗口以注册表为准逐 kind 收敛（未知/重复 kind 丢弃，新注册类型自动补默认配置）
+    extraWindows: normalizeExtraWindows(r.extraWindows)
   }
 }
 
@@ -544,7 +843,8 @@ export function mergeSettings(base: Settings, patch: DeepPartial<Settings>): Set
     lock: { ...base.lock, ...(patch.lock ?? {}) },
     system: { ...base.system, ...(patch.system ?? {}) },
     appearance: { ...base.appearance, ...(patch.appearance ?? {}) },
-    apps: patch.apps ?? base.apps
+    apps: patch.apps ?? base.apps,
+    extraWindows: patch.extraWindows ?? base.extraWindows
   }
   return sanitizeSettings(merged)
 }
@@ -588,6 +888,11 @@ export interface NexusApi {
   }
   window: {
     setContentSize: (target: WindowTarget, size: Size) => void
+    /**
+     * v1.7：附加窗口（注册表驱动）渲染层上报内容尺寸。
+     * 主进程按 IPC sender 定位窗口，渲染层不需要知道自己的 kind。
+     */
+    setOwnContentSize: (size: Size) => void
     openSettings: () => void
     closeSettings: () => void
     minimizeSettings: () => void

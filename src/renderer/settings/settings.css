@@ -1433,3 +1433,118 @@
   flex: 1 1 auto;
 }
 
+/* ============================================================
+   v1.7：设置导航「窗口」分组 + 内置窗口页 / 附加窗口页
+   - 导航分组的组标题不可点击，只是视觉分组；组间用细分隔线区分
+   - 内置窗口页复用 v1.3 折叠栏（.nx-acc）与锁定摘要（.nx-lock-state）
+   - 附加窗口页：空状态卡片 / 接入步骤 / 独有设置区块
+   - 颜色全部走 --nx-* 变量与半透明白，深浅主题切换时跟随令牌
+   ============================================================ */
+
+/* -------------------- 左侧导航分组标题 -------------------- */
+.settings-nav-group {
+  padding: 2px 10px 3px 12px;
+  font-size: 10.5px;
+  font-weight: 600;
+  line-height: 1.3;
+  letter-spacing: 0.14em;
+  color: var(--nx-text-faint);
+  user-select: none;
+  cursor: default;
+}
+
+/* 分组之间的细分隔线：把「窗口」组与其他页面视觉上分开 */
+.settings-nav-sep {
+  height: 1px;
+  margin: 5px 6px;
+  background: var(--nx-border);
+}
+
+/* -------------------- 附加窗口空状态（区别于应用列表的纯文字 .nx-empty） -------------------- */
+.nx-empty.nx-empty-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 24px 16px;
+  border: 1px dashed var(--nx-border-strong);
+  border-radius: var(--nx-radius-sm);
+  background: rgba(255, 255, 255, 0.025);
+  text-align: center;
+}
+
+.nx-empty-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 52px;
+  height: 52px;
+  margin-bottom: 2px;
+  border-radius: 50%;
+  border: 1px solid var(--nx-border);
+  background: var(--nx-accent-soft);
+  color: var(--nx-text-dim);
+}
+
+.nx-empty-card strong {
+  font-size: var(--nx-font-md);
+  font-weight: 600;
+  color: var(--nx-text);
+}
+
+.nx-empty-card p {
+  margin: 0;
+  max-width: 320px;
+  font-size: var(--nx-font-sm);
+  line-height: var(--nx-leading);
+  color: var(--nx-text-faint);
+}
+
+/* -------------------- 折叠栏内的「该窗口独有设置」区块 -------------------- */
+.nx-window-unique {
+  margin-top: 10px;
+  padding-top: 12px;
+  border-top: 1px solid var(--nx-border);
+}
+
+.nx-window-unique-title {
+  margin: 0 0 2px;
+  font-size: var(--nx-font-xs);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: var(--nx-text-dim);
+}
+
+/* -------------------- 附加窗口「接入说明」步骤列表 -------------------- */
+.nx-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 4px 0 6px;
+  padding-left: 19px;
+  font-size: var(--nx-font-sm);
+  line-height: var(--nx-leading);
+  color: var(--nx-text-dim);
+}
+
+.nx-steps li::marker {
+  color: var(--nx-accent-strong);
+  font-weight: 600;
+}
+
+.nx-steps strong {
+  color: var(--nx-text);
+  font-weight: 600;
+}
+
+.nx-steps code {
+  padding: 1px 5px;
+  border-radius: var(--nx-radius-2xs);
+  background: rgba(255, 255, 255, 0.09);
+  font-family: 'Cascadia Mono', 'Consolas', 'Courier New', monospace;
+  font-size: var(--nx-font-xs);
+  color: var(--nx-text);
+  overflow-wrap: anywhere;
+}
+
+

@@ -14,16 +14,27 @@ import { readFileSync, existsSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
 import {
+  BUILTIN_WINDOW_SPECS,
   CUSTOM_NAME_MAX_LENGTH,
   DEFAULT_APPS,
   DEFAULT_SETTINGS,
+  EXTRA_WINDOW_KINDS,
   IPC,
   SCREEN_MARGIN,
   displayIconOf,
   displayNameOf,
+  findWindowKind,
+  hasOnlyOnDesktopWindow,
+  isDesktopBusy,
+  isExtraWindowKind,
   isHorizontalEdge,
   mergeSettings,
-  sanitizeSettings
+  normalizeExtraWindows,
+  patchExtraWindows,
+  sanitizeSettings,
+  sanitizeWindowOptions,
+  windowLockSummary,
+  withAllWindowsLocked
 } from '../src/shared/types.ts'
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), '..')
@@ -223,4 +234,216 @@ test('托盘图标资源存在且是合法 PNG（打包 extraResources 依赖它
     assert.equal(bytes.readUInt32BE(16), size)
     assert.equal(bytes.readUInt32BE(20), size)
   }
+})
+
+/* ============================ v1.7 窗口体系 ============================
+ *
+ * v1.7 把「窗口」从三个硬编码窗口升级为注册表驱动：
+ *   - schemaVersion 10 新增 extraWindows（附加窗口接入位，当前注册表为空）；
+ *   - 共性项（吸附/置顶/仅在桌面/锁定/复位）从「系统」页迁到「窗口 → 内置窗口」；
+ *   - 新增窗口只需在 EXTRA_WINDOW_KINDS 注册 + 新建渲染页 + vite 入口。
+ * 这里把「脏数据收敛 / 注册表唯一 / 锁定汇总 / 仅在桌面判定 / 附加窗口补丁」钉成回归门禁。
+ */
+
+/** 构造一条合法的附加窗口配置（当前注册表为空，只能手工拼对象做纯函数断言） */
+function fakeExtraWindow(overrides = {}) {
+  return {
+    kind: 'weather',
+    visible: true,
+    snapToEdge: true,
+    edge: 'top',
+    alongPercent: 50,
+    freeX: -1,
+    freeY: -1,
+    alwaysOnTop: true,
+    onlyOnDesktop: false,
+    locked: false,
+    theme: 'dark',
+    options: {},
+    ...overrides
+  }
+}
+
+test('v1.7 契约：schemaVersion=10，extraWindows 默认值与注册表一致（当前为空）', () => {
+  assert.equal(DEFAULT_SETTINGS.schemaVersion, 10)
+  assert.equal(EXTRA_WINDOW_KINDS.length, 0, 'v1.7 附加窗口注册表应为空（仅预留接入位）')
+  assert.deepEqual(DEFAULT_SETTINGS.extraWindows, [])
+  assert.deepEqual(
+    DEFAULT_SETTINGS.extraWindows.map((item) => item.kind),
+    EXTRA_WINDOW_KINDS.map((spec) => spec.kind)
+  )
+  // 旧配置（schemaVersion 9，没有 extraWindows 字段）读入后补空数组，不抛错
+  const migrated = sanitizeSettings({ schemaVersion: 9, extraWindows: undefined })
+  assert.equal(migrated.schemaVersion, 10)
+  assert.deepEqual(migrated.extraWindows, [])
+})
+
+test('v1.7 契约：extraWindows 脏数据收敛，未注册 kind 一律丢弃', () => {
+  // 非数组、null、数字等垃圾输入不能抛错
+  for (const raw of [undefined, null, 'garbage', 0, {}, { kind: 'weather' }]) {
+    assert.deepEqual(normalizeExtraWindows(raw), [], `normalizeExtraWindows(${JSON.stringify(raw)})`)
+  }
+  assert.deepEqual(sanitizeSettings({ extraWindows: 'garbage' }).extraWindows, [])
+  // 未注册 kind（注册表为空时的任意 kind）不得复活成配置项
+  assert.deepEqual(normalizeExtraWindows([{ kind: 'weather', visible: true }]), [])
+  assert.deepEqual(sanitizeSettings({ extraWindows: [{ kind: 'weather', visible: true }] }).extraWindows, [])
+})
+
+test('v1.7 契约：sanitizeWindowOptions 只保留 JSON 安全标量', () => {
+  const options = sanitizeWindowOptions(
+    {
+      a: 'x'.repeat(5000),
+      b: 1,
+      c: true,
+      d: null,
+      e: [1],
+      f: () => 1,
+      ['g'.repeat(80)]: 1
+    },
+    { d: 'default', keep: 2 }
+  )
+  assert.equal(options.a.length, 2000, '超长字符串截断到 2000')
+  assert.equal(options.a, 'x'.repeat(2000))
+  assert.equal(options.b, 1)
+  assert.equal(options.c, true)
+  assert.equal(options.d, null, 'null 保留并覆盖默认值')
+  assert.equal(options.keep, 2, 'defaults 合并进结果')
+  assert.equal('e' in options, false, '数组不是 JSON 标量，丢弃')
+  assert.equal('f' in options, false, '函数丢弃')
+  assert.equal('g'.repeat(80) in options, false, '超长键丢弃')
+  // 非对象输入收敛为空对象，不抛错
+  assert.deepEqual(sanitizeWindowOptions(undefined, undefined), {})
+  assert.deepEqual(sanitizeWindowOptions('nope', { keep: 1 }), { keep: 1 })
+})
+
+test('v1.7 契约：hasOnlyOnDesktopWindow 覆盖内置三窗口与附加窗口', () => {
+  const base = sanitizeSettings(undefined)
+  // Dock 默认 onlyOnDesktop=true → 默认设置即需要桌面状态桥
+  assert.equal(hasOnlyOnDesktopWindow(base), true)
+  const none = {
+    ...base,
+    dock: { ...base.dock, onlyOnDesktop: false },
+    music: { ...base.music, onlyOnDesktop: false },
+    clock: { ...base.clock, onlyOnDesktop: false }
+  }
+  assert.equal(hasOnlyOnDesktopWindow(none), false)
+  // 任一附加窗口开启「仅在桌面显示」也要启用
+  assert.equal(hasOnlyOnDesktopWindow({ ...none, extraWindows: [fakeExtraWindow({ onlyOnDesktop: true })] }), true)
+  assert.equal(hasOnlyOnDesktopWindow({ ...none, extraWindows: [fakeExtraWindow({ onlyOnDesktop: false })] }), false)
+})
+
+test('v1.7 契约：windowLockSummary 汇总内置 3 窗口 + 附加窗口（n/N）', () => {
+  const base = sanitizeSettings(undefined)
+  assert.deepEqual(windowLockSummary(base), { locked: 0, total: 3, allLocked: false })
+  const allLockedBuiltin = { ...base, lock: { dock: true, music: true, clock: true } }
+  assert.deepEqual(windowLockSummary(allLockedBuiltin), { locked: 3, total: 3, allLocked: true })
+  // 1 个附加窗口：total=4；内置全锁但附加未锁 → 未全部锁定
+  const withUnlockedExtra = {
+    ...allLockedBuiltin,
+    extraWindows: [fakeExtraWindow({ locked: false })]
+  }
+  assert.deepEqual(windowLockSummary(withUnlockedExtra), { locked: 3, total: 4, allLocked: false })
+  const withLockedExtra = {
+    ...allLockedBuiltin,
+    extraWindows: [fakeExtraWindow({ locked: true })]
+  }
+  assert.deepEqual(windowLockSummary(withLockedExtra), { locked: 4, total: 4, allLocked: true })
+})
+
+test('v1.7 契约：withAllWindowsLocked 同时锁定/解锁内置与附加窗口', () => {
+  const base = sanitizeSettings(undefined)
+  const settings = {
+    ...base,
+    extraWindows: [fakeExtraWindow({ kind: 'weather', locked: false }), fakeExtraWindow({ kind: 'notes', locked: true })]
+  }
+  const lockPatch = withAllWindowsLocked(settings, true)
+  assert.deepEqual(lockPatch.lock, { dock: true, music: true, clock: true })
+  assert.equal(lockPatch.extraWindows.length, 2)
+  assert.ok(lockPatch.extraWindows.every((item) => item.locked === true))
+  // 通过 mergeSettings 应用补丁后，内置锁定的落盘结果正确
+  const applied = mergeSettings(settings, lockPatch)
+  assert.deepEqual(applied.lock, { dock: true, music: true, clock: true })
+
+  const unlockPatch = withAllWindowsLocked(settings, false)
+  assert.deepEqual(unlockPatch.lock, { dock: false, music: false, clock: false })
+  assert.ok(unlockPatch.extraWindows.every((item) => item.locked === false))
+  // 纯函数：不得修改传入的 settings
+  assert.equal(settings.extraWindows[0].locked, false)
+  assert.equal(settings.extraWindows[1].locked, true)
+})
+
+test('v1.7 契约：窗口注册表 kind/page 唯一且不与内置窗口冲突', () => {
+  const builtinKinds = BUILTIN_WINDOW_SPECS.map((spec) => spec.kind)
+  assert.deepEqual([...builtinKinds].sort(), ['clock', 'dock', 'music'])
+  assert.equal(new Set(builtinKinds).size, builtinKinds.length, '内置窗口 kind 重复')
+  assert.equal(new Set(BUILTIN_WINDOW_SPECS.map((spec) => spec.page)).size, BUILTIN_WINDOW_SPECS.length)
+
+  const extraKinds = EXTRA_WINDOW_KINDS.map((spec) => spec.kind)
+  const extraPages = EXTRA_WINDOW_KINDS.map((spec) => spec.page)
+  assert.equal(new Set(extraKinds).size, extraKinds.length, '附加窗口 kind 重复')
+  assert.equal(new Set(extraPages).size, extraPages.length, '附加窗口 page 重复')
+  for (const spec of EXTRA_WINDOW_KINDS) {
+    assert.equal(spec.category, 'extra')
+    assert.ok(spec.label.length > 0 && spec.description.length > 0)
+    assert.ok(spec.page.length > 0)
+    assert.ok(spec.defaultSize.width > 0 && spec.defaultSize.height > 0)
+    assert.equal(builtinKinds.includes(spec.kind), false, '附加窗口 kind 不得与内置重复')
+    assert.equal(
+      BUILTIN_WINDOW_SPECS.some((builtin) => builtin.page === spec.page),
+      false,
+      '附加窗口 page 不得与内置重复'
+    )
+  }
+
+  assert.equal(findWindowKind('dock')?.kind, 'dock')
+  assert.equal(findWindowKind('music')?.page, 'music')
+  assert.equal(findWindowKind('nope'), null)
+  assert.equal(isExtraWindowKind('weather'), false, '当前注册表为空，weather 还不是附加窗口')
+})
+
+test('v1.7 契约：patchExtraWindows 只改目标项并返回新数组', () => {
+  const base = sanitizeSettings(undefined)
+  const settings = {
+    ...base,
+    extraWindows: [
+      fakeExtraWindow({ kind: 'weather', visible: true }),
+      fakeExtraWindow({ kind: 'notes', visible: false })
+    ]
+  }
+  const next = patchExtraWindows(settings, 'weather', { visible: false })
+  assert.notEqual(next, settings.extraWindows, '必须返回新数组（交给 settings.update 整体替换）')
+  assert.equal(next.length, 2)
+  assert.equal(next[0].kind, 'weather')
+  assert.equal(next[0].visible, false)
+  assert.deepEqual(next[1], settings.extraWindows[1], '其他项不得被修改')
+  assert.equal(settings.extraWindows[0].visible, true, '不得原地修改传入数组')
+  // 注册表为空时 extraWindows 默认为空数组：补丁是安全 no-op
+  assert.deepEqual(patchExtraWindows(base, 'weather', { visible: true }), [])
+})
+
+test('v1.7 契约：isDesktopBusy 只在「可见 + 未最小化 + 最大化/全屏」时判定占用桌面', () => {
+  const state = (over = {}) => ({
+    foregroundPid: 1234,
+    maximized: true,
+    fullscreen: false,
+    desktop: false,
+    className: 'Chrome_WidgetWin_1',
+    minimized: false,
+    visible: true,
+    ...over
+  })
+  // 最大化 + 可见 + 未最小化 + 非本应用 → 占用桌面
+  assert.equal(isDesktopBusy(state(), false), true)
+  // 全屏 + 可见 + 未最小化 → 占用桌面
+  assert.equal(isDesktopBusy(state({ maximized: false, fullscreen: true }), false), true)
+  // 「显示桌面」bug 的核心回归点：窗口被最小化后即使 maximized 仍为 true 也不算占用桌面
+  assert.equal(isDesktopBusy(state({ minimized: true }), false), false)
+  // 显示桌面也可能用 SW_HIDE 隐藏窗口：不可见不算占用桌面
+  assert.equal(isDesktopBusy(state({ visible: false }), false), false)
+  // 前台窗口属于本应用自身 → 不算占用
+  assert.equal(isDesktopBusy(state(), true), false)
+  // 没有桌面状态（桥未启动/首帧未到）→ 不算占用
+  assert.equal(isDesktopBusy(null, false), false)
+  // 普通窗口（非最大化/非全屏）→ 不算占用
+  assert.equal(isDesktopBusy(state({ maximized: false, fullscreen: false }), false), false)
 })

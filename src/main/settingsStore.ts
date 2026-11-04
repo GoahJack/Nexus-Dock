@@ -93,6 +93,10 @@ function migrate(settings: Settings, fromVersion: number): Settings {
   // 非法值由 sanitizeSettings 的 normalizeCustomName / normalizeCustomIcon 统一剔除。
   // 这里只提升 schemaVersion（见函数末尾），无需改写历史数据。
 
+  // v9 → v10（v1.7）：新增 extraWindows（附加窗口接入机制）。
+  // 附加窗口类型由注册表 EXTRA_WINDOW_KINDS 声明（当前为空），sanitizeSettings 会
+  // 按注册表逐 kind 补齐默认配置、丢弃未知 kind —— 旧配置零丢失，无需手工迁移字段。
+
   return sanitizeSettings({ ...next, schemaVersion: DEFAULT_SETTINGS.schemaVersion })
 }
 
@@ -164,7 +168,8 @@ export function updateSettings(patch: DeepPartial<Settings>): Settings {
     lock: { ...current.lock, ...(patch.lock ?? {}) },
     system: { ...current.system, ...(patch.system ?? {}) },
     appearance: { ...current.appearance, ...(patch.appearance ?? {}) },
-    apps: patch.apps ?? current.apps
+    apps: patch.apps ?? current.apps,
+    extraWindows: patch.extraWindows ?? current.extraWindows
   })
   // 合并结果与当前值完全一致时不写盘、不广播：拖动吸附、位置回写、自启状态回滚等场景
   // 会上报相同值，跳过 emit 可避免 subscribeSettings 监听链路被无谓地反复触发。

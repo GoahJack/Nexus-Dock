@@ -11,7 +11,9 @@
 import { Menu, Tray, app, nativeImage } from 'electron'
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
+import { windowLockSummary, withAllWindowsLocked } from '@shared/types'
 import { applyAutoStart } from './autostart'
+import { extraWindowMenuItems } from './extraWindows'
 import { logToFile } from './logger'
 import { getSettings, subscribeSettings, updateSettings } from './settingsStore'
 import {
@@ -86,7 +88,7 @@ function buildTrayMenu(): Menu {
   const settings = getSettings()
   const dockWindow = getDockWindow()
   const dockVisible = isDockVisible()
-  const allLocked = settings.lock.dock && settings.lock.music && settings.lock.clock
+  const locks = windowLockSummary(settings)
 
   return Menu.buildFromTemplate([
     { label: '打开 Nexus 设置…', click: () => openSettingsWindow() },
@@ -119,13 +121,14 @@ function buildTrayMenu(): Menu {
       checked: settings.clock.visible,
       click: (item) => updateSettings({ clock: { visible: item.checked } })
     },
+    // v1.7：附加窗口（注册表驱动，当前注册表为空 → 不产生菜单项）
+    ...extraWindowMenuItems(),
     { type: 'separator' },
     {
-      label: '锁定全部窗口位置',
+      label: `锁定全部窗口位置（${locks.locked}/${locks.total}）`,
       type: 'checkbox',
-      checked: allLocked,
-      click: (item) =>
-        updateSettings({ lock: { dock: item.checked, music: item.checked, clock: item.checked } })
+      checked: locks.allLocked,
+      click: (item) => updateSettings(withAllWindowsLocked(getSettings(), item.checked))
     },
     {
       label: '开机自启',

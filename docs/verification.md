@@ -953,3 +953,72 @@ AC-26.3 的自定义图标是把夹具直接写进 `icons\` 目录，绕过了 `
 - 真机 UI 本地证据（PNG 已被 gitignore，保留在目录内供复核）：`docs/verification/v1.6/installed-settings-apps.png`（安装版「应用」页：每行 ✎ + 页脚 `Nexus Dock v1.6.0`）、`installed-settings-editor.png`（编辑弹层真实打开）、`installed-settings-editor-closed.png`（Esc 关闭；关闭后 `customFields=0`，未改动用户配置）。
 - 说明：安装脚本以 `Start-Process` 直接拉起时会被 DSH 宿主注入的 `ELECTRON_RUN_AS_NODE=1` 影响（Electron 以 Node 模式启动后立即退出，属宿主环境已知问题）；本次改用 Explorer 启动以同时获得正常权限与干净环境变量。日常请双击根目录「启动 Nexus Dock.cmd」或桌面快捷方式。
 
+---
+
+## §v1.7（2026-11-04）：窗口注册表接入 + 设置面板重构 + 「显示桌面」修复
+
+> 环境：Windows 11 · **开发构建**（`out/`，Electron 44.7.0 / Chrome 152.0.7977.130 / Node 24.21.0）· **Nexus Dock v1.7.0**（`isPackaged=false`）
+> 验收方式：`scripts/v17-verify.mjs` —— 隔离 userData（`.userdata\v17-verify`）+ `--remote-debugging-port=9352`；启动前写入 **v9** 种子 `settings.json`（UTF-8 无 BOM、不含 `extraWindows` 字段）；CDP 驱动 Dock / 设置窗口；「显示桌面」用内联 PowerShell user32 helper 对**隔离实例自己的** Dock 窗口执行 `ShowWindow(SW_MINIMIZE=6)`（等价 shell 对顶层窗口的最小化）。
+> 机器证据：[`docs/verification/v1.7/report.json`](verification/v1.7/report.json) —— **36 checks / 36 passed / 0 failed / 0 exceptions**；同一隔离实例连续跑 2 轮，两轮 check id / ok 完全一致（稳定）。
+> 安全边界：未用 `Shell.Application.MinimizeAll` / Win+D；只操作隔离实例 `electron.exe` PID 树内、类名 `Chrome_WidgetWin_1`、标题 `Nexus Dock` 的窗口；用户安装版 `NexusDockApp` 进程 PID 集合全程未变；未重建 `out/`、未改 `src/`、未读写 `%APPDATA%\nexus-dock`。
+
+### 1. 复现方式
+
+```powershell
+node scripts/v17-verify.mjs --prepare
+Remove-Item Env:ELECTRON_RUN_AS_NODE -ErrorAction SilentlyContinue
+& "node_modules\electron\dist\electron.exe" --no-sandbox --remote-debugging-port=9352 `
+    "--user-data-dir=$PWD\.userdata\v17-verify" .
+node scripts/v17-verify.mjs          # 端口可用 $env:NEXUS_CDP_PORT 覆盖；结束后按 PID 清理隔离实例
+```
+
+`scripts/v17-verify.mjs` 头注释包含同样的运行方式、覆盖清单与安全边界；`--prepare` 会重建 v9 种子配置并清掉上一轮隔离实例的日志，保证「自动恢复」日志不串轮。
+
+### 2. AC 验收表
+
+| AC | 验收项 | 结果 | 证据（check id / detail 摘要） |
+|---|---|---|---|
+| AC-27.1 | 设置迁移：v9 → v10，`extraWindows=[]`，旧值零丢失 | 通过 | `AC-27.1a` `schemaVersion=10`；`AC-27.1b` `extraWindows=[]`；`AC-27.1c` `onlyOnDesktop=true`、`music.visible=false`、`clock.visible=false`、`lock` 全 false、6 个应用、`appearance=standard` 保留；`AC-27.1d` 落盘 `settings.json` 2,710B、schemaVersion 10、BOM=false（种子与落盘均 UTF-8 无 BOM）；运行日志 `.userdata\v17-verify\launch.out.log` 记录 `[settings] 已从 v9 迁移到 v10` |
+| AC-27.2 | 导航分组：「窗口」组 + 6 项，默认内置窗口页 | 通过 | `AC-27.2a` 设置页 3 折叠栏 / 6 导航项；`AC-27.2b` `.settings-nav-group` 文本「窗口」，`.settings-nav-item` 依次 内置窗口/附加窗口/应用/外观/系统/关于；`AC-27.2c` 默认 active=内置窗口 且页内标题为「内置窗口」 |
+| AC-27.3 | 内置窗口页：3 折叠栏 + 共性 4 开关 + 独有设置 + 开关写回 | 通过 | `AC-27.3a` 3 个 `.nx-acc-item`（Dock/音乐卡片/桌面时钟，默认收起）；`AC-27.3b` 锁定全部「0/3」+ 摘要「0/3 · 无窗口锁定」；`AC-27.3c` 展开 Dock 后 4 个共性开关（自动吸附屏幕边缘/始终置顶/仅在桌面显示/锁定位置）；`AC-27.3d` `.nx-window-unique`「该窗口独有设置」+ 3 个 `ui-section`（停靠位置/图标/外观与行为）；`AC-27.3e` 点击「始终置顶」→ `settings.dock.alwaysOnTop` true→false（`aria-checked=false`），随后还原 |
+| AC-27.4 | 附加窗口页：空状态 + 接入说明 | 通过 | `AC-27.4a` `.nx-empty`「暂无附加窗口」、无折叠栏；`AC-27.4b`「接入说明」section + 恰 4 个 `.nx-steps li`（注册窗口类型/新建渲染页/增加构建入口/（可选）独有选项） |
+| AC-27.5 | 系统页：移除窗口共性设置，保留跳转且真实生效 | 通过 | `AC-27.5a` section 仅「启动」「窗口」，正文不含「窗口共性设置」，保留开机自启开关；`AC-27.5b` 按钮「前往内置窗口」「前往附加窗口」；`AC-27.5c` 点「前往内置窗口」→ active=内置窗口 且 3 折叠栏；`AC-27.5d` 点「前往附加窗口」→ active=附加窗口 且空状态 |
+| AC-27.7 | 「显示桌面」修复：Dock 窗口被 shell 最小化后自动恢复 | 通过 | `AC-27.7a` 定位到隔离实例 PID 树内 hwnd（标题 `Nexus Dock`、类 `Chrome_WidgetWin_1`）；`AC-27.7a2` 测试前临时关闭 `dock.onlyOnDesktop`（桌面状态桥停用，隔离出 guard 路径；测后恢复 true）并确认 Dock 可见；`AC-27.7b` 最小化前 `IsWindowVisible=true / IsIconic=false`；`AC-27.7c` **`ShowWindow(SW_MINIMIZE=6)` 后立即 `IsIconic=true`（`AC-27.7c1`，证明最小化真实生效）→ 200/400/…/1800ms 采样均为 `IsIconic=false && IsWindowVisible=true`**；`AC-27.7c2` 本轮主进程日志新增 `[dock] 窗口被系统最小化（如「显示桌面」），已自动恢复显示`（before=1→after=2，第 1 次尝试即恢复）；`AC-27.7d` 恢复后 Dock 仍可正常渲染并截图；`AC-27.7e` `resources/desktop-state.exe --once` 最后一行 state JSON 含 `minimized:false / visible:true`（布尔）+ `type/foregroundPid/maximized/fullscreen/desktop/className` 类型正确；`AC-27.7f` `npm test` 命中契约测试「v1.7 契约：isDesktopBusy 只在「可见 + 未最小化 + 最大化/全屏」时判定占用桌面」 |
+| AC-27.8 | 回归：Dock / 设置页渲染、无 console error、安装版不受影响 | 通过 | `AC-27.8a` Dock 页 `title=Nexus Dock`、`.dock-root` 存在、6 个 `[data-dock-id]`（explorer/notepad/calc/paint/settings/cmd）、无 `.dock-empty`；`AC-27.6a` 设置页无错误横幅、正文 418 字、6 导航项、无 console error/exception；`AC-27.8b` Dock 页 console error/未捕获异常 0（诊断总数 0，无过滤项）；`AC-27.8c` 安装版 5 个 `NexusDockApp` 进程 PID 验收前后一致（`installedPidsBefore === installedPidsAfter`） |
+| AC-27.9 | 工程门禁：typecheck + tests；构建产物为 1.7.0 | 通过 | `AC-27.9a` `npx tsc --noEmit` 退出码 0；`AC-27.9b` `npm test` **24/24 通过、0 失败**（含 isDesktopBusy 契约测试）；`AC-27.9c` `package.json` 1.7.0 且 `out/main/index.js` 存在（`out/` 由 Lead 预先构建，本轮不重建，避免与运行实例冲突） |
+
+### 3. 截图证据（`docs/verification/v1.7/`）
+
+截图统一用 CDP `Page.captureScreenshot` 只截目标窗口（验收期间用户桌面有其他窗口，全屏截图会拍进用户内容，故未采用全屏截图；确需桌面全屏可人工运行 `pwsh -File scripts/capture-screen.ps1 -Out docs\verification\v1.7\xxx.png`）。
+
+| 文件 | 内容 |
+|---|---|
+| [`settings-builtin-collapsed.png`](verification/v1.7/settings-builtin-collapsed.png) | 设置页默认「内置窗口」：导航「窗口」分组、6 导航项、3 个折叠栏（收起）、锁定全部 0/3、页脚 `Nexus Dock v1.7.0` |
+| [`settings-builtin-dock-expanded.png`](verification/v1.7/settings-builtin-dock-expanded.png) | 展开 Dock 折叠栏：4 个共性开关 +「该窗口独有设置」（停靠位置/图标/外观与行为） |
+| [`settings-extra.png`](verification/v1.7/settings-extra.png) | 附加窗口页：空状态「暂无附加窗口」+「接入说明」4 步 |
+| [`settings-system.png`](verification/v1.7/settings-system.png) | 系统页：仅「启动」（开机自启）+「窗口」跳转按钮，无窗口共性设置 |
+| [`dock-desktop.png`](verification/v1.7/dock-desktop.png) | 最小化前隔离实例 Dock 窗口（6 个内置应用图标） |
+| [`dock-after-showdesktop.png`](verification/v1.7/dock-after-showdesktop.png) | `ShowWindow(SW_MINIMIZE=6)` → 自动恢复后的 Dock 窗口（与最小化前一致） |
+
+> PNG 已被 `.gitignore` 忽略（`docs/verification/**/*.png`），文件保留在目录内供复核；机器可读结论见 `report.json`。
+
+### 4. 待人工确认
+
+1. **真实点击 Windows 右下角「显示桌面」按钮的手感与观感**：自动化用等效的 shell 行为（对隔离实例 Dock 窗口 `ShowWindow(SW_MINIMIZE=6)`）验证「1800ms 内自动恢复」，但未注入真实全局 Show Desktop；且为确定性观测 guard 路径，测试期间临时关闭了 `dock.onlyOnDesktop`（测后恢复）。请人工确认 `onlyOnDesktop=true` 时真实「显示桌面 → 恢复」的延迟、是否有闪烁/抢焦点。
+2. **托盘菜单新增附加窗口入口**：当前 `EXTRA_WINDOW_KINDS=[]`，托盘不会产生附加窗口菜单项；等注册第一个真实附加窗口后，确认托盘「显示/隐藏附加窗口」等入口文案、点击行为与多窗口（内置+附加）联动。
+3. **拖拽吸附**：Dock / 音乐卡片 / 桌面时钟在「内置窗口」页的吸附开关，以及附加窗口注册后的拖拽吸附手感（脚本只验证 settings 字段与窗口几何，不模拟真实拖动）。
+
+### 5. 说明与限制
+
+1. **两条恢复路径**：「显示桌面」恢复有 `guardAgainstMinimize`（60ms 起多次重试）与 `applyFloatingVisibility` 的 800ms 桌面状态轮询（`isShown` 已含 `!isMinimized`）两条路径。为让 guard 路径可确定性复现，最小化测试前临时把 `dock.onlyOnDesktop` 置 false（桌面状态桥停用），测后恢复 true；`AC-27.7a2` / `AC-27.7c2` 记录了该处理与日志增量。
+2. **验收后现场**：隔离实例已按 PID 清理，确认无命令行含 `v17-verify` 的残留 electron / desktop-state 进程；用户安装版 5 个 `NexusDockApp` 进程保持运行、PID 未变；未改动用户配置（`%APPDATA%\nexus-dock`）。
+3. **门禁口径**：`npx tsc --noEmit` 与 `npm test`（24/24）由本验收脚本独立复跑；`npm run build` 由 Lead 在验收前完成，本轮不重建 `out/`（运行中的隔离实例正从 `out/` 加载，重建会污染证据）。
+
+
+
+### 6. 安装版复核（Lead，2026-11-04 13:00）
+
+- 门禁：`npm run check` 通过（typecheck 0 错误 + `npm test` 24/24），随后 `npm run build` + `powershell -File scripts/install-local.ps1` 安装到 `%LOCALAPPDATA%\NexusDock`；`resources/app/package.json` 版本 **1.7.0**，安装版 5 个 `NexusDockApp` 进程正常运行（启动环境已移除 DSH 宿主注入的 `ELECTRON_RUN_AS_NODE`）。
+- 真实用户配置迁移：`%APPDATA%\nexus-dock\settings.json` `schemaVersion 9 → 10`、`extraWindows=[]`；12 个 Dock 应用、`lock{dock,music,clock}=true`、Dock 自由坐标等旧值全部保留。
+- 安装版 UI 一次性复核（临时 `--remote-debugging-port=9357`，复核后恢复正常启动）：`isPackaged=true`、`appVersion=1.7.0`；设置导航分组「窗口」+ 6 项（内置窗口/附加窗口/应用/外观/系统/关于）；默认「内置窗口」页 3 个折叠栏；「锁定全部窗口位置（3/3）」及摘要「Dock、音乐卡片、桌面时钟（3/3）」；页脚 `Nexus Dock v1.7.0`。
+- 截图：`docs/verification/v1.7/installed-settings-builtin.png`（安装版内置窗口页，Dock 折叠栏展开；PNG 被 `.gitignore` 忽略，文件保留在目录内）。

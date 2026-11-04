@@ -21,7 +21,7 @@ import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { app } from 'electron'
 
-export type LogKind = 'desktop' | 'media' | 'launch' | 'main'
+export type LogKind = 'desktop' | 'media' | 'launch' | 'main' | 'extra'
 
 /** 单文件轮转阈值：超过 1MB 就滚动到 <kind>.log.1 */
 const MAX_LOG_BYTES = 1024 * 1024

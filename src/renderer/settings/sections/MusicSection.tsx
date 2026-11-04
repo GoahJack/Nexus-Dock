@@ -122,7 +122,7 @@ export function MusicSection({ settings, patch }: Props): JSX.Element {
         </div>
       </Section>
 
-      <p className="nx-hint-text">窗口共性行为（吸附、置顶、仅在桌面、锁定、位置复位）已统一到「系统」页管理。</p>
+      <p className="nx-hint-text">窗口共性行为（吸附、置顶、仅在桌面、锁定、位置复位）在上方统一管理。</p>
     </div>
   )
 }

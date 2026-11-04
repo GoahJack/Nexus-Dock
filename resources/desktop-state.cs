@@ -8,11 +8,14 @@
 //
 // 协议（与 desktop-state.ps1 完全一致，JSON Lines，stdout UTF-8 无 BOM，逐行 flush）：
 //   {"type":"ready"}
-//   {"type":"state","foregroundPid":1234,"maximized":false,"fullscreen":false,"desktop":true,"className":"Progman"}
+//   {"type":"state","foregroundPid":1234,"maximized":false,"fullscreen":false,"desktop":true,"className":"Progman","minimized":false,"visible":true}
 //   {"type":"error","message":"..."}
 //
 // 判定规则（保持 ps1 语义）：以当前前台窗口所在显示器为基准，
 //   desktop    = 没有前台窗口 / 前台是桌面外壳窗口（Progman、WorkerW、SysListView32、SHELLDLL_DefView）；
+//   minimized  = 前台窗口被最小化（v1.7：Windows「显示桌面」的核心特征）；
+//   visible    = 前台窗口可见（v1.7：显示桌面也可能直接隐藏窗口）；
+//                minimized / 不可见时 maximized / fullscreen 一律按 false 上报（它不占据桌面）；
 //   fullscreen = 窗口矩形覆盖整个显示器（容差 4px）；desktop 优先，fullscreen 时不重复报 maximized；
 //   maximized  = 未全屏且（IsZoomed 或窗口矩形覆盖工作区，容差 6px）。
 // 只在状态变化时输出；默认 800ms 采样一次。
@@ -82,6 +85,12 @@ namespace NexusDock
         private static extern bool IsZoomed(IntPtr hWnd);
 
         [DllImport("user32.dll")]
+        private static extern bool IsIconic(IntPtr hWnd);
+
+        [DllImport("user32.dll")]
+        private static extern bool IsWindowVisible(IntPtr hWnd);
+
+        [DllImport("user32.dll")]
         private static extern IntPtr MonitorFromWindow(IntPtr hWnd, uint dwFlags);
 
         [DllImport("user32.dll", EntryPoint = "GetMonitorInfoW")]
@@ -118,6 +127,11 @@ namespace NexusDock
             public bool Fullscreen;
             public bool Desktop;
             public string ClassName = string.Empty;
+            // v1.7：Windows「显示桌面」会让前台窗口最小化/隐藏，但它仍可能被
+            // GetForegroundWindow() 返回；消费者必须能区分「占据桌面的前台窗口」与
+            // 「已被最小化/隐藏的前台窗口」，否则 Dock 的「仅在桌面显示」永远不恢复。
+            public bool Minimized;
+            public bool Visible = true;
         }
 
         /* --------------------------------- 状态采样 -------------------------------- */
@@ -144,6 +158,18 @@ namespace NexusDock
 
             state.Desktop = IsDesktopWindow(state.ClassName) || processId == 0;
             if (state.Desktop) return state;
+
+            // v1.7：显示桌面 / 最小化窗口 —— 前台窗口句柄可能仍是它，但它已经不占据桌面。
+            // 先判可见/最小化，再判 maximized/fullscreen，避免把「被最小化的最大化窗口」
+            // 误报成「最大化窗口还占着桌面」（Dock 因此永远不出现）。
+            state.Visible = IsWindowVisible(foreground);
+            state.Minimized = IsIconic(foreground);
+            if (state.Minimized || !state.Visible)
+            {
+                state.Maximized = false;
+                state.Fullscreen = false;
+                return state;
+            }
 
             Rect windowRect;
             if (!GetWindowRect(foreground, out windowRect)) return state;
@@ -235,7 +261,11 @@ namespace NexusDock
             builder.Append(state.Desktop ? "true" : "false");
             builder.Append(",\"className\":\"");
             builder.Append(Escape(state.ClassName));
-            builder.Append("\"}");
+            builder.Append("\",\"minimized\":");
+            builder.Append(state.Minimized ? "true" : "false");
+            builder.Append(",\"visible\":");
+            builder.Append(state.Visible ? "true" : "false");
+            builder.Append("}");
             return builder.ToString();
         }
 

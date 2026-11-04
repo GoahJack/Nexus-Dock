@@ -1,7 +1,7 @@
 import { BrowserWindow, screen } from 'electron'
-import { join } from 'node:path'
 import {
   IPC,
+  isDesktopBusy,
   isHorizontalEdge,
   SCREEN_MARGIN,
   type ClockConfig,
@@ -15,12 +15,27 @@ import {
 import { getSettings, subscribeSettings, updateSettings } from './settingsStore'
 import type { DesktopState } from './desktopState'
 import { logToFile } from './logger'
+import {
+  PRELOAD_PATH,
+  guardAgainstMinimize,
+  hardenWindow,
+  installRendererSelfHeal,
+  isShown,
+  loadRenderer,
+  showRestored
+} from './windowUtils'
+import {
+  applyExtraDesktopVisibility,
+  applyExtraLocks,
+  applyExtraWindowsLayouts,
+  disposeExtraWindows,
+  getExtraWindows,
+  syncExtraWindows
+} from './extraWindows'
 
 type Rect = { x: number; y: number; width: number; height: number }
 
 const MARGIN = SCREEN_MARGIN
-const isDev = !!process.env['ELECTRON_RENDERER_URL']
-const preloadPath = join(__dirname, '../preload/index.js')
 
 let dockWin: BrowserWindow | null = null
 let musicWin: BrowserWindow | null = null
@@ -65,85 +80,12 @@ let unsubscribers: Array<() => void> = []
  */
 let dockHiddenByUser = false
 
-/**
- * v1.5：渲染进程崩溃自愈的限流表。
- * `render-process-gone` 后 BrowserWindow 仍然「存活」（isDestroyed() 为 false），
- * 旧实现只打日志 → Dock/音乐卡片永久白屏、设置窗「点不开」。
- */
-const rendererReloads = new Map<BrowserWindow, { count: number; firstAt: number }>()
-const RENDERER_RELOAD_WINDOW_MS = 60_000
-const RENDERER_RELOAD_MAX = 3
-const RENDERER_RELOAD_SLOW_MS = 10_000
-
 const clamp = (value: number, min: number, max: number): number => Math.min(max, Math.max(min, value))
 
 /**
- * v1.5 窗口加固（纵深防御，非已知漏洞）：
- * 1) 只允许四个本地页面在自身 URL 内活动，任何导航一律拦截；
- * 2) 禁止 window.open / target=_blank 生成子窗口（子窗口会继承 preload → 暴露 window.nexus）；
- * 3) 禁止 <webview> 挂载。
- * 这样即使渲染层出现注入点，远程页面也拿不到 IPC 桥。
+ * 窗口加固 / 渲染进程崩溃自愈 / 页面加载已抽取到 windowUtils.ts（v1.7）：
+ * Dock、音乐、时钟、附加窗口、设置窗口共用同一套实现，避免各窗口各写一份。
  */
-function hardenWindow(win: BrowserWindow): void {
-  const wc = win.webContents
-  const devUrl = isDev ? process.env['ELECTRON_RENDERER_URL'] : undefined
-  wc.on('will-navigate', (event, url) => {
-    const allowed = url.startsWith('file://') || (!!devUrl && url.startsWith(devUrl))
-    if (allowed) return
-    event.preventDefault()
-    logToFile('main', `[security] 已阻止窗口导航：${url.slice(0, 200)}`)
-  })
-  wc.setWindowOpenHandler(({ url }) => {
-    logToFile('main', `[security] 已阻止新窗口：${url.slice(0, 200)}`)
-    return { action: 'deny' }
-  })
-  wc.on('will-attach-webview', (event) => {
-    event.preventDefault()
-    logToFile('main', '[security] 已阻止 webview 挂载')
-  })
-}
-
-/**
- * v1.5 渲染进程崩溃自愈：60 秒内最多重载 3 次；超过则退化为每 10 秒一次慢重载，
- * 既不会永久白屏，也不会陷入重载风暴。Dock 窗口不销毁（销毁等于退出应用）。
- */
-function installRendererSelfHeal(win: BrowserWindow, target: WindowTarget): void {
-  win.webContents.on('render-process-gone', (_event, details) => {
-    if (win.isDestroyed() || details.reason === 'clean-exit') return
-    logToFile('main', `[${target}] 渲染进程退出 reason=${details.reason} exitCode=${String(details.exitCode)}，开始自愈`)
-    const now = Date.now()
-    const entry = rendererReloads.get(win)
-    const withinWindow = !!entry && now - entry.firstAt <= RENDERER_RELOAD_WINDOW_MS
-    const count = withinWindow && entry ? entry.count + 1 : 1
-    rendererReloads.set(win, { count, firstAt: withinWindow && entry ? entry.firstAt : now })
-    if (count > RENDERER_RELOAD_MAX) {
-      rendererReloads.delete(win)
-      logToFile('main', `[${target}] 60s 内第 ${count} 次崩溃，改为 ${RENDERER_RELOAD_SLOW_MS}ms 后慢重载`)
-      setTimeout(() => {
-        if (win.isDestroyed()) return
-        logToFile('main', `[${target}] 慢重载渲染层`)
-        win.webContents.reload()
-      }, RENDERER_RELOAD_SLOW_MS)
-      return
-    }
-    try {
-      win.webContents.reload()
-    } catch (error) {
-      logToFile('main', `[${target}] 自愈重载失败：${String(error)}`)
-    }
-  })
-  win.on('closed', () => {
-    rendererReloads.delete(win)
-  })
-}
-
-function loadRenderer(win: BrowserWindow, page: WindowTarget): void {
-  if (isDev && process.env['ELECTRON_RENDERER_URL']) {
-    void win.loadURL(`${process.env['ELECTRON_RENDERER_URL']}/${page}/index.html`)
-  } else {
-    void win.loadFile(join(__dirname, `../renderer/${page}/index.html`))
-  }
-}
 
 /* ------------------------------- Dock 窗口 ------------------------------- */
 
@@ -171,7 +113,7 @@ export function createDockWindow(): BrowserWindow {
     hasShadow: false,
     show: false,
     webPreferences: {
-      preload: preloadPath,
+      preload: PRELOAD_PATH,
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
@@ -186,7 +128,7 @@ export function createDockWindow(): BrowserWindow {
   applyDockMaterial(win)
   loadRenderer(win, 'dock')
   win.once('ready-to-show', () => {
-    win.showInactive()
+    showRestored(win)
     applyDockLayout()
   })
   win.on('moved', () => {
@@ -213,6 +155,9 @@ export function createDockWindow(): BrowserWindow {
   })
   hardenWindow(win)
   installRendererSelfHeal(win, 'dock')
+  // v1.7「显示桌面」修复：shell 直接 SW_MINIMIZE 顶层窗口时给应用兜底恢复。
+  // 用户主动隐藏（托盘）时不恢复，交给显隐逻辑。
+  guardAgainstMinimize(win, 'dock', () => !dockHiddenByUser)
   return win
 }
 
@@ -350,7 +295,7 @@ export function createMusicWindow(): BrowserWindow {
     hasShadow: false,
     show: false,
     webPreferences: {
-      preload: preloadPath,
+      preload: PRELOAD_PATH,
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
@@ -365,7 +310,7 @@ export function createMusicWindow(): BrowserWindow {
   win.setAlwaysOnTop(settings.music.alwaysOnTop, 'floating')
   loadRenderer(win, 'music')
   win.once('ready-to-show', () => {
-    win.showInactive()
+    showRestored(win)
     applyMusicLayout()
   })
   win.on('moved', () => {
@@ -394,6 +339,8 @@ export function createMusicWindow(): BrowserWindow {
   })
   hardenWindow(win)
   installRendererSelfHeal(win, 'music')
+  // v1.7「显示桌面」修复：用户可见意图 = 音乐卡片开关；最小化后自动恢复
+  guardAgainstMinimize(win, 'music', () => getSettings().music.visible)
   if (!settings.music.visible) win.hide()
   return win
 }
@@ -477,12 +424,12 @@ export function applyMusicLayout(): void {
   const next = computeMusicBounds(music, contentSizes.music, area)
   const current = win.getBounds()
   if (current.x === next.x && current.y === next.y && current.width === next.width && current.height === next.height) {
-    if (!win.isVisible()) win.showInactive()
+    if (!isShown(win)) showRestored(win)
     return
   }
   applyingMusic = true
   win.setBounds(next)
-  if (!win.isVisible()) win.showInactive()
+  if (!isShown(win)) showRestored(win)
   setTimeout(() => {
     applyingMusic = false
   }, 80)
@@ -545,7 +492,7 @@ export function createClockWindow(): BrowserWindow {
     hasShadow: false,
     show: false,
     webPreferences: {
-      preload: preloadPath,
+      preload: PRELOAD_PATH,
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
@@ -589,6 +536,8 @@ export function createClockWindow(): BrowserWindow {
   })
   hardenWindow(win)
   installRendererSelfHeal(win, 'clock')
+  // v1.7「显示桌面」修复：用户可见意图 = 时钟开关；最小化后自动恢复
+  guardAgainstMinimize(win, 'clock', () => getSettings().clock.visible)
   if (!settings.clock.visible) win.hide()
   return win
 }
@@ -643,8 +592,9 @@ export function applyClockLayout(): void {
 
 /** 收到首次内容尺寸回报后才允许显示，避免初始透明窗口产生隐形点击区（AC-13.5） */
 function showClockIfReady(win: BrowserWindow): void {
-  if (!clockContentSized || win.isVisible()) return
-  win.showInactive()
+  // v1.7：最小化窗口也算「未显示」，先 restore 再 showInactive，否则显示桌面后不会回来
+  if (!clockContentSized || isShown(win)) return
+  showRestored(win)
 }
 
 /** 拖动结束后只吸附离得最近的一轴（12px 边距），另一轴保留用户拖动的位置并收敛到可见区域 */
@@ -723,7 +673,7 @@ export function openSettingsWindow(): BrowserWindow {
     roundedCorners: true,
     title: 'Nexus 设置',
     webPreferences: {
-      preload: preloadPath,
+      preload: PRELOAD_PATH,
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
@@ -813,9 +763,13 @@ export function setContentSize(target: WindowTarget, size: Size): void {
 }
 
 export function allWindows(): BrowserWindow[] {
-  return [getDockWindow(), getMusicWindow(), getClockWindow(), getSettingsWindow()].filter(
-    (win): win is BrowserWindow => win !== null
-  )
+  return [
+    getDockWindow(),
+    getMusicWindow(),
+    getClockWindow(),
+    ...getExtraWindows(),
+    getSettingsWindow()
+  ].filter((win): win is BrowserWindow => win !== null)
 }
 
 /* ------------------------- Dock 显隐（托盘 / 右键菜单） ------------------------- */
@@ -830,6 +784,10 @@ export function setDockVisible(visible: boolean): void {
   if (!win) return
   if (visible) {
     applyFloatingVisibility()
+    if (win.isMinimized()) {
+      // v1.7：被「显示桌面」最小化过的窗口，直接 applyDockLayout 不会恢复
+      showRestored(win)
+    }
     applyDockLayout()
   } else {
     hiddenByDesktop.dock = false
@@ -841,7 +799,7 @@ export function setDockVisible(visible: boolean): void {
 /** 当前 Dock 是否对用户可见（隐藏状态 + 「仅在桌面显示」都算不可见） */
 export function isDockVisible(): boolean {
   const win = getDockWindow()
-  if (!win || win.isDestroyed() || !win.isVisible()) return false
+  if (!win || win.isDestroyed() || !isShown(win)) return false
   return !dockHiddenByUser
 }
 
@@ -861,11 +819,12 @@ export function broadcast(channel: string, payload?: unknown): void {
   }
 }
 
-/** 位置锁定 → 同步三个悬浮窗的「可拖动」状态；设置窗口不受影响（AC-14.7） */
+/** 位置锁定 → 同步所有悬浮窗的「可拖动」状态（含附加窗口）；设置窗口不受影响（AC-14.7） */
 function applyLockState(settings: Settings): void {
   getDockWindow()?.setMovable(!settings.lock.dock)
   getMusicWindow()?.setMovable(!settings.lock.music)
   getClockWindow()?.setMovable(!settings.lock.clock)
+  applyExtraLocks(settings)
 }
 
 function onSettingsChanged(settings: Settings): void {
@@ -945,6 +904,10 @@ function onSettingsChanged(settings: Settings): void {
     if (win && win.isVisible()) win.hide()
   }
 
+  // v1.7 附加窗口：注册表驱动，创建/显隐/锁定/置顶/布局统一在这里同步；
+  // 「仅在桌面显示」的最终显隐由下面的 applyFloatingVisibility → applyExtraDesktopVisibility 决策
+  syncExtraWindows(settings)
+
   applyFloatingVisibility()
 }
 
@@ -955,9 +918,14 @@ export function applyDesktopState(state: DesktopState): void {
 }
 
 /**
- * 「仅在桌面显示」（v1.3 起三窗口通用）：
+ * 「仅在桌面显示」（v1.3 起所有悬浮窗口通用）：
  * 当前台窗口最大化/全屏（且不是本应用窗口）时，隐藏开启了 onlyOnDesktop 的悬浮窗口；
  * 回到桌面后自动恢复。用户主动隐藏的窗口（music.visible / clock.visible = false）不受影响。
+ *
+ * v1.7「显示桌面」修复：Windows 显示桌面会让前台窗口最小化/隐藏，但它仍然是
+ * GetForegroundWindow() 的返回值；旧实现只看 maximized/fullscreen，于是「桌面已经露出来，
+ * Dock 却仍被判成有窗口占用」而保持隐藏。现在桥会额外上报 minimized / visible，
+ * 最小化或不可见的前台窗口一律不算占用桌面。
  */
 function applyFloatingVisibility(): void {
   const settings = getSettings()
@@ -973,7 +941,7 @@ function applyFloatingVisibility(): void {
         }
       })
     : false
-  const desktopBusy = !!state && !selfActive && (state.maximized || state.fullscreen)
+  const desktopBusy = isDesktopBusy(state, selfActive)
 
   /** 统一的「让悬浮窗重新出现」路径：时钟必须等内容尺寸回报后才显示，避免隐形点击区 */
   const showFloating = (target: 'dock' | 'music' | 'clock', win: BrowserWindow): void => {
@@ -982,7 +950,7 @@ function applyFloatingVisibility(): void {
       showClockIfReady(win)
       return
     }
-    win.showInactive()
+    showRestored(win)
     if (target === 'dock') applyDockLayout()
     else applyMusicLayout()
   }
@@ -1025,8 +993,9 @@ function applyFloatingVisibility(): void {
     }
     const shouldHide = entry.onlyOnDesktop && desktopBusy
     if (shouldHide === hiddenByDesktop[target]) {
-      // 状态未变时兜底确保「应显示」的窗口可见（启动/重建/首次桌面状态到达等场景）
-      if (!shouldHide && !win.isVisible()) showFloating(target, win)
+      // 状态未变时兜底确保「应显示」的窗口可见（启动/重建/首次桌面状态到达等场景）；
+      // v1.7：最小化也算「不可见」，否则显示桌面后窗口永远不会回来
+      if (!shouldHide && !isShown(win)) showFloating(target, win)
       continue
     }
     hiddenByDesktop[target] = shouldHide
@@ -1036,6 +1005,9 @@ function applyFloatingVisibility(): void {
       showFloating(target, win)
     }
   }
+
+  // 附加窗口（注册表驱动）：同一套「仅在桌面显示」策略
+  applyExtraDesktopVisibility(desktopBusy)
 }
 
 export function setupWindows(): void {
@@ -1043,6 +1015,8 @@ export function setupWindows(): void {
   createDockWindow()
   if (getSettings().music.visible) createMusicWindow()
   if (getSettings().clock.visible) createClockWindow()
+  // v1.7：附加窗口由注册表驱动，有 visible=true 的注册窗口才会真正创建
+  syncExtraWindows(getSettings())
   // 重启后保持锁定状态（窗口构造参数已初始化，这里再统一兜底一次）
   applyLockState(getSettings())
   if (unsubscribers.length === 0) unsubscribers.push(subscribeSettings(onSettingsChanged))
@@ -1051,6 +1025,7 @@ export function setupWindows(): void {
     applyDockLayout()
     applyMusicLayout()
     applyClockLayout()
+    applyExtraWindowsLayouts()
   }
   screen.on('display-metrics-changed', relayout)
   screen.on('display-added', relayout)
@@ -1060,6 +1035,7 @@ export function setupWindows(): void {
 export function destroyWindows(): void {
   for (const unsubscribe of unsubscribers) unsubscribe()
   unsubscribers = []
+  disposeExtraWindows()
   if (dockWin && !dockWin.isDestroyed()) dockWin.destroy()
   if (musicWin && !musicWin.isDestroyed()) musicWin.destroy()
   if (clockWin && !clockWin.isDestroyed()) clockWin.destroy()

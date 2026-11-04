@@ -13,7 +13,7 @@ npm install
 npm run dev
 ```
 
-启动后：屏幕底部出现 Dock，右上出现音乐卡片。桌面时钟默认隐藏，点击 Dock 末端时钟按钮（或设置 →「时钟」）即可显示。右键 Dock →「Dock 设置」可打开设置面板。**系统托盘**有常驻图标（单击显示/隐藏 Dock、双击打开设置、右键完整菜单）。
+启动后：屏幕底部出现 Dock，右上出现音乐卡片。桌面时钟默认隐藏，点击 Dock 末端时钟按钮（或设置 →「窗口 → 内置窗口 → 桌面时钟」）即可显示。右键 Dock →「Dock 设置」可打开设置面板。**系统托盘**有常驻图标（单击显示/隐藏 Dock、双击打开设置、右键完整菜单）。
 
 > 验收 / 日常使用请用安装版（自动安装到 `%LOCALAPPDATA%\NexusDock`，以正常权限运行）：
 >
@@ -21,6 +21,50 @@ npm run dev
 > npm run build
 > npm run install:local   # 或直接双击根目录「启动 Nexus Dock.cmd」
 > ```
+
+## v1.7 更新（2026-11-04）
+
+> 当前版本：**v1.7.0**（`package.json`）；口径：规格 `docs/spec.md` §13、方案 `docs/plan.md` §18、任务 `docs/tasks.md` 阶段 27、验收 `docs/verification.md` §v1.7。
+> 主题：**窗口体系升级**——设置导航按「窗口」分组重构、附加窗口接入机制（当前空栏）、Windows「显示桌面」后 Dock 不出现修复。
+
+### 新增：设置导航按「窗口」分组重构
+
+- 左侧导航从 7 页（Dock / 音乐 / 时钟 / 应用 / 外观 / 系统 / 关于）重构为**分组导航**：
+  - **窗口**组：**内置窗口**（Dock / 音乐卡片 / 桌面时钟三窗口合并到一页统一管理）与**附加窗口**（后续功能窗口的接入位，当前为空栏）；
+  - 应用 / 外观 / 系统 / 关于。
+- **内置窗口**页：顶部「锁定全部窗口位置 n/N」总开关，下面三个**默认收起的折叠栏**（Dock / 音乐卡片 / 桌面时钟），标题行显示状态摘要。每个折叠栏统一提供：自动吸附屏幕边缘、始终置顶、仅在桌面显示、锁定位置、移回默认位置；展开后在该窗口下追加各自独有设置（Dock=停靠边/沿边位置/图标/背景/主题；音乐=显示/来源/宽度/进度样式/主题；时钟=显示内容/字号/透明度/主题）。
+- 原来「系统」页的「窗口共性设置」整体迁移到「窗口 → 内置窗口」；「系统」页只保留开机自启等系统项，并提供跳转按钮。共性项入口变化见 [docs/window-conventions.md](docs/window-conventions.md) §2.1。
+- 设置窗口仍是管理面板，豁免吸附/置顶/仅在桌面/位置锁定等悬浮能力（登记在准则 §6 符合性矩阵）。
+
+### 新增：附加窗口接入机制（当前为空栏）
+
+- 窗口元数据集中到注册表：内置窗口 `BUILTIN_WINDOW_SPECS`（dock / music / clock）与附加窗口 `EXTRA_WINDOW_KINDS`。窗口的 label、描述、渲染页、默认尺寸、默认行为与独有选项全部由注册表声明；设置页分组、托盘入口、显隐、吸附、锁定、仅在桌面显示都从这里驱动。
+- v1.7 的 `EXTRA_WINDOW_KINDS` 为**空数组**：设置「窗口 → 附加窗口」显示「暂无附加窗口」空状态 + 接入说明，作为未来功能窗口的预留接入位。
+- **未来新增窗口只需 4 步**，其余能力自动生效：
+  1. `src/shared/types.ts` 的 `EXTRA_WINDOW_KINDS` 注册一条 `WindowKindSpec`（含 `kind` / `page` / 默认行为 / 默认选项）；
+  2. 新建 `src/renderer/<page>/`（`index.html` + `main.tsx` + 组件 + CSS）；
+  3. `electron.vite.config.ts` 的 `renderer.input` 增加该 `page` 入口；
+  4. 需要独有选项时，在设置页 `ExtraWindowsSection` 的 `EXTRA_WINDOW_SETTINGS` 注册设置组件。
+- 约束：一个 `kind` 只开一个窗口实例（配置按 kind 唯一化）；未知/重复 kind 一律丢弃；`options` 只存 JSON 安全标量（字符串截断 2000 字符）；新增字段必须走 `schemaVersion` 迁移。
+- 附加入口说明详见 [docs/window-conventions.md](docs/window-conventions.md)「附加窗口接入机制」章节。
+
+### 修复：Windows「显示桌面」后 Dock 不出现
+
+- **现象**：按下 Win+D 或任务栏「显示桌面」后，Dock / 音乐卡片 / 时钟不回来；开启「仅在桌面显示」的 Dock 反而在回到桌面后仍不出现。
+- **根因**：Windows「显示桌面」不是普通最小化，而是由 shell 直接最小化/隐藏顶层窗口（`SW_MINIMIZE`）。Electron 的 `win.isVisible()` 对**最小化窗口仍返回 true**；桌面状态桥只在前台窗口状态变化时上报，旧实现只判 `isVisible()` 且不监听 `minimize`。于是窗口被最小化后没有任何逻辑恢复它；同时桥里记录的仍是「最大化/全屏的前台窗口」，`onlyOnDesktop` 的 Dock 被永久判定为「桌面被占用」而不显示。
+- **修复**：
+  - 桌面状态桥协议新增 `minimized` / `visible` 判定（`resources/desktop-state.cs` / `.ps1`，重编译 `desktop-state.exe`）：**前台窗口最小化/不可见不算占用桌面**。
+  - 三个悬浮窗口被外部最小化（显示桌面 / 系统手势）后**自动恢复**：监听 `minimize` 事件，先 `restore()` 再 `showInactive()`（不抢前台焦点）。
+  - 可见性判定由 `isVisible()` 改为 `isShown()`（可见且未最小化）；`applyFloatingVisibility` 用新判定驱动显隐。
+  - 「是否占用桌面」的判定收口到共享契约 `src/shared/types.ts` 的纯函数 `isDesktopBusy(state, selfActive)`：状态为空 / 本应用自身窗口 / `minimized=true` / `visible=false` → 不算占用；否则才看最大化/全屏。主进程与契约测试共用同一个函数——所以修复**不是**「只改 `isVisible()`」，而是桌面桥协议 + 判定 + 恢复三层一起改。
+  - 窗口加固 / 崩溃自愈 / 显示与恢复守卫抽到 `src/main/windowUtils.ts`，附加窗口由 `src/main/extraWindows.ts` 统一管理。
+- 升级后若仍偶发不出现：先确认 Dock「仅在桌面显示」开关与托盘菜单的显隐状态（操作指南 FAQ Q11）。
+
+### 迁移与工程化
+
+- **配置迁移 `schemaVersion 9 → 10`**：新增 `Settings.extraWindows`（当前默认 `[]`）；旧配置零丢失——无该字段的旧 `settings.json` 自动补空数组，`extraWindows` 由 `sanitizeSettings` 按注册表收敛（apps 仍区分「字段缺失」与「空数组」）。
+- **契约测试**：追加 9 项 v1.7 用例（schemaVersion=10 / extraWindows 收敛 / `sanitizeWindowOptions` 标量白名单 / 仅在桌面判定 / 锁定 n/N 汇总 / 全部锁定补丁 / 注册表 kind·page 唯一 / `patchExtraWindows` 纯函数 / 桌面占用判定 `isDesktopBusy`），`npm test` 共 **24 项**（本地实测 24/24 通过；数字以 `npm test` 实际输出为准）。
+- **验收**：v1.7 的 CDP 验收记录见 `docs/verification.md` §v1.7（由验收脚本生成）。
 
 ## v1.6 更新（2026-11-02）
 
@@ -193,12 +237,12 @@ powershell -File scripts/mem-probe.ps1 -Label low-end -EnvPairs 'NEXUS_LOW_END=1
 | `npm run dev` | 开发模式（入口 `scripts/dev.ps1`：清宿主环境变量 + `--noSandbox` + 远程调试 9222） |
 | `npm run build` | 构建到 `out/` |
 | `npm run typecheck` | 全量类型检查 |
-| `npm test` | 共享契约单元测试（Node 内置 test runner，15 项，不需要 Electron） |
+| `npm test` | 共享契约单元测试（Node 内置 test runner，24 项，不需要 Electron） |
 | `npm run check` | `typecheck` + `test`（提交前门禁） |
 | `npm run dist` | 打包 Windows 便携版到 `dist/`（electron-builder 配置为 **portable** 单文件 exe；如需 NSIS 安装包请先在 `package.json` 的 `build.win.target` 增加 `nsis`） |
 | `powershell -File scripts/start.ps1` | 启动已构建产物（试用/验收），可加 `-DebugPort 9222` |
 
-## 当前状态（v1.6.0，开发态）
+## 当前状态（v1.7.0，开发态）
 
 - ✅ Dock：玻璃质感、四边停靠、沿边位置、悬停放大（1.30×，邻项递减）、拖拽排序、右键菜单、图标提取
 - ✅ **Dock 应用个性化（v1.6）**：可改显示名称与图标（PNG/JPG/WebP/ICO/SVG），设置页 ✎ 与 Dock 右键双入口，支持一键恢复默认
@@ -209,52 +253,56 @@ powershell -File scripts/mem-probe.ps1 -Label low-end -EnvPairs 'NEXUS_LOW_END=1
 - ✅ 系统托盘：单击显隐 Dock / 双击设置 / 右键完整菜单（v1.5）
 - ✅ 音乐卡片：Windows SMTC 实时显示任意播放器的曲目/进度，卡片按钮可真实控制播放器；空状态；本地播放器；控件按压/图标形变/进度跟手；深浅主题（v1.5）
 - ✅ 桌面时钟：可开关、24/12 小时制、显示秒/日期、字号/透明度/主题、拖动吸附开关与位置记忆
-- ✅ 设置面板：Dock / 音乐 / 时钟 / 应用 / 外观 / 系统 / 关于 七页；**共性项统一在「系统」页折叠栏管理**，窗口页只留独有特性；保存失败/加载失败均有可见提示（v1.5）
-- ✅ 窗口共性能力：吸附 / 始终置顶 / 仅在桌面显示 / 位置锁定 / 移回默认位置，三窗口一致且统一入口
+- ✅ 设置面板：分组导航「**窗口**（内置窗口 / 附加窗口）/ 应用 / 外观 / 系统 / 关于」；**三窗口共性项统一在「窗口 → 内置窗口」的折叠栏管理**，窗口页只留独有特性；保存失败/加载失败均有可见提示（v1.7）
+- ✅ 窗口共性能力：吸附 / 始终置顶 / 仅在桌面显示 / 位置锁定 / 移回默认位置，内置三窗口一致且统一入口
+- ✅ **窗口体系（v1.7）**：注册表驱动（`BUILTIN_WINDOW_SPECS` + `EXTRA_WINDOW_KINDS`）；附加窗口接入位当前为空栏，未来新窗口 4 步接入后，窗口创建/显隐/吸附/锁定/仅在桌面/托盘入口/设置页自动生效
+- ✅ **显示桌面修复（v1.7）**：Win+D / 「显示桌面」后 Dock/音乐/时钟自动恢复；桌面状态桥新增 `minimized`/`visible` 判定，桌面占用由共享纯函数 `isDesktopBusy` 统一判定（「前台窗口最小化」不再占用桌面，修复不是只改 `isVisible()`）
 - ✅ 外观与动效：强度三档、减少动效、点击音效、效果预览
 - ✅ 开机自启：安装版写入 HKCU 登录项，状态以系统为准、失败回滚；portable 版使用 `PORTABLE_EXECUTABLE_FILE` 写入真实路径（v1.5）
 - ✅ 稳定性：桥崩溃循环治理 + 桥看门狗 + 渲染进程崩溃自愈 + 日志轮转 + 窗口导航加固（v1.5）
-- ✅ 窗口行为准则：`docs/window-conventions.md`（新窗口强制能力清单与验收契约）
+- ✅ 窗口行为准则：`docs/window-conventions.md`（新窗口强制能力清单、附加窗口接入机制与验收契约）
 - ✅ 内存轻量化（v1.4）：常驻桥按需启停 + 原生 `desktop-state.exe`、时钟去 React、隐藏窗口降频；工作集 656.0 → 473.4MB（低配模式 421.1MB）
-- ✅ 自动化门禁：`npm run check`（typecheck + 15 个契约测试）+ `scripts/v15-verify.mjs` + `scripts/v15-overflow-check.mjs` + `scripts/v16-verify.mjs`（v1.6）
-- ⏳ 待人工验证（只能靠真人，脚本无法替代）：托盘图标在你自己任务栏的**视觉与单击/双击手感**、Dock/音乐/时钟真实拖动吸附手感、锁定后鼠标不可拖、开机自启在真实登录后的行为、动效主观手感
+- ✅ 自动化门禁：`npm run check`（typecheck + 24 个契约测试）+ `scripts/v15-verify.mjs` + `scripts/v15-overflow-check.mjs` + `scripts/v16-verify.mjs`（v1.6）
+- ⏳ 待人工验证（只能靠真人，脚本无法替代）：托盘图标在你自己任务栏的**视觉与单击/双击手感**、Dock/音乐/时钟真实拖动吸附手感、锁定后鼠标不可拖、开机自启在真实登录后的行为、动效主观手感、Win+D 后的恢复手感
 - ⏳ 待验收后打包：便携版单文件 exe（`npm run dist`）
 
-验收证据见 [docs/verification.md](docs/verification.md) §v1.6（18/18 通过，报告与截图在 `docs/verification/v1.6/`）与 §v1.5（9/9 + 5/5 通过）；本机宿主环境限制见 [操作指南.md](操作指南.md) 末节。
+验收证据见 [docs/verification.md](docs/verification.md) §v1.6（18/18 通过，报告与截图在 `docs/verification/v1.6/`）与 §v1.5（9/9 + 5/5 通过）；**v1.7 见 §v1.7（由验收脚本生成）**；本机宿主环境限制见 [操作指南.md](操作指南.md) 末节。
 
 ## 文档
 
 | 文档 | 内容 |
 |---|---|
-| [操作指南.md](操作指南.md) | 环境自检、执行顺序、日常使用说明、FAQ |
-| [docs/spec.md](docs/spec.md) | 需求规格与验收标准（SDD 阶段 1，§7 为 v1.0 精细化交互规格，§8 为 v1.1，§9 为 v1.2，§11 为 v1.3.1、§12 为 v1.4.1 补丁） |
-| [docs/window-conventions.md](docs/window-conventions.md) | 窗口行为准则：所有悬浮窗口的强制能力（吸附开关/位置记忆/位置锁定等）、接入清单与验收契约（**新窗口必读**） |
+| [操作指南.md](操作指南.md) | 环境自检、执行顺序、日常使用说明、FAQ（含「显示桌面」修复与附加窗口接入说明） |
+| [docs/spec.md](docs/spec.md) | 需求规格与验收标准（SDD 阶段 1，§7 为 v1.0 精细化交互规格，§8 为 v1.1，§9 为 v1.2，§11 为 v1.3.1、§12 为 v1.4.1 补丁，**§13 为 v1.7 窗口体系**） |
+| [docs/window-conventions.md](docs/window-conventions.md) | 窗口行为准则：所有悬浮窗口的强制能力（吸附开关/位置记忆/位置锁定等）、**附加窗口接入机制（v1.7）**、接入清单与验收契约（**新窗口必读**） |
 | [docs/motion-spec.md](docs/motion-spec.md) | 动效设计规范（令牌/曲线/组件矩阵/降级，v1.0 唯一视觉真源） |
-| [docs/plan.md](docs/plan.md) | 技术方案与架构、IPC 契约（SDD 阶段 2，§12 为 v1.0 方案，§16、§17 为补丁方案） |
-| [docs/tasks.md](docs/tasks.md) | 任务分解与状态（SDD 阶段 3，阶段 9–11 为 v1.0 任务，阶段 24 为 v1.4.1，阶段 25 为 v1.5，阶段 26 为 v1.6） |
-| [docs/verification.md](docs/verification.md) | 逐条 AC 验收记录与截图（§v1.6 = 16/16 通过；§v1.5 = 9/9 + 5/5 通过） |
+| [docs/plan.md](docs/plan.md) | 技术方案与架构、IPC 契约（SDD 阶段 2，§12 为 v1.0 方案，§16、§17 为补丁方案，**§18 为 v1.7 方案**） |
+| [docs/tasks.md](docs/tasks.md) | 任务分解与状态（SDD 阶段 3，阶段 9–11 为 v1.0 任务，阶段 24 为 v1.4.1，阶段 25 为 v1.5，阶段 26 为 v1.6，**阶段 27 为 v1.7**） |
+| [docs/verification.md](docs/verification.md) | 逐条 AC 验收记录与截图（§v1.6 = 16/16 通过；§v1.5 = 9/9 + 5/5 通过；**§v1.7 由验收脚本生成**） |
 
 ## 目录结构
 
 ```
 src/
-  shared/types.ts      # IPC 契约 + 配置模型（唯一真源）
+  shared/types.ts      # IPC 契约 + 配置模型 + 窗口注册表（唯一真源）
   main/                # 主进程：窗口/位置引擎、设置、应用、媒体桥
+    windowUtils.ts     # 窗口加固 / 崩溃自愈 / 显示恢复守卫（v1.7 新增）
+    extraWindows.ts    # 附加窗口管理器：注册表驱动创建/布局/显隐/锁定（v1.7 新增）
     tray.ts            # 系统托盘（v1.5 新增）
     logger.ts          # 统一文件日志 + 1MB 轮转（v1.5 新增）
   preload/index.ts     # contextBridge 白名单 API
   renderer/dock/       # Dock 界面
   renderer/music/      # 音乐卡片
   renderer/clock/      # 桌面时钟（v1.1 新增）
-  renderer/settings/   # 设置面板
+  renderer/settings/   # 设置面板（v1.7 分内置窗口 / 附加窗口等分区）
   renderer/shared/     # 设计系统、通用 hooks、ErrorBoundary（v1.5）
-resources/             # 桥脚本与原生助手（smtc-bridge.ps1 / desktop-state.ps1 / desktop-state.cs + .exe）+ 托盘图标 tray-*.png
-tests/                 # 共享契约单元测试（node --test，v1.5 新增）
+resources/             # 桥脚本与原生助手（smtc-bridge.ps1 / desktop-state.ps1 / desktop-state.cs + .exe，v1.7 协议含 minimized/visible）+ 托盘图标 tray-*.png
+tests/                 # 共享契约单元测试（node --test，v1.5 新增；v1.7 共 24 项）
 scripts/               # 验收辅助脚本（截屏、CDP 验收、溢出压力测试等）
 ```
 
 ## 配置与日志
 
-- 设置：`%APPDATA%\nexus-dock\settings.json`（删除即恢复默认；`schemaVersion` 当前 **9**）
+- 设置：`%APPDATA%\nexus-dock\settings.json`（删除即恢复默认；`schemaVersion` 当前 **10**，v1.7 新增 `extraWindows` 字段，当前为 `[]`）
 - 图标缓存：`%APPDATA%\nexus-dock\icons\`
 - 日志：`%APPDATA%\nexus-dock\logs\`

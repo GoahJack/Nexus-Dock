@@ -19,7 +19,7 @@ const HOUR_OPTIONS: { value: '24' | '12'; label: string }[] = [
 
 /**
  * 时钟分组（v1.3 起只保留独有特性：显示内容 / 外观）。
- * 吸附、始终置顶、仅在桌面显示、位置锁定、移回默认位置等共性项统一在「系统」页折叠栏管理。
+ * 吸附、始终置顶、仅在桌面显示、位置锁定、移回默认位置等共性项统一在「窗口 → 内置窗口」页折叠栏管理。
  */
 export function ClockSection({ settings, patch }: Props): JSX.Element {
   const c = settings.clock
@@ -83,7 +83,7 @@ export function ClockSection({ settings, patch }: Props): JSX.Element {
         />
       </Section>
 
-      <p className="nx-hint-text">窗口共性行为（吸附、置顶、仅在桌面、锁定、位置复位）已统一到「系统」页管理。</p>
+      <p className="nx-hint-text">窗口共性行为（吸附、置顶、仅在桌面、锁定、位置复位）在上方统一管理。</p>
     </div>
   )
 }

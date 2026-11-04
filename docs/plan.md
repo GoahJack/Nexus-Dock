@@ -647,3 +647,116 @@ if (isSelfApp(item)) {
    - 结果与截图写入 `docs/verification/v1.4.1/`。
 3. 逐条 AC 回填 `docs/verification.md` §v1.4.1。
 4. 人工验收：把 `NexusDockApp.exe` 加进 Dock，点它确认设置面板弹出并聚焦；在时钟窗口可见时再点一次，确认行为不变。
+
+## 18. v1.7 方案：窗口注册表与设置分组重构（2026-11-04）
+
+> 对应规格：`docs/spec.md` §13（US-22 ~ US-25）。准则真源：`docs/window-conventions.md` §2.1 / §5。
+> 状态：实现与验收以 `docs/verification.md` §v1.7（由验收脚本生成）为准；本方案描述代码结构与写作用域。
+
+### 18.1 变更范围
+
+1. **设置导航重构**：导航改为「**窗口**（内置窗口 / 附加窗口）/ 应用 / 外观 / 系统 / 关于」；默认页 = 内置窗口。新增 `BuiltinWindowsSection.tsx`（三窗口合并页：n/N 锁定总开关 + 三个默认收起折叠栏 + 各窗口独有设置）与 `ExtraWindowsSection.tsx`（注册表驱动页：空状态 + 4 步接入说明）；`SystemSection.tsx` 移除窗口共性设置、只留系统项 + 跳转按钮。
+2. **窗口注册表**：新增 `WindowKindSpec` / `BUILTIN_WINDOW_SPECS` / `EXTRA_WINDOW_KINDS`（当前为空数组）/ `ExtraWindowConfig` / `Settings.extraWindows`；新增 `normalizeExtraWindows`、`sanitizeWindowOptions`、`hasOnlyOnDesktopWindow`、`windowLockSummary`、`withAllWindowsLocked`、`patchExtraWindows`、`findWindowKind`、`isExtraWindowKind`、`defaultExtraWindowConfig(s)`。
+3. **附加窗口管理器**：新增 `src/main/extraWindows.ts`——按注册表创建/销毁窗口、加载 `src/renderer/<page>/`、内容尺寸自适应、拖动落盘、吸附、锁定、置顶、仅在桌面、托盘/Dock 右键菜单项；不写死任何具体功能窗口。
+4. **窗口工具抽取**：新增 `src/main/windowUtils.ts`（窗口加固/渲染进程自愈/`isShown`/`showRestored`/`guardAgainstMinimize`/`loadRenderer`），内置与附加窗口共用。
+5. **显示桌面修复**：桌面状态桥协议新增 `minimized`/`visible`；「是否占用桌面」抽为 `src/shared/types.ts` 的纯函数 `isDesktopBusy`（空状态/自身窗口/最小化/不可见 → false）；`applyFloatingVisibility` 用它判定；三窗口监听 `minimize` 自恢复；可见性判定改 `isShown`。
+6. **契约迁移**：`schemaVersion 9 → 10`，新增 `extraWindows`（由注册表生成，当前 `[]`）；IPC 新增 `window:setOwnContentSize`（按发送者定位窗口）。
+7. **文档与测试**：spec §13、plan §18、tasks 阶段 27、conventions §2.1/§5/§6、README / 操作指南；契约测试 +9 项 v1.7 用例（共 24 项）。
+
+### 18.2 契约与迁移（`src/shared/types.ts`）
+
+```ts
+// schemaVersion 9 → 10
+export interface ExtraWindowConfig {
+  kind: string                 // 注册表 kind，同时是实例唯一键
+  visible: boolean
+  snapToEdge: boolean
+  edge: DockEdge
+  alongPercent: number
+  freeX: number
+  freeY: number
+  alwaysOnTop: boolean
+  onlyOnDesktop: boolean
+  locked: boolean
+  theme: ThemeMode
+  options: Record<string, unknown>   // 只存 JSON 安全标量
+}
+export interface WindowKindSpec {
+  kind: string
+  label: string
+  description: string
+  category: 'builtin' | 'extra'
+  page: string                 // src/renderer/<page>/index.html，与 vite renderer.input 同名
+  defaultSize: Size
+  defaults?: Partial<Pick<ExtraWindowConfig, 'visible' | 'snapToEdge' | 'edge' | 'alongPercent' | 'alwaysOnTop' | 'onlyOnDesktop' | 'locked' | 'theme'>>
+  placement?: { edge?: DockEdge; alongPercent?: number }
+  defaultOptions?: Record<string, unknown>
+}
+export const BUILTIN_WINDOW_SPECS: readonly WindowKindSpec[]   // dock / music / clock
+export const EXTRA_WINDOW_KINDS: readonly WindowKindSpec[] = [] // v1.7 接入位（当前为空）
+export interface Settings { /* 既有字段略 */ extraWindows: ExtraWindowConfig[] }
+// 收敛/派生
+normalizeExtraWindows(raw): ExtraWindowConfig[]        // 按注册表逐 kind，未知/重复丢弃
+sanitizeWindowOptions(raw, defaults?): Record<string, unknown>  // JSON 标量白名单
+hasOnlyOnDesktopWindow(settings): boolean
+windowLockSummary(settings): { locked: number; total: number; allLocked: boolean } // total = 3 + extras
+withAllWindowsLocked(settings, locked): DeepPartial<Settings>
+patchExtraWindows(settings, kind, patch): ExtraWindowConfig[]
+// IPC / NexusApi
+IPC.windowSetOwnContentSize = 'window:setOwnContentSize'
+NexusApi.window.setOwnContentSize(size: Size): void
+// 桌面状态契约（v1.7 从 src/main/desktopState.ts 上移，主进程与契约测试共用）
+export interface DesktopState {
+  foregroundPid: number; maximized: boolean; fullscreen: boolean
+  desktop: boolean; className: string
+  minimized: boolean            // 前台窗口被最小化（「显示桌面」核心特征）
+  visible: boolean              // 前台窗口可见（显示桌面也可能 SW_HIDE）
+}
+export function isDesktopBusy(state: DesktopState | null, selfActive: boolean): boolean
+// 空 / 自身 / minimized / visible=false → false；否则 maximized || fullscreen
+```
+
+- **迁移 v9→v10**：`settingsStore.migrate` 只提升 `schemaVersion`；`sanitizeSettings` 调 `normalizeExtraWindows` 按注册表生成 `extraWindows`，旧字段原样保留、零丢失。
+- **不新增设置项**：附加窗口当前无实例，不需要用户手动增删窗口的 UI（一个 kind 一个实例）。
+
+### 18.3 关键设计决策
+
+| 决策 | 方案 | 理由 |
+|---|---|---|
+| 导航结构 | 「窗口」组（内置窗口 / 附加窗口）+ 应用 / 外观 / 系统 / 关于；默认页=内置窗口 | 用户明确要求按「窗口」分组；日常窗口管理收敛到一页 |
+| 共性项归属 | 内置窗口页折叠栏（默认收起 + 状态摘要）；系统页只留跳转按钮 | 沿用 v1.3 的折叠栏交互；把「系统」页还给系统项 |
+| 权威数据源 | `WindowKindSpec` 注册表驱动设置页分组、托盘入口、窗口生命周期 | 新增窗口只登记类型，不改通用代码 |
+| 附加窗口配置 | 只存状态（`ExtraWindowConfig`），类型来自注册表；按 kind 唯一化、未知 kind 丢弃 | 防配置漂移；收敛逻辑单一 |
+| options 边界 | 只保留 JSON 标量（字符串 ≤2000、键 ≤64） | 不把函数/数组/巨型字符串写进 `settings.json` |
+| 新窗口接入 | 4 步：注册表 + 渲染页 + vite 入口 +（可选）独有设置组件 | 满足用户「以后新增功能窗口」的接入位要求 |
+| 显示桌面恢复 | 监听 `minimize` → 守卫恢复（restore + showInactive）；`isShown = isVisible && !isMinimized` | shell 直接最小化顶层窗口，Electron 不会自动恢复 |
+| 桌面桥 | 协议新增 `minimized`/`visible`；「是否占用桌面」收口为纯函数 `isDesktopBusy`（空/自身/最小化/不可见 → 不占用），主进程与测试共用 | 旧桥只看 maximized/fullscreen，误判导致 onlyOnDesktop 永久隐藏；纯函数可被 `npm test` 直接钉住 |
+| 窗口工具 | `windowUtils.ts` 抽 harden/self-heal/isShown/showRestored/guardAgainstMinimize | 内置与附加窗口共用，避免复制粘贴 |
+| schema | 9→10，`extraWindows` 由注册表生成 | 契约测试钉住，旧配置零丢失 |
+
+### 18.4 文件级改动（写作用域）
+
+| 角色 | 文件 | 改动 |
+|---|---|---|
+| Lead | `src/shared/types.ts` | v1.7 注册表/配置/收敛/锁定汇总/`DesktopState`+`isDesktopBusy`/IPC/NexusApi；schemaVersion 10 |
+| Lead | `src/main/windowUtils.ts`（新增） | 窗口加固/自愈/`isShown`/`showRestored`/`guardAgainstMinimize`/`loadRenderer` |
+| Lead | `src/main/extraWindows.ts`（新增） | 注册表驱动附加窗口创建/布局/显隐/锁定/置顶/仅在桌面/内容尺寸/托盘菜单项 |
+| Lead | `src/main/windowManager.ts` | 接入 `windowUtils`、附加窗口同步与布局、「仅桌面」新判定、最小化自恢复 |
+| Lead | `src/main/{index,ipc,preload,tray,settingsStore,desktopState}.ts`、`resources/desktop-state.cs/.ps1/.exe` | 桥协议 minimized/visible、IPC `setOwnContentSize`、托盘/Dock 菜单、v9→v10 迁移、桥监控 |
+| settings-ui | `src/renderer/settings/SettingsApp.tsx`、`sections/{BuiltinWindowsSection,ExtraWindowsSection,SystemSection,ClockSection,DockSection,MusicSection}.tsx`、`settings.css`、`shared/hooks.ts` | 分组导航、内置窗口合并页、附加窗口空状态/接入说明、系统页跳转、样式 |
+| docs-tests | `tests/shared-contract.test.mjs`、`README.md`、`操作指南.md`、`docs/{spec,plan,tasks,window-conventions}.md` | v1.7 契约测试（+9 项）与 v1.7 文档 |
+| Lead / verifier | 验收脚本 + `docs/verification/v1.7/` | CDP 验收与证据（脚本名以实际交付为准；记录见 `docs/verification.md` §v1.7） |
+
+### 18.5 验收方法（可复现）
+
+1. `npm run typecheck` 零错误；`npm run build` 成功；安装版 `env.appVersion=1.7.0`。
+2. `npm test`：24 项契约测试全绿（v1.6 的 15 项 + v1.7 的 9 项，含 `isDesktopBusy`；实测 24/24）。
+3. CDP / 端到端验收（记录见 `docs/verification.md` §v1.7，由验收脚本生成）：
+   - 导航分组：「窗口」组含内置窗口 / 附加窗口；默认页内置窗口；系统页无窗口共性设置、跳转按钮可用；
+   - 内置窗口页：三折叠栏默认收起 + 摘要；展开后五项共性设置 + 独有设置；
+   - 附加窗口页：「暂无附加窗口」空状态 + 4 步接入说明；
+   - 迁移：旧 v9 配置启动后 `schemaVersion=10`、`extraWindows=[]`、其余配置保留；
+   - 显示桌面：Win+D / shell 最小化后三窗口恢复；onlyOnDesktop 窗口回到桌面显示；
+   - 回归：Dock/音乐/时钟原有设置项、托盘菜单、锁定 n/N。
+4. 结果写 `docs/verification/v1.7/` 与 `docs/verification.md` §v1.7。
+5. 人工验收：真实 Win+D 后 Dock 的恢复手感、折叠栏交互、附加窗口空状态文案。

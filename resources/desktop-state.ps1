@@ -60,7 +60,16 @@ function Get-ForegroundState {
   } catch { }
 
   if ($null -eq $focused) {
-    return @{ foregroundPid = 0; maximized = $false; fullscreen = $false; desktop = $true; className = '' ; title = '' }
+    return @{
+      foregroundPid = 0
+      maximized     = $false
+      fullscreen    = $false
+      desktop       = $true
+      className     = ''
+      title         = ''
+      minimized     = $false
+      visible       = $true
+    }
   }
 
   # 从焦点控件向上走到顶层窗口（焦点常在输入框等子控件上，rect 会很小）
@@ -88,8 +97,25 @@ function Get-ForegroundState {
   } catch { }
 
   $isDesktop = ($className -in @('Progman', 'WorkerW', 'SysListView32', 'SHELLDLL_DefView')) -or ($procId -eq 0)
-  $fullscreen = (Test-Covers $rect $screenBounds 4) -and (-not $isDesktop)
-  $maximized = (Test-Covers $rect $workArea 6) -and (-not $isDesktop) -and (-not $fullscreen)
+
+  # v1.7：Windows「显示桌面」会让前台窗口最小化/隐藏，但 GetForegroundWindow（UIA 焦点）仍可能是它。
+  # 这里补 minimized / visible 两个判定：最小化或不可见的前台窗口不占据桌面，maximized/fullscreen 一律 false，
+  # 否则 Dock 的「仅在桌面显示」会一直认为有窗口最大化而保持隐藏（本机实测的 bug）。
+  $minimized = $false
+  $visible = $true
+  try { $visible = -not [bool]$top.Current.IsOffscreen } catch { }
+  try {
+    $windowPattern = $top.GetCurrentPattern([System.Windows.Automation.WindowPattern]::Pattern)
+    $minimized = $windowPattern.Current.WindowVisualState -eq [System.Windows.Automation.WindowVisualState]::Minimized
+  } catch { }
+
+  if ($minimized -or (-not $visible) -or $isDesktop) {
+    $fullscreen = $false
+    $maximized = $false
+  } else {
+    $fullscreen = (Test-Covers $rect $screenBounds 4)
+    $maximized = (Test-Covers $rect $workArea 6) -and (-not $fullscreen)
+  }
 
   return @{
     foregroundPid = $procId
@@ -98,6 +124,8 @@ function Get-ForegroundState {
     desktop       = [bool]$isDesktop
     className     = $className
     title         = $title
+    minimized     = [bool]$minimized
+    visible       = [bool]$visible
   }
 }
 

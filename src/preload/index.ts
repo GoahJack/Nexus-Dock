@@ -65,6 +65,8 @@ const api: NexusApi = {
   },
   window: {
     setContentSize: (target: WindowTarget, size: Size) => ipcRenderer.send(IPC.windowSetContentSize, target, size),
+    // v1.7：附加窗口上报自己的内容尺寸（主进程按发送者定位窗口）
+    setOwnContentSize: (size: Size) => ipcRenderer.send(IPC.windowSetOwnContentSize, size),
     openSettings: () => ipcRenderer.send(IPC.windowOpenSettings),
     closeSettings: () => ipcRenderer.send(IPC.windowCloseSettings),
     minimizeSettings: () => ipcRenderer.send(IPC.windowMinimizeSettings),

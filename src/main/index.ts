@@ -1,5 +1,5 @@
 import { app } from 'electron'
-import { IPC, type Settings } from '@shared/types'
+import { IPC, hasOnlyOnDesktopWindow, type Settings } from '@shared/types'
 import { cleanupErrorDialogs, hydrateIcons, probeEnvironment, startRunningMonitor, stopRunningMonitor } from './apps'
 import { subscribeAutoStartSettings, syncAutoStartOnStartup } from './autostart'
 import { createDesktopStateMonitor } from './desktopState'
@@ -59,10 +59,10 @@ function needsMediaBridge(settings: Settings): boolean {
 
 /**
  * 桌面状态桥用于「仅在桌面显示」（docs/window-conventions.md §2 C11）：
- * dock/music/clock 任一开启 onlyOnDesktop 时才需要运行；三窗口全关时零常驻。
+ * 任一悬浮窗口（含 v1.7 附加窗口）开启 onlyOnDesktop 时才需要运行；全关时零常驻。
  */
 function needsDesktopStateBridge(settings: Settings): boolean {
-  return settings.dock.onlyOnDesktop || settings.music.onlyOnDesktop || settings.clock.onlyOnDesktop
+  return hasOnlyOnDesktopWindow(settings)
 }
 
 let unsubscribeSettings: () => void = () => undefined

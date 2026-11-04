@@ -3,6 +3,8 @@ import { basename, extname } from 'node:path'
 import {
   DEFAULT_MEDIA_STATE,
   IPC,
+  windowLockSummary,
+  withAllWindowsLocked,
   type AppCustomPatch,
   type AutoStartResult,
   type DeepPartial,
@@ -27,6 +29,7 @@ import {
   updateAppCustom
 } from './apps'
 import { applyAutoStart } from './autostart'
+import { extraWindowMenuItems, setOwnContentSize } from './extraWindows'
 import { allowMediaFile } from './protocol'
 import { getSettings, resetSettings, updateSettings } from './settingsStore'
 import type { MediaHub } from './media/mediaHub'
@@ -58,6 +61,7 @@ function sanitizePoint(point: Point | undefined): Point {
 function showDockMenu(window: BrowserWindow | null): void {
   // 每次打开菜单都实时读取设置，保证 checkbox 状态与实际配置一致
   const settings = getSettings()
+  const locks = windowLockSummary(settings)
   const menu = Menu.buildFromTemplate([
     { label: 'Dock 设置…', click: () => openSettingsWindow() },
     {
@@ -76,13 +80,15 @@ function showDockMenu(window: BrowserWindow | null): void {
         updateSettings({ clock: { visible: item.checked } })
       }
     },
+    // v1.7：附加窗口（注册表驱动，当前为空 → 不产生菜单项）
+    ...extraWindowMenuItems(),
     {
-      // 总开关语义：三者全部锁定时勾选；勾选/取消即同时设置三个窗口（US-14）
-      label: '锁定全部窗口位置',
+      // 总开关语义：所有窗口（内置 + 附加）全部锁定时勾选；勾选/取消即同时设置
+      label: `锁定全部窗口位置（${locks.locked}/${locks.total}）`,
       type: 'checkbox',
-      checked: settings.lock.dock && settings.lock.music && settings.lock.clock,
+      checked: locks.allLocked,
       click: (item) => {
-        updateSettings({ lock: { dock: item.checked, music: item.checked, clock: item.checked } })
+        updateSettings(withAllWindowsLocked(getSettings(), item.checked))
       }
     },
     { type: 'separator' },
@@ -188,9 +194,17 @@ function registerAppIpc(): void {
 }
 
 function registerWindowIpc(): void {
-  ipcMain.on(IPC.windowSetContentSize, (_event, target: WindowTarget, size: Size): void => {
+  ipcMain.on(IPC.windowSetContentSize, (event, target: WindowTarget, size: Size): void => {
     if (!size || typeof size.width !== 'number' || typeof size.height !== 'number') return
+    // v1.7：附加窗口优先按发送者归属路由（附加窗口渲染页可以复用既有 useContentSize 写法），
+    // 未命中再走内置窗口的 target 路由。
+    if (setOwnContentSize(event.sender.id, size)) return
     setContentSize(target, size)
+  })
+  // v1.7：附加窗口按 IPC 发送者定位窗口（渲染层不需要知道自己属于哪个 kind）
+  ipcMain.on(IPC.windowSetOwnContentSize, (event, size: Size): void => {
+    if (!size || typeof size.width !== 'number' || typeof size.height !== 'number') return
+    setOwnContentSize(event.sender.id, size)
   })
   ipcMain.on(IPC.windowOpenSettings, (): void => {
     openSettingsWindow()
@@ -319,6 +333,7 @@ export function disposeIpc(): void {
   ipcMain.removeHandler(IPC.mediaControl)
   ipcMain.removeHandler(IPC.mediaPickFiles)
   ipcMain.removeAllListeners(IPC.windowSetContentSize)
+  ipcMain.removeAllListeners(IPC.windowSetOwnContentSize)
   ipcMain.removeAllListeners(IPC.windowOpenSettings)
   ipcMain.removeAllListeners(IPC.windowCloseSettings)
   ipcMain.removeAllListeners(IPC.windowMinimizeSettings)

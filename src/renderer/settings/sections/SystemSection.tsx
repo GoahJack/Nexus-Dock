@@ -1,22 +1,16 @@
 import { useState } from 'react'
 import type { JSX } from 'react'
 import type { DeepPartial, Settings } from '@shared/types'
-import { spawnRipple } from '@renderer/shared/motion'
 import { Button, Section, Switch } from '@renderer/shared/ui'
 
 interface Props {
   settings: Settings
   patch: (p: DeepPartial<Settings>) => Promise<void>
-}
-
-/** v1.3 窗口共性设置：吸附 / 置顶 / 仅在桌面 / 位置锁定 / 移回默认位置统一在系统页管理 */
-type WindowKey = 'dock' | 'music' | 'clock'
-type CommonField = 'snapToEdge' | 'alwaysOnTop' | 'onlyOnDesktop'
-
-const WINDOW_LABELS: Record<WindowKey, string> = {
-  dock: 'Dock',
-  music: '音乐卡片',
-  clock: '桌面时钟'
+  /**
+   * v1.7：窗口共性行为（吸附 / 置顶 / 仅在桌面 / 锁定 / 复位）已迁移到
+   * 「窗口 → 内置窗口 / 附加窗口」，系统页只保留跳转入口。
+   */
+  onNavigate?: (tab: 'windows' | 'extra') => void
 }
 
 /** AutoStartResult.reason → 可读中文；reason 可能是 'dev' / 'os' / 任意异常文本 */
@@ -27,23 +21,12 @@ function autoStartErrorText(reason?: string): string {
   return `写入系统登录项失败：${reason}`
 }
 
-/** 系统分组：开机自启 + 窗口共性设置（折叠栏按窗口单独管理，默认全部折叠） */
-export function SystemSection({ settings, patch }: Props): JSX.Element {
+/** 系统分组：开机自启 + 「窗口」页跳转（v1.7 起窗口共性设置不在此页） */
+export function SystemSection({ settings, patch, onNavigate }: Props): JSX.Element {
   const packaged = window.nexus.env.isPackaged
   const [pending, setPending] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
-  // 折叠栏默认收起，标题行摘要展示每个窗口的现状（用户确认的交互）
-  const [open, setOpen] = useState<Record<WindowKey, boolean>>({ dock: false, music: false, clock: false })
-
-  const allLocked = settings.lock.dock && settings.lock.music && settings.lock.clock
-  const lockedNames = [
-    settings.lock.dock ? 'Dock' : null,
-    settings.lock.music ? '音乐卡片' : null,
-    settings.lock.clock ? '桌面时钟' : null
-  ].filter((name): name is string => name !== null)
-  /** 锁定总开关是「三者全锁」的推导值，标签与提示必须显式带出 x/3，避免单独锁 2 个时显示为「关」 */
-  const lockCount = lockedNames.length
 
   /** 写系统登录项并回读校验；失败时展示原因，开关回到返回的实际状态 */
   const changeAutoStart = async (next: boolean): Promise<void> => {
@@ -72,85 +55,6 @@ export function SystemSection({ settings, patch }: Props): JSX.Element {
       setPending(false)
     }
   }
-
-  const toggleOpen = (key: WindowKey): void => {
-    setOpen((previous) => ({ ...previous, [key]: !previous[key] }))
-  }
-
-  /** 共性字段 → 对应窗口设置组的 patch（Dock/音乐/时钟字段同名） */
-  const commonPatch = (key: WindowKey, field: CommonField, value: boolean): DeepPartial<Settings> => {
-    if (key === 'dock') return { dock: { [field]: value } as DeepPartial<Settings['dock']> }
-    if (key === 'music') return { music: { [field]: value } as DeepPartial<Settings['music']> }
-    return { clock: { [field]: value } as DeepPartial<Settings['clock']> }
-  }
-
-  /** 折叠栏用状态摘要：吸附 / 置顶 / 仅在桌面 / 位置锁定 */
-  const summaryOf = (w: {
-    snap: boolean
-    alwaysOnTop: boolean
-    onlyOnDesktop: boolean
-    locked: boolean
-  }): string =>
-    [
-      w.snap ? '吸附开' : '吸附关',
-      w.alwaysOnTop ? '置顶开' : '置顶关',
-      w.onlyOnDesktop ? '仅在桌面' : '始终显示',
-      w.locked ? '已锁定' : '未锁定'
-    ].join(' · ')
-
-  /**
-   * 按顺序应用复位步骤。Dock 必须两步：主进程在「吸附 true→false」时会把当前窗口坐标
-   * 固化为 freeX/freeY（onSettingsChanged），单次 patch 里写的 freeX/freeY=-1 会被这次
-   * 固化覆盖、且不触发重新布局 —— 所以先关吸附，再单独写底部居中坐标让 applyDockLayout 生效。
-   */
-  const applyReset = async (steps: DeepPartial<Settings>[]): Promise<void> => {
-    for (const step of steps) {
-      await patch(step)
-    }
-  }
-
-  const windows: Array<{
-    key: WindowKey
-    snap: boolean
-    alwaysOnTop: boolean
-    onlyOnDesktop: boolean
-    locked: boolean
-    /** 复位步骤按顺序 patch（Dock 需要先关吸附再写坐标，见 applyReset 注释） */
-    reset: DeepPartial<Settings>[]
-    resetHint: string
-  }> = [
-    {
-      key: 'dock',
-      snap: settings.dock.snapToEdge,
-      alwaysOnTop: settings.dock.alwaysOnTop,
-      onlyOnDesktop: settings.dock.onlyOnDesktop,
-      locked: settings.lock.dock,
-      // 吸附开启时 computeDockBounds 完全忽略 freeX/freeY，复位必须同时关闭吸附并重置停靠边/沿边位置
-      reset: [
-        { dock: { snapToEdge: false } },
-        { dock: { edge: 'bottom', alongPercent: 50, freeX: -1, freeY: -1 } }
-      ],
-      resetHint: '关闭吸附并恢复为底部居中'
-    },
-    {
-      key: 'music',
-      snap: settings.music.snapToEdge,
-      alwaysOnTop: settings.music.alwaysOnTop,
-      onlyOnDesktop: settings.music.onlyOnDesktop,
-      locked: settings.lock.music,
-      reset: [{ music: { anchor: 'dock', freeX: -1, freeY: -1 } }],
-      resetHint: '恢复为跟随 Dock'
-    },
-    {
-      key: 'clock',
-      snap: settings.clock.snapToEdge,
-      alwaysOnTop: settings.clock.alwaysOnTop,
-      onlyOnDesktop: settings.clock.onlyOnDesktop,
-      locked: settings.lock.clock,
-      reset: [{ clock: { freeX: -1, freeY: -1 } }],
-      resetHint: '恢复为主屏右上角'
-    }
-  ]
 
   return (
     <div className="nx-sections">
@@ -181,88 +85,19 @@ export function SystemSection({ settings, patch }: Props): JSX.Element {
       </Section>
 
       <Section
-        title="窗口共性设置"
-        desc="吸附、始终置顶、仅在桌面显示、位置锁定是所有窗口共有的行为，统一在这里管理；点击窗口名展开单独设置，各窗口独有的选项仍留在对应页面。"
+        title="窗口"
+        desc="吸附 / 始终置顶 / 仅在桌面 / 位置锁定 / 移回默认位置已统一在「窗口 → 内置窗口」管理；附加窗口在「窗口 → 附加窗口」。"
       >
-        <Switch
-          label={`锁定全部窗口位置（${lockCount}/3）`}
-          hint={
-            lockCount === 3
-              ? '当前 3/3 全部锁定；点一下 = 全部解锁，展开下方窗口可再单独调整'
-              : lockCount === 0
-                ? '当前 0/3 未锁定；点一下 = 全部锁定，展开下方窗口可再单独调整'
-                : `当前 ${lockCount}/3 已锁定（部分锁定）；点一下 = 全部锁定，已全锁后再点 = 全部解锁`
-          }
-          checked={allLocked}
-          onChange={(next) => void patch({ lock: { dock: next, music: next, clock: next } })}
-        />
-        <div className={`nx-lock-state${lockCount > 0 ? ' is-locked' : ''}`} role="status">
-          <span className="nx-lock-state-label">当前锁定</span>
-          <span className="nx-lock-state-value">
-            {lockCount === 0 ? '0/3 · 无窗口锁定' : `${lockedNames.join('、')}（${lockCount}/3）`}
-          </span>
+        <div className="nx-inline-actions">
+          <Button size="sm" disabled={!onNavigate} onClick={() => onNavigate?.('windows')}>
+            前往内置窗口
+          </Button>
+          <Button size="sm" disabled={!onNavigate} onClick={() => onNavigate?.('extra')}>
+            前往附加窗口
+          </Button>
         </div>
-
-        <div className="nx-acc">
-          {windows.map((w) => (
-            <div key={w.key} className={`nx-acc-item${open[w.key] ? ' is-open' : ''}`}>
-              <button
-                type="button"
-                className="nx-acc-head nx-ripple-host"
-                aria-expanded={open[w.key]}
-                onPointerDown={(event) => spawnRipple(event.currentTarget, event)}
-                onClick={() => toggleOpen(w.key)}
-              >
-                <span className="nx-acc-title">
-                  <span className="nx-acc-chevron" aria-hidden="true">
-                    ›
-                  </span>
-                  {WINDOW_LABELS[w.key]}
-                </span>
-                <span className="nx-acc-summary">{summaryOf(w)}</span>
-              </button>
-              {open[w.key] ? (
-                <div className="nx-acc-body">
-                  <Switch
-                    label="自动吸附屏幕边缘"
-                    hint="关闭后拖到哪停在哪；开启后松手吸附最近的屏幕边"
-                    checked={w.snap}
-                    onChange={(next) => void patch(commonPatch(w.key, 'snapToEdge', next))}
-                  />
-                  <Switch
-                    label="始终置顶"
-                    hint="窗口悬浮在普通应用之上"
-                    checked={w.alwaysOnTop}
-                    onChange={(next) => void patch(commonPatch(w.key, 'alwaysOnTop', next))}
-                  />
-                  <Switch
-                    label="仅在桌面显示"
-                    hint="前台窗口最大化/全屏时自动隐藏，回到桌面后恢复"
-                    checked={w.onlyOnDesktop}
-                    onChange={(next) => void patch(commonPatch(w.key, 'onlyOnDesktop', next))}
-                  />
-                  <Switch
-                    label="锁定位置"
-                    hint="锁定后该窗口不能拖动"
-                    checked={w.locked}
-                    onChange={(next) =>
-                      void patch({ lock: { [w.key]: next } as DeepPartial<Settings['lock']> })
-                    }
-                  />
-                  <div className="nx-inline-actions">
-                    <Button size="sm" onClick={() => void applyReset(w.reset)}>
-                      移回默认位置
-                    </Button>
-                    <span className="nx-hint-text">{w.resetHint}</span>
-                  </div>
-                </div>
-              ) : null}
-            </div>
-          ))}
-        </div>
-
         <p className="nx-hint-text">
-          锁定期间拖动不写入位置；右键 Dock 勾选「锁定全部窗口位置」可快捷解锁；设置窗口本身不受位置锁定影响。
+          右键 Dock 勾选「锁定全部窗口位置」可快捷锁定 / 解锁所有窗口；设置窗口本身不受位置锁定影响。
         </p>
       </Section>
     </div>

@@ -9,7 +9,7 @@
  *
  * 协议（两种实现完全一致，JSON Lines / stdout UTF-8 无 BOM）：
  *   {"type":"ready"}
- *   {"type":"state","foregroundPid":1234,"maximized":false,"fullscreen":false,"desktop":true,"className":"Progman"}
+ *   {"type":"state","foregroundPid":1234,"maximized":false,"fullscreen":false,"desktop":true,"className":"Progman","minimized":false,"visible":true}
  *   {"type":"error","message":"..."}
  *
  * 生命周期：
@@ -24,16 +24,11 @@ import { existsSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { app } from 'electron'
+import type { DesktopState } from '@shared/types'
 import { logToFile } from './logger'
 
-export interface DesktopState {
-  /** 前台窗口所属进程 ID；0 表示没有前台窗口 */
-  foregroundPid: number
-  maximized: boolean
-  fullscreen: boolean
-  desktop: boolean
-  className: string
-}
+// 契约类型与判定（isDesktopBusy）定义在 shared/types.ts，主进程与契约测试共用
+export type { DesktopState }
 
 export interface DesktopStateMonitor {
   /**
@@ -298,7 +293,10 @@ export function createDesktopStateMonitor(options: MonitorOptions = {}): Desktop
           maximized: !!message.maximized,
           fullscreen: !!message.fullscreen,
           desktop: !!message.desktop,
-          className: String(message.className ?? '')
+          className: String(message.className ?? ''),
+          // v1.7：旧协议没有这两个字段时按「正常可见、未最小化」处理（向后兼容）
+          minimized: !!message.minimized,
+          visible: message.visible === undefined ? true : !!message.visible
         })
       } else if (message.type === 'error') {
         log(`桌面状态桥错误: ${message.message ?? ''}`)

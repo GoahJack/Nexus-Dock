@@ -145,7 +145,8 @@ function applyLocalPatch(base: Settings, patch: DeepPartial<Settings>): Settings
     lock: { ...base.lock, ...(patch.lock ?? {}) },
     system: { ...base.system, ...(patch.system ?? {}) },
     appearance: { ...base.appearance, ...(patch.appearance ?? {}) },
-    apps: patch.apps ?? base.apps
+    apps: patch.apps ?? base.apps,
+    extraWindows: patch.extraWindows ?? base.extraWindows
   }
 }
 
@@ -164,7 +165,8 @@ function mergePatch(
     lock: { ...(current.lock ?? {}), ...(next.lock ?? {}) },
     system: { ...(current.system ?? {}), ...(next.system ?? {}) },
     appearance: { ...(current.appearance ?? {}), ...(next.appearance ?? {}) },
-    apps: next.apps ?? current.apps
+    apps: next.apps ?? current.apps,
+    extraWindows: next.extraWindows ?? current.extraWindows
   }
 }
 

@@ -86,7 +86,7 @@ export function DockSection({ settings, patch }: Props): JSX.Element {
         />
       </Section>
 
-      <Section title="外观与行为" desc="背景不透明度、运行指示点与主题；窗口共性行为（吸附/置顶/仅在桌面/锁定）已统一到「系统」页。">
+      <Section title="外观与行为" desc="背景不透明度、运行指示点与主题；窗口共性行为（吸附、置顶、仅在桌面、锁定、复位）在上方统一管理。">
         <Slider
           label="背景不透明度"
           hint={opacityPercent === 0 ? '完全透明，只显示图标' : '底条背景透明度，数值越低越透明'}
@@ -117,7 +117,7 @@ export function DockSection({ settings, patch }: Props): JSX.Element {
         />
       </Section>
 
-      <p className="nx-hint-text">窗口共性行为（吸附、置顶、仅在桌面、锁定、位置复位）已统一到「系统」页管理。</p>
+      <p className="nx-hint-text">窗口共性行为（吸附、置顶、仅在桌面、锁定、位置复位）在上方统一管理。</p>
     </div>
   )
 }

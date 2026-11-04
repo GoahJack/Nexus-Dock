@@ -1,0 +1,589 @@
+{
+  "version": "1.7.0",
+  "title": "Nexus Dock v1.7 独立验收（隔离 userData + CDP + 窗口最小化自恢复）",
+  "mode": "check",
+  "cdpPort": 9352,
+  "userDataDir": "E:\\AI WorkRegion\\app_creator\\.userdata\\v17-verify",
+  "settingsPath": ".userdata/v17-verify/settings.json",
+  "seed": {
+    "schemaVersion": 9,
+    "apps": 6,
+    "note": "启动前写入 v9 基线配置（无 extraWindows 字段），验证 v9→v10 纯增量迁移"
+  },
+  "startedAt": "2026-11-04T04:54:56.123Z",
+  "durationMs": 12935,
+  "summary": {
+    "total": 36,
+    "passed": 36,
+    "failed": 0
+  },
+  "passed": 36,
+  "failed": 0,
+  "fatal": null,
+  "environment": {
+    "appVersion": "1.7.0",
+    "electron": "44.7.0",
+    "chrome": "152.0.7977.130",
+    "node": "24.21.0",
+    "platform": "win32",
+    "isPackaged": false,
+    "installedPidsBefore": [
+      280076,
+      282504,
+      290292,
+      321468,
+      328456
+    ],
+    "installedPidsAfter": [
+      280076,
+      282504,
+      290292,
+      321468,
+      328456
+    ]
+  },
+  "checks": [
+    {
+      "id": "AC-27.1e",
+      "title": "隔离实例版本为 1.7.0 且为开发构建（out/，非安装版）",
+      "ok": true,
+      "detail": {
+        "appVersion": "1.7.0",
+        "isPackaged": false,
+        "versions": {
+          "electron": "44.7.0",
+          "chrome": "152.0.7977.130",
+          "node": "24.21.0"
+        }
+      },
+      "shots": []
+    },
+    {
+      "id": "AC-27.1a",
+      "title": "设置迁移：启动后 schemaVersion 由 9 升到 10",
+      "ok": true,
+      "detail": {
+        "schemaVersion": 10,
+        "expected": 10
+      },
+      "shots": []
+    },
+    {
+      "id": "AC-27.1b",
+      "title": "迁移后 extraWindows 已收敛为数组且当前为空（EXTRA_WINDOW_KINDS=[]）",
+      "ok": true,
+      "detail": {
+        "extraWindows": []
+      },
+      "shots": []
+    },
+    {
+      "id": "AC-27.1c",
+      "title": "迁移零丢失：v9 非默认值（onlyOnDesktop=true / 音乐与时钟隐藏 / lock 全 false / 6 个应用）保留",
+      "ok": true,
+      "detail": {
+        "onlyOnDesktop": true,
+        "musicVisible": false,
+        "clockVisible": false,
+        "lock": {
+          "dock": false,
+          "music": false,
+          "clock": false
+        },
+        "apps": 6,
+        "appearance": "standard"
+      },
+      "shots": []
+    },
+    {
+      "id": "AC-27.1d",
+      "title": "落盘 settings.json 为 schemaVersion 10、extraWindows=[]、UTF-8 无 BOM",
+      "ok": true,
+      "detail": {
+        "path": ".userdata/v17-verify/settings.json",
+        "bytes": 2710,
+        "hasBom": false,
+        "schemaVersion": 10,
+        "extraWindows": [],
+        "parseError": null
+      },
+      "shots": []
+    },
+    {
+      "id": "AC-27.2a",
+      "title": "设置页渲染完成：默认「内置窗口」页有 3 个折叠栏、导航 6 项",
+      "ok": true,
+      "detail": {
+        "count": 3,
+        "navCount": 6
+      },
+      "shots": []
+    },
+    {
+      "id": "AC-27.2b",
+      "title": "导航分组「窗口」存在，6 个导航项依次为 内置窗口/附加窗口/应用/外观/系统/关于",
+      "ok": true,
+      "detail": {
+        "groups": [
+          "窗口"
+        ],
+        "items": [
+          "内置窗口",
+          "附加窗口",
+          "应用",
+          "外观",
+          "系统",
+          "关于"
+        ]
+      },
+      "shots": []
+    },
+    {
+      "id": "AC-27.2c",
+      "title": "默认落在「内置窗口」页（active 项 + 页内标题）",
+      "ok": true,
+      "detail": {
+        "active": "内置窗口",
+        "pageTextHead": "内置窗口Dock、音乐卡片、桌面时钟随 Nexus 一起提供，这里统一管理它们的显示行为；点击窗口名展开共性开关与独有设"
+      },
+      "shots": []
+    },
+    {
+      "id": "AC-27.3a",
+      "title": "内置窗口页有 3 个折叠栏（Dock / 音乐卡片 / 桌面时钟）且默认全部收起",
+      "ok": true,
+      "detail": [
+        "Dock",
+        "音乐卡片",
+        "桌面时钟"
+      ],
+      "shots": []
+    },
+    {
+      "id": "AC-27.3b",
+      "title": "顶部「锁定全部窗口位置（0/3）」+ 锁定摘要存在（0/3 未锁定）",
+      "ok": true,
+      "detail": {
+        "lockSwitchLabel": "锁定全部窗口位置（0/3）",
+        "lockSummary": "0/3 · 无窗口锁定"
+      },
+      "shots": []
+    },
+    {
+      "id": "AC-27.3c",
+      "title": "展开 Dock 折叠栏：4 个共性开关（自动吸附屏幕边缘/始终置顶/仅在桌面显示/锁定位置）",
+      "ok": true,
+      "detail": {
+        "expanded": true,
+        "switches": [
+          "自动吸附屏幕边缘",
+          "始终置顶",
+          "仅在桌面显示",
+          "锁定位置"
+        ],
+        "bodySwitches": 4
+      },
+      "shots": []
+    },
+    {
+      "id": "AC-27.3d",
+      "title": "展开后含「该窗口独有设置」区块（.nx-window-unique）且至少 2 个 ui-section",
+      "ok": true,
+      "detail": {
+        "uniqueTitle": "该窗口独有设置",
+        "uniqueSections": [
+          "停靠位置",
+          "图标",
+          "外观与行为"
+        ]
+      },
+      "shots": []
+    },
+    {
+      "id": "AC-27.3e",
+      "title": "切换「始终置顶」后 settings.dock.alwaysOnTop 与之前相反（随后还原）",
+      "ok": true,
+      "detail": {
+        "before": true,
+        "after": false,
+        "ariaChecked": "false"
+      },
+      "shots": []
+    },
+    {
+      "id": "AC-27.4a",
+      "title": "附加窗口页显示空状态「暂无附加窗口」且无折叠栏",
+      "ok": true,
+      "detail": {
+        "empty": "暂无附加窗口以后新增的功能窗口会自动出现在这里，不需要修改这个页面。",
+        "accordions": 0
+      },
+      "shots": []
+    },
+    {
+      "id": "AC-27.4b",
+      "title": "附加窗口页「接入说明」恰有 4 个步骤（.nx-steps li=4）",
+      "ok": true,
+      "detail": {
+        "sections": [
+          "附加窗口",
+          "接入说明"
+        ],
+        "steps": [
+          "注册窗口类型：在 src/shared/types.ts 的 EXTRA_WINDOW_KINDS 增加一条 WindowKindSpec，page 写渲染页目",
+          "新建渲染页：创建 src/renderer/<page>/（index.html + main.tsx + 组件）。",
+          "增加构建入口：在 electron.vite.config.ts 的 renderer.input 增加同名入口。",
+          "（可选）独有选项：需要专属设置时，在本页的 EXTRA_WINDOW_SETTINGS 注册配置组件。"
+        ]
+      },
+      "shots": []
+    },
+    {
+      "id": "AC-27.5a",
+      "title": "系统页不再包含「窗口共性设置」，仅保留开机自启 + 窗口跳转",
+      "ok": true,
+      "detail": {
+        "sections": [
+          "启动",
+          "窗口"
+        ],
+        "hasOldCommon": false,
+        "autoStartSwitch": true
+      },
+      "shots": []
+    },
+    {
+      "id": "AC-27.5b",
+      "title": "系统页有「前往内置窗口 / 前往附加窗口」跳转按钮与「内置窗口」文案",
+      "ok": true,
+      "detail": {
+        "buttons": [
+          "前往内置窗口",
+          "前往附加窗口"
+        ]
+      },
+      "shots": []
+    },
+    {
+      "id": "AC-27.5c",
+      "title": "系统页「前往内置窗口」点击后真实切换到内置窗口页（3 折叠栏）",
+      "ok": true,
+      "detail": {
+        "clicked": true,
+        "active": "内置窗口",
+        "accordions": 3
+      },
+      "shots": []
+    },
+    {
+      "id": "AC-27.5d",
+      "title": "系统页「前往附加窗口」点击后真实切换到附加窗口页（空状态）",
+      "ok": true,
+      "detail": {
+        "clicked": true,
+        "active": "附加窗口",
+        "empty": true
+      },
+      "shots": []
+    },
+    {
+      "id": "AC-27.6a",
+      "title": "设置页无渲染异常：无错误横幅、页面正文非空、无 console error/exception",
+      "ok": true,
+      "detail": {
+        "errorBanner": false,
+        "pageTextLength": 418,
+        "navCount": 6,
+        "versionText": "Nexus Dock v1.7.0",
+        "diagnostics": []
+      },
+      "shots": []
+    },
+    {
+      "id": "AC-27.8a",
+      "title": "Dock 回归：页面正常渲染 6 个图标（种子配置），无空状态",
+      "ok": true,
+      "detail": {
+        "title": "Nexus Dock",
+        "hasRoot": true,
+        "hasNexus": true,
+        "itemCount": 6,
+        "itemIds": [
+          "explorer",
+          "notepad",
+          "calc",
+          "paint",
+          "settings",
+          "cmd"
+        ],
+        "empty": false,
+        "barExists": true
+      },
+      "shots": []
+    },
+    {
+      "id": "AC-27.7a",
+      "title": "定位隔离实例 Dock 窗口：electron.exe PID 树内、Chrome_WidgetWin_1、标题「Nexus Dock」",
+      "ok": true,
+      "detail": {
+        "mainPid": 284128,
+        "hwnd": 852372,
+        "title": "Nexus Dock",
+        "cls": "Chrome_WidgetWin_1",
+        "rect": [
+          601,
+          960,
+          1106,
+          1055
+        ],
+        "visible": true,
+        "iconic": false
+      },
+      "shots": []
+    },
+    {
+      "id": "AC-27.7a2",
+      "title": "前置：临时关闭 dock.onlyOnDesktop（桌面状态桥停用，隔离出 guard 恢复路径）后 Dock 可见",
+      "ok": true,
+      "detail": {
+        "onlyOnDesktopBefore": true,
+        "onlyOnDesktopDuringTest": false,
+        "visible": true,
+        "iconic": false,
+        "hwnd": 852372,
+        "note": "测试结束后恢复 onlyOnDesktop=true"
+      },
+      "shots": []
+    },
+    {
+      "id": "AC-27.7b",
+      "title": "最小化前 Dock 窗口状态：IsWindowVisible=true 且 IsIconic=false",
+      "ok": true,
+      "detail": {
+        "visible": true,
+        "iconic": false,
+        "rect": [
+          601,
+          960,
+          1106,
+          1055
+        ]
+      },
+      "shots": []
+    },
+    {
+      "id": "AC-27.7g",
+      "title": "Dock 窗口截图成功（capturePage；最小化前，Dock 可见）",
+      "ok": true,
+      "detail": {
+        "shot": "docs/verification/v1.7/dock-desktop.png"
+      },
+      "shots": []
+    },
+    {
+      "id": "AC-27.7c",
+      "title": "「显示桌面」修复：对 Dock 窗口 ShowWindow(SW_MINIMIZE=6) 后 1800ms 内自动恢复（IsIconic=false && IsWindowVisible=true）",
+      "ok": true,
+      "detail": {
+        "hwnd": 852372,
+        "before": {
+          "iconic": false,
+          "visible": true
+        },
+        "justAfter": {
+          "iconic": true,
+          "visible": true
+        },
+        "after": {
+          "iconic": false,
+          "visible": true
+        },
+        "restored": true,
+        "attempts": [
+          {
+            "attempt": 1,
+            "restored": true,
+            "justAfterIconic": true,
+            "guardLogDelta": 1
+          }
+        ],
+        "timeline": [
+          "200ms iconic=false visible=true",
+          "400ms iconic=false visible=true",
+          "600ms iconic=false visible=true",
+          "800ms iconic=false visible=true",
+          "1000ms iconic=false visible=true",
+          "1200ms iconic=false visible=true",
+          "1400ms iconic=false visible=true",
+          "1600ms iconic=false visible=true",
+          "1800ms iconic=false visible=true"
+        ]
+      },
+      "shots": []
+    },
+    {
+      "id": "AC-27.7c1",
+      "title": "最小化确实生效：ShowWindow(SW_MINIMIZE=6) 后立即读取 IsIconic=true（随后被自动恢复）",
+      "ok": true,
+      "detail": {
+        "justAfter": {
+          "iconic": true,
+          "visible": true
+        },
+        "before": {
+          "iconic": false,
+          "visible": true
+        }
+      },
+      "shots": []
+    },
+    {
+      "id": "AC-27.7c2",
+      "title": "最小化测试期间主进程日志新增「[dock] 窗口被系统最小化…已自动恢复显示」：guardAgainstMinimize 生效",
+      "ok": true,
+      "detail": {
+        "log": ".userdata/v17-verify/logs/main.log",
+        "before": 1,
+        "after": 2,
+        "attempts": [
+          {
+            "attempt": 1,
+            "restored": true,
+            "justAfterIconic": true,
+            "guardLogDelta": 1
+          }
+        ],
+        "latestLine": "[2026-11-04T04:55:03.799Z] [dock] 窗口被系统最小化（如「显示桌面」），已自动恢复显示"
+      },
+      "shots": []
+    },
+    {
+      "id": "AC-27.7d",
+      "title": "自动恢复后 Dock 仍可正常渲染并截图（CDP captureScreenshot）",
+      "ok": true,
+      "detail": {
+        "shot": "docs/verification/v1.7/dock-after-showdesktop.png"
+      },
+      "shots": []
+    },
+    {
+      "id": "AC-27.7e",
+      "title": "resources/desktop-state.exe --once 最后一行 state JSON 含 minimized/visible 布尔字段及原有字段",
+      "ok": true,
+      "detail": {
+        "type": "state",
+        "foregroundPid": 284128,
+        "maximized": false,
+        "fullscreen": false,
+        "desktop": false,
+        "className": "Chrome_WidgetWin_1",
+        "minimized": false,
+        "visible": true
+      },
+      "shots": []
+    },
+    {
+      "id": "AC-27.8b",
+      "title": "Dock 页面无 console error / 未捕获异常（已过滤已知网络/媒体噪声）",
+      "ok": true,
+      "detail": {
+        "count": 0,
+        "items": [],
+        "filtered": 0
+      },
+      "shots": []
+    },
+    {
+      "id": "AC-27.8c",
+      "title": "安装版（NexusDockApp）进程 PID 全程未变：未触碰用户正在运行的安装版",
+      "ok": true,
+      "detail": {
+        "before": [
+          280076,
+          282504,
+          290292,
+          321468,
+          328456
+        ],
+        "after": [
+          280076,
+          282504,
+          290292,
+          321468,
+          328456
+        ]
+      },
+      "shots": []
+    },
+    {
+      "id": "AC-27.9a",
+      "title": "工程门禁：npx tsc --noEmit 退出码 0",
+      "ok": true,
+      "detail": {
+        "exitCode": 0,
+        "outputTail": ""
+      },
+      "shots": []
+    },
+    {
+      "id": "AC-27.9b",
+      "title": "工程门禁：npm test 全部通过（含共享契约测试）",
+      "ok": true,
+      "detail": {
+        "exitCode": 0,
+        "testsPassed": 24,
+        "testsFailed": 0,
+        "specPassLines": 24,
+        "isDesktopBusyTest": "✔ v1.7 契约：isDesktopBusy 只在「可见 + 未最小化 + 最大化/全屏」时判定占用桌面 (0.0873ms)",
+        "outputTail": ""
+      },
+      "shots": []
+    },
+    {
+      "id": "AC-27.7f",
+      "title": "isDesktopBusy 契约由 npm test 覆盖（报告引用测试名；本脚本不重复实现该判定）",
+      "ok": true,
+      "detail": {
+        "testName": "v1.7 契约：isDesktopBusy 只在「可见 + 未最小化 + 最大化/全屏」时判定占用桌面",
+        "matchedLine": "✔ v1.7 契约：isDesktopBusy 只在「可见 + 未最小化 + 最大化/全屏」时判定占用桌面 (0.0873ms)"
+      },
+      "shots": []
+    },
+    {
+      "id": "AC-27.9c",
+      "title": "构建产物存在且 package.json 版本为 1.7.0（out/ 由 Lead 预先构建，本脚本不改写 out/）",
+      "ok": true,
+      "detail": {
+        "packageVersion": "1.7.0",
+        "outMainExists": true,
+        "outMain": "out/main/index.js"
+      },
+      "shots": []
+    }
+  ],
+  "screenshots": [
+    "docs/verification/v1.7/settings-builtin-collapsed.png",
+    "docs/verification/v1.7/settings-builtin-dock-expanded.png",
+    "docs/verification/v1.7/settings-extra.png",
+    "docs/verification/v1.7/settings-system.png",
+    "docs/verification/v1.7/dock-desktop.png",
+    "docs/verification/v1.7/dock-after-showdesktop.png"
+  ],
+  "diagnostics": {
+    "total": 0,
+    "real": 0,
+    "items": [],
+    "ignored": 0,
+    "notes": "只统计页面自身 error；ignored 为已知网络/媒体/安全警告噪声"
+  },
+  "safety": {
+    "helper": "powershell 内联 Add-Type user32：EnumWindows/GetWindowThreadProcessId/IsWindowVisible/IsIconic/ShowWindow(SW_MINIMIZE=6)",
+    "scope": "仅隔离实例 electron.exe PID 树内、标题 Nexus Dock 的 Chrome_WidgetWin_1 窗口",
+    "forbidden": [
+      "Shell.Application.MinimizeAll",
+      "Win+D",
+      "操作安装版 NexusDockApp 窗口"
+    ],
+    "installedPidsUntouched": true
+  }
+}

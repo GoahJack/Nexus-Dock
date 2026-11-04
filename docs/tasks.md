@@ -358,3 +358,33 @@
 - 真实图片选择（对话框选文件 → `importCustomIcon` → icons 落盘 → Dock 渲染）已补测通过，见 verification §v1.6.2。
 - 需人工确认：自定义图标在你的实际桌面缩放/多屏下的观感；选择超大壁纸类图片时的缩放效果（已限 8MB 且缩到 ≤256px）。
 
+---
+
+## v1.7 迭代（2026-11-04 用户需求：设置导航分组 / 附加窗口接入位 / 显示桌面修复）
+
+> 用户诉求：①设置左侧导航按「窗口」分组——「内置窗口」统一管理 Dock/音乐/时钟，「附加窗口」作为以后功能窗口的接入位（当前空栏 + 接入说明）；②修复 Windows「显示桌面」后 Dock 不出现。
+> 验收：`docs/verification.md` §v1.7（由验收脚本生成；本表不预填未产生的通过数）。
+
+### 阶段 27 — v1.7 交付
+
+| # | 任务 | 归属 | 文件 | 状态 |
+|---|---|---|---|---|
+| 27.1 | 共享契约：schemaVersion 10、`ExtraWindowConfig`/`WindowKindSpec`/`BUILTIN_WINDOW_SPECS`/`EXTRA_WINDOW_KINDS`、`normalizeExtraWindows`/`sanitizeWindowOptions`/`hasOnlyOnDesktopWindow`/`windowLockSummary`/`withAllWindowsLocked`/`patchExtraWindows`、桌面状态 `DesktopState`+`isDesktopBusy`、IPC `window:setOwnContentSize` | lead | `src/shared/types.ts` | [x] |
+| 27.2 | 窗口工具抽取：`windowUtils.ts`（加固 / 渲染进程自愈 / `isShown` / `showRestored` / `guardAgainstMinimize` / `loadRenderer`） | lead | `src/main/windowUtils.ts` | [x] |
+| 27.3 | 附加窗口管理器：注册表驱动创建/布局/显隐/锁定/置顶/仅在桌面/内容尺寸/托盘与 Dock 右键菜单项 | lead | `src/main/extraWindows.ts` | [x] |
+| 27.4 | 主进程接线：`windowManager` 接入窗口工具与附加窗口、IPC/preload `setOwnContentSize`、托盘/Dock 菜单 n/N、v9→v10 迁移、设置广播 | lead | `src/main/{windowManager,ipc,tray,index,settingsStore,desktopState}.ts`、`src/preload/index.ts` | [x] |
+| 27.5 | 显示桌面修复：桌面状态桥协议新增 `minimized`/`visible`（cs/ps1 同步 + 重编译 exe）；「是否占用桌面」抽为共享纯函数 `isDesktopBusy`（主进程与测试共用）；最小化自恢复守卫；可见性判定改 `isShown`；`applyFloatingVisibility` 新判定 | lead | `resources/desktop-state.{cs,ps1,exe}`、`src/shared/types.ts`、`src/main/{desktopState,windowManager}.ts` | [x] |
+| 27.6 | 设置页重构：分组导航（窗口[内置/附加]/应用/外观/系统/关于）、`BuiltinWindowsSection`（n/N + 三折叠栏 + 独有设置）、`ExtraWindowsSection`（空状态 + 4 步接入说明）、`SystemSection` 瘦身 + 跳转、样式 | settings-ui | `src/renderer/settings/SettingsApp.tsx`、`sections/*.tsx`、`settings.css`、`shared/hooks.ts` | [x] |
+| 27.7 | 契约测试：+9 项 v1.7 用例（schemaVersion=10 / extraWindows 收敛 / `sanitizeWindowOptions` / 仅在桌面判定 / 锁定 n/N 汇总 / 全部锁定补丁 / 注册表唯一 / `patchExtraWindows` / 桌面占用判定 `isDesktopBusy`），`npm test` 共 24 项全绿 | docs-tests | `tests/shared-contract.test.mjs` | [x] |
+| 27.8 | 文档：spec §13、plan §18、tasks 阶段 27、window-conventions §2.1/§5/§6、README v1.7、操作指南（导航/显示桌面 FAQ/附加窗口接入） | docs-tests | `docs/{spec,plan,tasks,window-conventions}.md`、`README.md`、`操作指南.md` | [x] |
+| 27.9 | 构建门禁：`npm run typecheck` 0 错误、`npm run build` 成功、版本号 1.7.0 | lead | `package.json`、`out/` | [x] |
+| 27.10 | CDP / 端到端验收：导航分组、内置/附加窗口页、迁移零丢失、显示桌面恢复、回归；证据写 `docs/verification/v1.7/` 与 `docs/verification.md` §v1.7 | lead / verifier | 验收脚本、`docs/verification/**` | [ ] |
+| 27.11 | 人工确认：真实 Win+D 后 Dock/音乐/时钟的恢复手感、折叠栏交互、附加窗口空状态文案 | user | — | [ ] |
+
+### 验收结论与遗留
+
+- 契约测试（本地实测 2026-11-04）：`npm test` **24/24 通过**（v1.6 的 15 项 + v1.7 新增 9 项，含桌面占用判定 `isDesktopBusy`），不需要 Electron。
+- 构建门禁与 CDP 验收：以 `docs/verification.md` §v1.7（由验收脚本生成）为准；本表不预填未产生的通过数。
+- 需人工确认：真实 Win+D / 「显示桌面」后三窗口的恢复手感与不抢焦点；折叠栏展开/收起交互；「暂无附加窗口」空状态与 4 步接入说明的可读性。
+- 明确不做：不实际接入任何附加窗口功能（仅提供接入位，当前注册表为空）；不改内置窗口独有设置默认值；不为设置窗口增加悬浮能力。
+

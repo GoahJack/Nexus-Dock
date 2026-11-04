@@ -4,20 +4,28 @@ import type { DeepPartial, Settings } from '@shared/types'
 import { useSettings } from '@renderer/shared/hooks'
 import { spawnRipple } from '@renderer/shared/motion'
 import { Button } from '@renderer/shared/ui'
-import { DockSection } from './sections/DockSection'
-import { MusicSection } from './sections/MusicSection'
-import { ClockSection } from './sections/ClockSection'
+import { BuiltinWindowsSection } from './sections/BuiltinWindowsSection'
+import { ExtraWindowsSection } from './sections/ExtraWindowsSection'
 import { AppsSection } from './sections/AppsSection'
 import { AppearanceSection } from './sections/AppearanceSection'
 import { SystemSection } from './sections/SystemSection'
 import { AboutSection } from './sections/AboutSection'
 
-type TabKey = 'dock' | 'music' | 'clock' | 'apps' | 'appearance' | 'system' | 'about'
+type TabKey = 'windows' | 'extra' | 'apps' | 'appearance' | 'system' | 'about'
 
-const NAV_ITEMS: { key: TabKey; label: string }[] = [
-  { key: 'dock', label: 'Dock' },
-  { key: 'music', label: '音乐' },
-  { key: 'clock', label: '时钟' },
+interface NavItem {
+  key: TabKey
+  label: string
+}
+
+/** 「窗口」分组：内置窗口（Dock/音乐/时钟合并）+ 附加窗口（注册表驱动，v1.7 为空） */
+const WINDOW_NAV_ITEMS: NavItem[] = [
+  { key: 'windows', label: '内置窗口' },
+  { key: 'extra', label: '附加窗口' }
+]
+
+/** 其余页面保持原顺序与图标风格 */
+const NAV_ITEMS: NavItem[] = [
   { key: 'apps', label: '应用' },
   { key: 'appearance', label: '外观' },
   { key: 'system', label: '系统' },
@@ -37,28 +45,20 @@ const ICON_PROPS = {
 
 function NavIcon({ name }: { name: TabKey }): JSX.Element {
   switch (name) {
-    case 'dock':
+    // 「内置窗口」：层叠窗口（后窗 + 前窗），与「应用」网格图标区分
+    case 'windows':
       return (
         <svg {...ICON_PROPS} aria-hidden="true">
-          <rect x="1.6" y="5" width="12.8" height="6.2" rx="2.2" />
-          <circle cx="5" cy="8.1" r="0.85" fill="currentColor" stroke="none" />
-          <circle cx="8" cy="8.1" r="0.85" fill="currentColor" stroke="none" />
-          <circle cx="11" cy="8.1" r="0.85" fill="currentColor" stroke="none" />
+          <rect x="5.4" y="5.4" width="9.2" height="9.2" rx="1.5" />
+          <path d="M2.7 10.6a1.5 1.5 0 0 1-1.5-1.5V2.8a1.5 1.5 0 0 1 1.5-1.5h6.3a1.5 1.5 0 0 1 1.5 1.5" />
         </svg>
       )
-    case 'music':
+    // 「附加窗口」：窗口 + 加号（以后新增的功能窗口接入位）
+    case 'extra':
       return (
         <svg {...ICON_PROPS} aria-hidden="true">
-          <path d="M6.1 11.6V4.4l5.8-1.1v7" />
-          <circle cx="4.5" cy="12" r="1.6" />
-          <circle cx="10.3" cy="10.5" r="1.6" />
-        </svg>
-      )
-    case 'clock':
-      return (
-        <svg {...ICON_PROPS} aria-hidden="true">
-          <circle cx="8" cy="8" r="6.1" />
-          <path d="M8 4.4V8l2.5 1.5" />
+          <rect x="1.7" y="2.3" width="8.4" height="8.4" rx="1.6" />
+          <path d="M13 9.9v4.6M10.7 12.2h4.6" />
         </svg>
       )
     case 'apps':
@@ -112,7 +112,8 @@ function LoadingSkeleton(): JSX.Element {
 
 export function SettingsApp(): JSX.Element {
   const { settings, error, retry, patch, reset } = useSettings()
-  const [tab, setTab] = useState<TabKey>('dock')
+  /** v1.7：默认进入「窗口 → 内置窗口」（Dock / 音乐 / 时钟 合并页） */
+  const [tab, setTab] = useState<TabKey>('windows')
   /** v1.6：Dock 右键菜单「编辑名称与图标…」→ 切到「应用」页并打开对应条目弹层 */
   const [editAppId, setEditAppId] = useState<string | null>(null)
   const [resetOpen, setResetOpen] = useState(false)
@@ -201,12 +202,10 @@ export function SettingsApp(): JSX.Element {
   const renderContent = (): JSX.Element => {
     if (!settings) return <LoadingSkeleton />
     switch (tab) {
-      case 'dock':
-        return <DockSection settings={settings} patch={safePatch} />
-      case 'music':
-        return <MusicSection settings={settings} patch={safePatch} />
-      case 'clock':
-        return <ClockSection settings={settings} patch={safePatch} />
+      case 'windows':
+        return <BuiltinWindowsSection settings={settings} patch={safePatch} />
+      case 'extra':
+        return <ExtraWindowsSection settings={settings} patch={safePatch} />
       case 'apps':
         return (
           <AppsSection
@@ -219,11 +218,29 @@ export function SettingsApp(): JSX.Element {
       case 'appearance':
         return <AppearanceSection settings={settings} patch={safePatch} />
       case 'system':
-        return <SystemSection settings={settings} patch={safePatch} />
+        return <SystemSection settings={settings} patch={safePatch} onNavigate={(next) => setTab(next)} />
       case 'about':
         return <AboutSection reset={safeReset} />
     }
   }
+
+  /** 左侧导航项：保持 v1.0 的 ripple / aria-current / 加载中 disabled 行为 */
+  const renderNavItem = (item: NavItem): JSX.Element => (
+    <button
+      key={item.key}
+      type="button"
+      className={`settings-nav-item nx-ripple-host${tab === item.key ? ' is-active' : ''}`}
+      aria-current={tab === item.key ? 'page' : undefined}
+      disabled={!settings}
+      onPointerDown={(event) => spawnRipple(event.currentTarget, event)}
+      onClick={() => setTab(item.key)}
+    >
+      <span className="settings-nav-icon" aria-hidden="true">
+        <NavIcon name={item.key} />
+      </span>
+      <span>{item.label}</span>
+    </button>
+  )
 
   const env = window.nexus.env
 
@@ -262,22 +279,11 @@ export function SettingsApp(): JSX.Element {
 
       <div className="settings-main">
         <nav className="settings-nav" aria-label="设置分组">
-          {NAV_ITEMS.map((item) => (
-            <button
-              key={item.key}
-              type="button"
-              className={`settings-nav-item nx-ripple-host${tab === item.key ? ' is-active' : ''}`}
-              aria-current={tab === item.key ? 'page' : undefined}
-              disabled={!settings}
-              onPointerDown={(event) => spawnRipple(event.currentTarget, event)}
-              onClick={() => setTab(item.key)}
-            >
-              <span className="settings-nav-icon" aria-hidden="true">
-                <NavIcon name={item.key} />
-              </span>
-              <span>{item.label}</span>
-            </button>
-          ))}
+          {/* v1.7：分组标题不可点击（纯视觉分组），组内两项才是导航 */}
+          <div className="settings-nav-group">窗口</div>
+          {WINDOW_NAV_ITEMS.map((item) => renderNavItem(item))}
+          <div className="settings-nav-sep" aria-hidden="true" />
+          {NAV_ITEMS.map((item) => renderNavItem(item))}
         </nav>
 
         <main className="settings-content">
@@ -328,7 +334,7 @@ export function SettingsApp(): JSX.Element {
             aria-modal="true"
             aria-label="恢复默认设置确认"
           >
-            <p>恢复全部默认设置？Dock 外观、音乐卡片、桌面时钟、位置锁定与应用列表都会回到初始状态。</p>
+            <p>恢复全部默认设置？Dock 外观、音乐卡片、桌面时钟、附加窗口、位置锁定与应用列表都会回到初始状态。</p>
             <div className="nx-confirm-actions">
               <Button size="sm" onClick={closeReset}>
                 取消
