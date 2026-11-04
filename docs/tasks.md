@@ -388,3 +388,33 @@
 - 需人工确认：真实 Win+D / 「显示桌面」后三窗口的恢复手感与不抢焦点；折叠栏展开/收起交互；「暂无附加窗口」空状态与 4 步接入说明的可读性。
 - 明确不做：不实际接入任何附加窗口功能（仅提供接入位，当前注册表为空）；不改内置窗口独有设置默认值；不为设置窗口增加悬浮能力。
 
+---
+
+## v1.8 迭代（2026-11-04 用户需求：附加窗口栏新增英语单词学习 + 词库自由修改）
+
+> 用户诉求：v1.7 的附加窗口栏不能一直是空的，接入「英语单词学习」；**词库必须能自由修改**（窗口内 / 设置页 / 直接改文件）。
+> 验收：`docs/verification.md` §v1.8（含 CDP 运行时实测 42/43 与 `docs/verification/v1.8/report.json`）；方案 `docs/plan.md` §19；规格 `docs/spec.md` §14。
+
+### 阶段 29 — v1.8 交付
+
+| # | 任务 | 归属 | 文件 | 状态 |
+|---|---|---|---|---|
+| 29.1 | 共享契约：`src/shared/wordBank.ts`（词条/进度 sanitizer、三种文件写法兼容、59 词种子、5 个窗口选项、统计/学习顺序）、注册表 `EXTRA_WINDOW_KINDS` 加 `wordstudy`、`IPC.wordBank*`、`NexusApi.wordBank`、`schemaVersion 11` | lead | `src/shared/wordBank.ts`（新增）、`src/shared/types.ts` | [x] |
+| 29.2 | 主进程存储层：`wordbank.json` + `wordbank-progress.json` 双文件、原子写/损坏备份/只读 reload、导入导出打开文件、IPC 兜底与广播、启动初始化、v10→v11 迁移说明 | lead | `src/main/wordBank.ts`（新增）、`src/main/{ipc,index,settingsStore}.ts`、`src/preload/index.ts` | [x] |
+| 29.3 | 渲染页：学习卡片（单词/音标/释义/例句/认识度/快捷键/统计）+ 词库管理（搜索/增删改/工具栏/toast）+ C7 尺寸上报 + 样式；vite 增加 wordstudy 入口 | lead | `src/renderer/wordstudy/**`（新增）、`electron.vite.config.ts` | [x] |
+| 29.4 | 设置页：`WordStudySettings`（词库概览 / 5 开关 / 6 动作 / 内联二次确认 / 结果消息）、`ExtraWindowsSection` 注册 `WORD_STUDY_KIND → WordStudySettings`、移除旧空栏文案 | settings-ui | `src/renderer/settings/sections/WordStudySettings.tsx`（新增）、`ExtraWindowsSection.tsx` | [x] |
+| 29.5 | 测试：`tests/wordbank-contract.test.mjs` 9 项 + `tests/wiring.test.mjs` 8 项（IPC 三方一致 / 注册表↔渲染页↔vite / 28 个 DOM class / 设置页注册 / 版本迁移 / 编码 / 词库文件结构）；共享契约 24 项保持全绿 | docs-tests | `tests/wordbank-contract.test.mjs`、`tests/wiring.test.mjs`（均为新增）、`tests/shared-contract.test.mjs` | [x] |
+| 29.6 | 构建门禁：`package.json` 版本 1.8.0、`npx tsc --noEmit` 0 错误、`npm run build` 产出 `out/renderer/wordstudy/index.html` | lead | `package.json`、`out/` | [x] |
+| 29.7 | 运行时验收：`scripts/v18-verify.mjs`（隔离 userData + CDP：`--prepare/--launch/--check/--cleanup`；迁移 / 窗口 / C7 / 学习交互 / 词库三种修改途径 / 设置页 / 隐藏 / 回归 / 门禁），产物写 `docs/verification/v1.8/` | verifier | `scripts/v18-verify.mjs`（新增）、`docs/verification/v1.8/**`、`.userdata/v18-verify/**` | [x] |
+| 29.8 | 文档：README v1.8、操作指南 v1.8（学习操作 + 词库 3 种修改方式 + FAQ）、spec §14、plan §19、tasks 阶段 29、window-conventions §5/§6 更新、verification §v1.8 | docs-tests | `README.md`、`操作指南.md`、`docs/{spec,plan,tasks,window-conventions,verification}.md` | [x] |
+| 29.9 | 人工确认：导入/导出原生文件对话框、打开词库文件、托盘/Dock 右键显隐、真实拖动吸附/锁定/仅在桌面、桌面合成观感 | user | — | [ ] |
+
+### 验收结论与遗留
+
+- 契约与接线测试（2026-11-04 实测，逐文件 `node tests/<file>.test.mjs`）：共享契约 **24/24** + 词库契约 **9/9** + 静态接线门禁 **8/8**，共 **41/41 通过、0 失败**（不需要 Electron）。
+- 工程门禁：`npx tsc --noEmit` **0 错误**；`out/main/index.js`、`out/renderer/wordstudy/index.html` 存在（`out/` 由 Lead 预先构建，验收脚本不重建，避免与运行中的隔离实例冲突）；`package.json` = **1.8.0**。
+- 运行时 CDP（**真实 Electron 实例**，隔离 userData + 端口 9362）：`node scripts/v18-verify.mjs --prepare → --launch → --check → --cleanup` 全流程跑通；**43 项检查 42 通过、0 失败、1 项跳过**（导入/导出原生对话框列手动项）。证据：`docs/verification/v1.8/report.json`、5 张截图（学习深色 / 浅色 / 2 词、词库管理、设置页附加窗口）。
+- 迁移：v10 种子 → 11 零丢失（Dock/音乐/时钟/锁定/外观/系统/应用列表/自定义名称全部保留），自动补出 wordstudy（visible=true、右侧 32%）；首次启动播种 59 词。
+- 需人工确认：M-28.4 导入/导出原生对话框、M-28.4b 打开词库文件、M-28.5 托盘/Dock 右键显隐、M-28.6 真实拖动吸附/锁定/仅在桌面、M-28.6b 桌面合成观感（清单见验收脚本 `manualItems` 与 verification §v1.8）。
+- 已知限制：外部删除 `wordbank.json` 后点「重新读取」不会重建种子（只读语义，保留内存值，下次启动才播种）；导入/导出只处理词条，备份进度需直接备份两个 JSON 文件。详见 `docs/plan.md` §19.5。
+

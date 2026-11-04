@@ -1547,4 +1547,133 @@
   overflow-wrap: anywhere;
 }
 
+/* ============================================================
+   v1.8：附加窗口「英语单词学习」独有设置（词库管理）
+   - 只追加 .ws-settings* 独占选择器，不改动上面任何既有规则
+   - 颜色优先走 --nx-* 令牌/半透明白，避免写死主题色
+   ============================================================ */
+
+.ws-settings {
+  display: flex;
+  flex-direction: column;
+  padding-top: 2px;
+}
+
+/* -------------------- 词库概览：统计数字 / 加载失败 -------------------- */
+.ws-settings-stats {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-height: 26px;
+}
+
+.ws-settings-stat {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 3px;
+  padding: 3px 9px;
+  border: 1px solid var(--nx-border);
+  border-radius: var(--nx-radius-pill);
+  background: rgba(255, 255, 255, 0.04);
+  font-size: var(--nx-font-xs);
+  line-height: 1.4;
+  color: var(--nx-text-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+.ws-settings-stat strong {
+  color: var(--nx-accent-strong);
+  font-weight: 600;
+}
+
+/* 加载失败：错误文案可换行，右侧重试按钮与文案同一行居中 */
+.ws-settings-stat.is-err {
+  flex: 1 1 220px;
+  min-width: 0;
+  border-radius: var(--nx-radius-xs);
+  border-color: rgba(255, 107, 107, 0.34);
+  background: rgba(255, 107, 107, 0.08);
+  color: var(--nx-danger);
+  overflow-wrap: anywhere;
+}
+
+/* -------------------- 词库文件路径 -------------------- */
+.ws-settings-path {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 2px 4px;
+  margin: 0;
+  font-size: var(--nx-font-xs);
+  line-height: var(--nx-leading);
+  color: var(--nx-text-faint);
+}
+
+.ws-settings-path-label {
+  flex: 0 0 auto;
+}
+
+.ws-settings-path-value {
+  min-width: 0;
+  font-family: 'Cascadia Mono', 'Consolas', 'Courier New', monospace;
+  color: var(--nx-text-dim);
+  overflow-wrap: anywhere;
+  user-select: text;
+}
+
+/* -------------------- 5 个学习选项开关 -------------------- */
+.ws-settings-switches {
+  display: flex;
+  flex-direction: column;
+  margin-top: 2px;
+}
+
+/* -------------------- 词库管理按钮组 / 结果消息 -------------------- */
+.ws-settings-actions {
+  display: flex;
+  flex-direction: column;
+  margin-top: 2px;
+}
+
+/* 行内二次确认条在窄面板里会换行：去掉上下多余外边距，其余样式沿用 .nx-confirm-bar */
+.ws-settings-actions .nx-confirm-bar {
+  margin: 2px 0 8px;
+}
+
+.ws-settings-msg {
+  margin: 0 0 6px;
+  padding: 7px 10px;
+  border-radius: var(--nx-radius-xs);
+  border: 1px solid var(--nx-border);
+  background: rgba(255, 255, 255, 0.045);
+  font-size: var(--nx-font-xs);
+  line-height: var(--nx-leading);
+  color: var(--nx-text-dim);
+  overflow-wrap: anywhere;
+  animation: nx-fade-in var(--nx-dur-base) var(--nx-ease-out) both;
+}
+
+/* 成功：用强调色描边 + 正文色文字（深/浅底都可读） */
+.ws-settings-msg.is-ok {
+  border-color: rgba(110, 168, 254, 0.36);
+  background: var(--nx-accent-soft);
+  color: var(--nx-text);
+}
+
+/* 中性（用户取消）：弱化但可见 */
+.ws-settings-msg.is-info {
+  border-color: var(--nx-border-strong);
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--nx-text-dim);
+}
+
+/* 失败：危险色描边 + 危险色文字 */
+.ws-settings-msg.is-err {
+  border-color: rgba(255, 107, 107, 0.36);
+  background: rgba(255, 107, 107, 0.09);
+  color: var(--nx-danger);
+}
+
+
 

@@ -18,6 +18,7 @@ import {
   setupWindows
 } from './windowManager'
 import { setupUserDataDir } from './userData'
+import { initWordBank, subscribeWordBank } from './wordBank'
 
 // 渲染层/预加载通过 process.env 读取打包状态（沙箱 preload 无法直接访问 app），
 // 必须在创建任何窗口之前写入，子进程会继承该环境变量
@@ -67,6 +68,7 @@ function needsDesktopStateBridge(settings: Settings): boolean {
 
 let unsubscribeSettings: () => void = () => undefined
 let unsubscribeAutoStart: () => void = () => undefined
+let unsubscribeWordBank: () => void = () => undefined
 
 const gotLock = app.requestSingleInstanceLock()
 if (!gotLock) {
@@ -82,6 +84,14 @@ if (!gotLock) {
     // 必须在创建任何窗口之前写入，子进程会继承该环境变量
     process.env['NEXUS_VERSION'] = app.getVersion()
     const initialSettings = initSettings()
+    // v1.8：词库 / 学习进度（userData/wordbank.json、wordbank-progress.json）
+    // 必须在 registerIpc / 窗口创建之前就绪，单词窗口首次 get() 才能拿到数据。
+    // 词库是可选功能：初始化失败也不能拖垮应用启动（wordBank 内部已兜底，这里再防一手）。
+    try {
+      initWordBank()
+    } catch (error) {
+      console.error('[main] 词库初始化失败：', error)
+    }
     // 开机自启以操作系统登录项为真源，启动时回写一次设置（开发模式不写系统）
     syncAutoStartOnStartup()
     registerProtocolHandlers()
@@ -135,6 +145,11 @@ if (!gotLock) {
       // 音乐卡片显隐/来源、「仅在桌面显示」变化 → 同步桥进程的启停
       scheduleBridgeSync()
     })
+    // v1.8：词库变更（设置页改词库 / 单词窗口记进度 / 导入导出 / 重新读取）广播给所有窗口，
+    // 保证单词窗口与设置页即时同步；与 settingsChanged 同一套广播通路。
+    unsubscribeWordBank = subscribeWordBank((bank) => {
+      broadcast(IPC.wordBankChanged, bank)
+    })
     // 设置中的开机自启开关变化 → 同步操作系统登录项（内部回读校验 + 防递归）
     unsubscribeAutoStart = subscribeAutoStartSettings()
 
@@ -152,6 +167,7 @@ if (!gotLock) {
       desktopMonitor.stop()
       unsubscribeSettings()
       unsubscribeAutoStart()
+      unsubscribeWordBank()
       disposeTray()
       hub.dispose()
       stopRunningMonitor()

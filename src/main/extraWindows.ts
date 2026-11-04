@@ -10,7 +10,8 @@
  *   托盘显隐入口、设置页共性项（设置页按注册表渲染）。
  *
  * 新增窗口时**不需要**改本文件；只有窗口独有的主进程行为（例如天气需要网络定时刷新）
- * 才需要另外接一条能力。当前注册表为空 → 本模块不会创建任何窗口，设置页显示「暂无附加窗口」。
+ * 才需要另外接一条能力。v1.8 起注册表含「英语单词学习」（kind=wordstudy），
+ * 本模块会自动创建/布局/显隐它；注册表为空时不会创建任何窗口。
  */
 import { BrowserWindow, screen, type MenuItemConstructorOptions } from 'electron'
 import {
@@ -399,7 +400,7 @@ export function setOwnContentSize(webContentsId: number, size: Size): boolean {
   return false
 }
 
-/** 托盘菜单项：每个已注册附加窗口一个显隐勾选项（注册表为空时返回 []） */
+/** 托盘菜单项：每个已注册附加窗口一个显隐勾选项（v1.8 起含英语单词学习） */
 export function extraWindowMenuItems(): MenuItemConstructorOptions[] {
   return getSettings().extraWindows.map((config) => {
     const spec = findWindowKind(config.kind)

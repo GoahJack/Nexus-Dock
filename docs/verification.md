@@ -1022,3 +1022,104 @@ node scripts/v17-verify.mjs          # 端口可用 $env:NEXUS_CDP_PORT 覆盖�
 - 真实用户配置迁移：`%APPDATA%\nexus-dock\settings.json` `schemaVersion 9 → 10`、`extraWindows=[]`；12 个 Dock 应用、`lock{dock,music,clock}=true`、Dock 自由坐标等旧值全部保留。
 - 安装版 UI 一次性复核（临时 `--remote-debugging-port=9357`，复核后恢复正常启动）：`isPackaged=true`、`appVersion=1.7.0`；设置导航分组「窗口」+ 6 项（内置窗口/附加窗口/应用/外观/系统/关于）；默认「内置窗口」页 3 个折叠栏；「锁定全部窗口位置（3/3）」及摘要「Dock、音乐卡片、桌面时钟（3/3）」；页脚 `Nexus Dock v1.7.0`。
 - 截图：`docs/verification/v1.7/installed-settings-builtin.png`（安装版内置窗口页，Dock 折叠栏展开；PNG 被 `.gitignore` 忽略，文件保留在目录内）。
+
+---
+
+## §v1.8（2026-11-04）：附加窗口栏「英语单词学习」+ 词库自由修改
+
+> 环境：Windows 11 · **开发构建**（`out/`，Electron 44.7.0 / Chrome 152.0.7977.130 / Node 24.21.0）· **Nexus Dock v1.8.0**（`isPackaged=false`）
+> 验收方式（两套独立证据，互相印证）：
+> 1. **Lead 冒烟脚本**：隔离实例 + CDP（`.userdata/v18-smoke`、端口 9352），**39/39 全部 PASS**，结果 [`docs/verification/v1.8/runtime-smoke.json`](verification/v1.8/runtime-smoke.json)，截图 5 张；
+> 2. **仓库正式脚本** `scripts/v18-verify.mjs`：隔离 userData（`.userdata/v18-verify`）+ CDP（端口 9362），`--prepare → --launch → --check → --cleanup` 全流程实跑，**43 项检查 42 通过 / 0 失败 / 1 项跳过（原生文件对话框，列手动项）**，机器报告 [`docs/verification/v1.8/report.json`](verification/v1.8/report.json)。
+> 本文件以正式脚本的 check id 为准；两套证据结论一致（39/39 与 42/43 均覆盖同一批功能点）。
+> 安全边界：只操作隔离 userData 与命令行含 `v18-verify` 的 `electron.exe`；脚本按 PID 清理（`--cleanup` killed=1，leftovers=[]）；用户安装版 `NexusDockApp` 的 6 个进程 PID 验收前后一致（`[266704, 289840, 290312, 309088, 328556, 333068]`）；未重建 `out/`、未改 `src/`、未读写 `%APPDATA%\nexus-dock` 的用户真实配置。
+
+### 1. 复现方式（三步 + 清理）
+
+```powershell
+# 1) 准备：写 v10 种子 settings.json（schemaVersion=10、无 wordstudy）、清空上一轮词库/日志
+node scripts/v18-verify.mjs --prepare
+
+# 2) 启动隔离实例（推荐；用 spawn + 参数数组，从根上规避路径空格）
+node scripts/v18-verify.mjs --launch
+
+#    或 PowerShell 手工启动（仓库路径含空格，必须用单条带引号的参数字符串！）
+#    Remove-Item Env:ELECTRON_RUN_AS_NODE -ErrorAction SilentlyContinue
+#    $exe = Join-Path $PWD 'node_modules\electron\dist\electron.exe'
+#    $ud  = Join-Path $PWD '.userdata\v18-verify'
+#    $argLine = "--no-sandbox --remote-debugging-port=9362 --user-data-dir=`"$ud`" ."
+#    Start-Process -FilePath $exe -ArgumentList $argLine -WorkingDirectory $PWD `
+#        -RedirectStandardOutput '.userdata\v18-verify\launch.out.log' `
+#        -RedirectStandardError  '.userdata\v18-verify\launch.err.log'
+
+# 3) 断言 + 截图（产物 docs/verification/v1.8/report.json + PNG）
+node scripts/v18-verify.mjs --check
+
+# 4) 清理自己启动的隔离实例（按 PID / 命令行过滤，不按进程名全杀）
+node scripts/v18-verify.mjs --cleanup
+```
+
+端口默认 9362，可用 `NEXUS_CDP_PORT` 覆盖（四个动作必须同端口）。脚本头注释写清了三个坑：① 路径含空格 → PowerShell 参数必须整体加引号（`--launch` 用参数数组规避）；② DSH 宿主注入 `ELECTRON_RUN_AS_NODE=1` 必须先清除；③ 不要按进程名杀全部 electron.exe，也不能动安装版 `NexusDockApp`。
+
+### 2. AC 验收表
+
+| AC | 验收项 | 结果 | 证据（check id / detail 摘要） |
+|---|---|---|---|
+| AC-28.1 | 注册表注册 wordstudy 并默认显示（右 32%，默认选项） | 通过 | `AC-28.0` 隔离实例 `appVersion=1.8.0 / isPackaged=false`（Electron 44.7.0 / Chrome 152.0.7977.130 / Node 24.21.0）；`AC-28.2a` `/wordstudy/` target 存在；`AC-28.1b` 迁移后配置 `kind=wordstudy, visible=true, edge=right, alongPercent=32, theme=dark, options={showPhonetic:true,showExample:true,hideMeaning:true,shuffle:false,autoNext:true}` |
+| AC-28.2 | 渲染页 / vite 入口 / 实际加载一致 | 通过 | `AC-28.2a` target URL `file:///.../out/renderer/wordstudy/index.html`；`AC-28.2b` `document.title='Nexus 英语单词学习'`、`.ws-root` 存在、首词 `ability`；`out/renderer/wordstudy/index.html` 存在（`AC-28.7c`） |
+| AC-28.3 | 根节点 data-theme / data-locked / .ws-word | 通过 | `AC-28.2b` `data-theme=dark`、`data-locked` 缺失（未锁定）、`.ws-word=ability`、`.ws-meaning[data-revealed=false]`、`.ws-progress='1 / 59'`、`.ws-stats='已掌握 0/共 59'` |
+| AC-28.4 | C7 尺寸自适应（学习视图 360 级） | 通过 | `AC-28.2d` inner **362×252** / `.ws-root` **360×250.33**（差值 ≤2px）；`AC-28.4b` 词库管理视图 inner **482×548**（切视图后 ResizeObserver 重新上报） |
+| AC-28.5 | 释义默认遮住 / 显示释义 | 通过 | `AC-28.2b` 默认 `data-revealed=false`；`AC-28.3a` 点「显示释义」→ `data-revealed=true`、文本「n. 能力；才能」；`AC-28.3c` 空格键同样显示释义 |
+| AC-28.6 | 上一词 / 下一词 / 快捷键 / 隐藏按钮 | 通过 | `AC-28.3b` 下一词 `ability → achieve` 且切词后重新遮住、上一词切回 `ability`；`AC-28.3c` `→` 切到下一词；`AC-28.6a` 卡片右上 ✕ → `settings.extraWindows[wordstudy].visible=false`（不销毁窗口），随后经 Dock 侧 `settings.update` 恢复 `visible=true`（托盘/设置恢复同一条数据通路）；`AC-28.6b` Dock 回归 6 图标、无空状态 |
+| AC-28.7 | 认识度标记写入进度 | 通过 | `AC-28.3d` 关闭 autoNext 后标「认识」→ `progress['achieve']={status:'mastered', seen:1, remembered:1}`，停留当前词；`AC-28.3e` 统计变「已掌握 1/共 59」 |
+| AC-28.8 | autoNext 行为 | 通过 | `AC-28.3d` autoNext=false 时不切词；默认 true 由注册表默认选项 `AC-28.1b` 与 Lead 冒烟脚本覆盖 |
+| AC-28.9 | 途径①：窗口内词库管理 / 新增 / 删除 | 通过 | `AC-28.4a` `.ws-editor` 打开、59 行 `.ws-bank-row`、工具栏 8 项齐全（搜索/新增/导入/导出/打开文件/重新读取/恢复默认/重置进度）；`AC-28.4d` 表单新增 `cdp-verify-word` → 内存 60 词、toast「已添加」；`AC-28.4i` 删除 → 58 词 |
+| AC-28.10 | 词库文件结构 `{version, words}` / 原子写 / 无 BOM | 通过 | `AC-28.1d` 首次播种 `{version:1, words:59}`，磁盘键恰为 `['version','words']`、UTF-8 无 BOM（10,017B）；`AC-28.4d` 新增后磁盘 60 词且键仍只有 version/words；`AC-28.4h` 恢复默认后重新落盘 59 词 |
+| AC-28.11 | 途径③：外部改文件 + 重新读取（只读不覆盖） | 通过 | `AC-28.4e` 外部把 `wordbank.json` 换成**裸数组** 2 词 → 点「重新读取」→ 内存/计数 2 词、toast「已重新读取磁盘文件：2 个单词」，且磁盘文件**仍是裸数组**（reload 未写回/未覆盖）；`AC-28.4f` 学习视图变 1 / 2 |
+| AC-28.12 | 学习进度独立文件 | 通过 | `AC-28.3d` 标记后 `wordBank.get().progress['achieve']` 有记录；`AC-28.4h` 恢复默认后 `progressKeys=0`（进度清空）；进度文件路径由 `wordBank.paths()` 暴露（设置页 `AC-28.5e` 展示） |
+| AC-28.13 | 途径②：导入 / 导出（原生对话框） | 手动 | 原生 `dialog.showOpenDialog/showSaveDialog` 无法由 CDP 驱动；代码路径已审查（取消 → `canceled`、非法 JSON / 空词条 → `ok:false,error`），列入手动项 **M-28.4**。设置页 6 个动作按钮存在且文案正确（`AC-28.5f`） |
+| AC-28.14 | 恢复默认 / 重置进度 / 二次确认 | 通过 | `AC-28.4h` 窗口内恢复默认（`window.confirm` 经 CDP 自动接受）→ 59 词 + 进度 0 + toast；`AC-28.4i` 删除确认；`AC-28.5i` 设置页内联确认条 `.nx-confirm-bar` 出现，点「取消」不执行 |
+| AC-28.15 | 设置页「窗口 → 附加窗口」出现 wordstudy 折叠栏 | 通过 | `AC-28.5d` 导航点击「附加窗口」、`.nx-acc-head` 含「英语单词学习」可展开、`.ws-settings` 渲染；`AC-28.5f` 旧空状态文案（「暂无附加窗口」/「当前还没有注册附加窗口」）在页面 DOM 中不再出现 |
+| AC-28.16 | 概览 / 路径 / 5 开关 / 6 动作 | 通过 | `AC-28.5e` 统计「共 58 词 / 已掌握 0 / 学习中 0 / 未学 58」+ 路径含 `wordbank.json`；`AC-28.5f` 5 个 `.ui-switch`、6 个动作按钮文案依次为 导入词库/导出词库/打开词库文件/重新读取文件/恢复默认词库/重置学习进度 |
+| AC-28.17 | 设置开关写回 + 即时广播 + 可见消息 | 通过 | `AC-28.5h` 点第一个开关 `showPhonetic true→false` 写入 `extraWindows[].options`；`AC-28.5a` 设置改浅色 + hideMeaning=false 后卡片 `data-theme=light` 且释义常显；`AC-28.5j` 设置页「重新读取文件」→ `.ws-settings-msg`「已重新读取词库文件：共 58 个单词」 |
+| AC-28.18 | 迁移 10 → 11 零丢失 | 通过 | `AC-28.1a` 落盘 `settings.json` 3,219B / schemaVersion **11** / 无 BOM；`AC-28.1c` `dock.iconSize=52 / opacity=0.35 / padding=16 / onlyOnDesktop=true`、`music{visible:false,progressStyle:'ring',theme:'light'}`、`clock{showSeconds:true,showDate:false,hour12:true,freeX:120}`、`lock` 全 false、`appearance{light,reducedMotion:true,clickSound:true}`、6 个应用且首个 `customName='我的文件（v10 自定义名）'` 保留；`AC-28.1e` 主进程日志记录「已从 v10 迁移到 v11」 |
+| AC-28.19 | 首次播种 / 初始化顺序 / 变更广播 | 通过 | `AC-28.1d` 首次启动播种 59 词；`AC-28.4d`/`AC-28.4e` 词库变更后设置页与窗口同步（统计/列表即时更新，广播通路 `wordbank:changed`）；`AC-28.6b` preload 暴露 `window.nexus.wordBank` |
+| AC-28.20 | 异常兜底 / 损坏备份 / 不覆盖用户文件 | 通过（部分手动） | 代码审查：IPC handler 统一兜底不 reject、损坏文件先 `.corrupt-<ts>.bak` 再回种子、备份失败不覆盖；`AC-28.4e` 证明 reload 只读不写。真实「损坏文件 → 备份」路径建议人工制造一次非法 JSON 复核（含在 M-28.4 流程里） |
+| AC-28.21 | 契约 / 接线门禁 | 通过 | `AC-28.7b`：共享契约 **24/24** + 词库契约 **9/9** + 静态接线门禁 **8/8**，共 **41/41**、0 失败（`npm test` 的等价逐文件执行；测试文件 `tests/shared-contract.test.mjs`、`tests/wordbank-contract.test.mjs`、`tests/wiring.test.mjs`） |
+| AC-28.22 | typecheck / 构建产物 / 运行时脚本 | 通过 | `AC-28.7a` `npx tsc --noEmit` 退出码 0；`AC-28.7c` `package.json=1.8.0`、`out/main/index.js` 与 `out/renderer/wordstudy/index.html` 存在（`out/` 由 Lead 预先构建，脚本不重建）；`AC-28.6c` Dock / 单词窗口 / 设置页 console error 与未捕获异常均为 **0**（诊断总数 0） |
+
+### 3. 截图证据（`docs/verification/v1.8/`）
+
+截图统一用 CDP `Page.captureScreenshot` 只截目标窗口（不拍用户桌面；确需桌面全屏可人工运行 `pwsh -File scripts/capture-screen.ps1`）。灯箱背景为脚本注入的渐变，仅用于让透明卡片在截图中可读，不影响应用本身。
+
+| 文件 | 内容 |
+|---|---|
+| [`wordstudy-study-dark.png`](verification/v1.8/wordstudy-study-dark.png) | 深色学习卡片：单词 / 音标 / 遮住的释义 / 例句 / 已掌握统计 / 1 / 59 / 认识度按钮 |
+| [`wordstudy-study-light.png`](verification/v1.8/wordstudy-study-light.png) | 浅色主题 + 「先遮住释义」关闭后的学习卡片（设置广播即时生效） |
+| [`wordstudy-study-2words.png`](verification/v1.8/wordstudy-study-2words.png) | 外部替换 `wordbank.json`（裸数组 2 词）并「重新读取」后的学习视图（1 / 2） |
+| [`wordstudy-editor-dark.png`](verification/v1.8/wordstudy-editor-dark.png) | 词库管理视图：59 行、搜索、新增/导入/导出/打开文件/重新读取/恢复默认/重置进度、文件路径 |
+| [`settings-extra-windows.png`](verification/v1.8/settings-extra-windows.png) | 设置页「窗口 → 附加窗口 → 英语单词学习」展开：词库概览（共 58 词）、路径、5 个开关、6 个词库动作 |
+
+> 另：Lead 冒烟脚本产出的 `runtime-smoke.json`（39/39）与本目录 5 张 PNG 为同一轮隔离实例证据；PNG 已被 `.gitignore` 忽略（`docs/verification/**/*.png`），文件保留在目录内供复核；机器可读结论见 `report.json`。
+
+### 4. 手动项（自动化无法覆盖，需人工执行）
+
+| 编号 | 项目 | 原因 | 怎么做 |
+|---|---|---|---|
+| M-28.4 | 导入 / 导出词库（原生文件对话框） | `dialog.showOpenDialog/showSaveDialog` 是系统对话框，CDP 无法操作系统 UI | 单词窗口 → 词库 → 导出 JSON → 删一个词 → 导入刚导出的 JSON；再测一次取消不报错 |
+| M-28.4b | 「打开词库文件」唤起系统默认编辑器 | 会启动外部程序，自动化不点击 | 点「打开词库文件」→ 改一个释义保存 → 回窗口点「重新读取」→ 确认释义更新 |
+| M-28.5 | 托盘 / Dock 右键的「英语单词学习」显隐入口 | Tray 与原生右键菜单由主进程原生渲染，不能稳定 CDP 驱动 | 托盘单击/右键、Dock 空白处右键，各切一次显示/隐藏并核对设置同步 |
+| M-28.6 | 真实拖动吸附 / 锁定 / 仅在桌面显示 | 脚本只验证配置字段、窗口几何与布局 IPC，不模拟真实鼠标拖动 | 拖卡片到屏幕边缘吸附；开关吸附/锁定/仅在桌面各试一次（最大化窗口下观察） |
+| M-28.6b | 真实桌面合成观感（透明/圆角/主题） | 截图只渲染页面本身，不含 Windows 桌面合成与亚克力效果 | 真实桌面切换深/浅主题，确认无「看得见点不到 / 点得到看不见」区域 |
+
+### 5. 说明与限制
+
+1. **两套运行时证据口径**：Lead 冒烟脚本 39/39（功能点覆盖）+ 仓库正式脚本 43 项 42 通过 / 0 失败 / 1 跳过（原生对话框手动）。正式脚本把迁移零丢失、C7、三种词库修改途径、设置页写回、隐藏与回归都做成了带 check id 的断言，可直接重跑；两者结论一致。
+2. **门禁口径**：`npx tsc --noEmit` 与三个测试文件由验收脚本在 `--check` 内独立复跑（41/41）；`npm run build` 由 Lead 在验收前完成，本文不重建 `out/`（运行中的隔离实例正从 `out/` 加载，重建会污染证据）。
+3. **`npm test` 口径**：最终验证 `npm test` **41/41 通过、0 失败**（`tests/*.test.mjs` 三个文件；node:test，不需要 Electron）；验收脚本内部按 `node tests/<file>.test.mjs` 逐文件执行，是为了分别断言 24 / 9 / 8 三项计数，结论与 `npm test` 等价。
+4. **验收后现场**：隔离实例已按 PID 清理（`--cleanup` killed=1 → PID 310540，leftovers=[]）；用户安装版 6 个 `NexusDockApp` 进程 PID 未变；未改动 `%APPDATA%\nexus-dock` 的用户真实配置；`docs/verification/v1.8/runtime-smoke.json`（Lead）与本轮 `report.json` 并存、互不覆盖，5 张截图由本轮脚本重写同名文件。
+5. **已知限制**：
+   - 外部删除 `wordbank.json` 后点「重新读取」不会重建种子词库（`reloadFromDisk` 只读语义，保留当前内存值；下次启动才重新播种 59 词）。
+   - 导入词库只替换词条；导入文件不含 `progress` 时，同名单词原有进度保留、不同名丢弃；「导出词库」只导出词条，完整备份请直接复制两个 JSON 文件。
+   - 学习进度采用乐观更新 + `markSeq` 序号保护，极端并发下以最后一次写入为准；失败会回滚并显示可见错误条。
+   - 原生导入/导出、托盘菜单、真实拖动与桌面合成观感仍需人工确认（见 §4）。

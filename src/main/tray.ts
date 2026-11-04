@@ -121,7 +121,7 @@ function buildTrayMenu(): Menu {
       checked: settings.clock.visible,
       click: (item) => updateSettings({ clock: { visible: item.checked } })
     },
-    // v1.7：附加窗口（注册表驱动，当前注册表为空 → 不产生菜单项）
+    // 附加窗口（注册表驱动；v1.8 起含英语单词学习）
     ...extraWindowMenuItems(),
     { type: 'separator' },
     {

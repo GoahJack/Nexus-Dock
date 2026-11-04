@@ -760,3 +760,92 @@ export function isDesktopBusy(state: DesktopState | null, selfActive: boolean): 
    - 回归：Dock/音乐/时钟原有设置项、托盘菜单、锁定 n/N。
 4. 结果写 `docs/verification/v1.7/` 与 `docs/verification.md` §v1.7。
 5. 人工验收：真实 Win+D 后 Dock 的恢复手感、折叠栏交互、附加窗口空状态文案。
+
+## 19. v1.8 方案：英语单词学习附加窗口
+
+> 状态：已实现并完成运行时验收（记录见 `docs/verification.md` §v1.8，机器证据 `docs/verification/v1.8/report.json`）。
+> 用户诉求：v1.7 的附加窗口栏不能一直是空的，接入「英语单词学习」；**词库必须能自由修改**，不被内置词表绑死。
+> 接入方式直接复用 v1.7 的注册表 4 步（见 `docs/window-conventions.md` §5.2），通用窗口管理代码零改动。
+
+### 19.1 数据模型：词库 / 进度双文件 + 共享 sanitizer
+
+词库与学习进度**分别落盘**在 `app.getPath('userData')` 下（安装版即 `%APPDATA%\nexus-dock\`）：
+
+```
+wordbank.json          { "version": 1, "words": [ { "word": "apple", "phonetic": "/ˈæpl/", "meaning": "n. 苹果", "example": "..." } ] }
+wordbank-progress.json { "version": 1, "progress": { "apple": { "status": "mastered", "seen": 3, "remembered": 2, "lastSeenAt": 1793770000000 } } }
+```
+
+为什么拆两个文件（而不是塞进 `settings.json`）：
+
+| 设计点 | 理由 |
+|---|---|
+| 词库不进 `settings.extraWindows[].options` | `options` 只允许 JSON 标量且会随配置迁移反复序列化；词库可能上千条、需要用户手工编辑，塞进去会让 `settings.json` 体积失控且不可读（窗口准则 §5.4 的接入经验） |
+| 词库 / 进度分离 | 用户常整体替换 `wordbank.json`（导入别人的词表）；进度按「归一化单词 key」关联，同名单词的学习记录在换词库后仍保留，删掉的词自动丢弃 |
+| `wordbank.json` 只写 `{ version, words }` | 保持文件纯净、可被任意编辑器 / 脚本整体替换；`reloadFromDisk` 只读不写，绝不覆盖用户文件 |
+| 双文件均 UTF-8 无 BOM、tmp + rename 原子写 | 防止写一半崩溃留下损坏文件；Windows 记事本可能写 BOM，读取时先剥离 |
+
+共享纯函数（`src/shared/wordBank.ts`，零依赖，主进程 / preload / 两个渲染页 / 契约测试共用）：
+
+- 词条收敛：`sanitizeWordEntry` / `sanitizeWordEntries`（word 必填、去控制字符、长度截断、按归一化 key 去重、最多 `WORD_LIMITS.maxWords=5000` 条）；
+- 文件解析：`parseWordBankFile` / `parseWordBankDocument` 兼容**裸数组 / `{words}` / `{version,words,progress}`** 三种写法（手写词库最省事）；
+- 进度收敛：`sanitizeWordProgressMap`（未知 key 丢弃、`seen=0` 不落盘、`remembered ≤ seen`）；
+- 组合 / 统计 / 学习顺序：`combineWordBank`、`wordBankStats`、`orderWordsForStudy`（非随机保持词库顺序，随机用 Fisher-Yates 且不污染原数组）；
+- 默认值：`DEFAULT_WORDS`（59 个高频词）、`DEFAULT_WORD_STUDY_OPTIONS`（5 个布尔）、`resolveWordStudyOptions`（脏 options 收敛）；
+- 常量：`WORD_STUDY_KIND='wordstudy'`、`WORD_BANK_FILE`、`WORD_PROGRESS_FILE`、文件格式版本。
+
+主进程存储层（`src/main/wordBank.ts`）：
+
+- `initWordBank()`：ready 后、注册 IPC / 创建窗口之前调用；词库缺失 → 写种子 59 词；损坏 → 先备份 `<file>.corrupt-<ts>.bak` 再回种子（备份失败则不覆盖）；进度缺失 → 空进度，损坏 → 备份后回退；
+- 修改：`setWordEntries` / `setWordProgress` / `resetWordEntries` / `resetWordProgress`（词库变化时两个文件一起写，进度随新词表裁剪）；
+- `reloadWordBankFromDisk()`：用户手工改完文件后点「重新读取」；**只读不写**，解析失败保留内存值并记日志；
+- `importWordBankFromFile()` / `exportWordBankToFile()` / `openWordBankFile()`：原生对话框 / 系统默认程序，取消与异常都用 `WordBankOpResult` / `WordBankOpenResult` 返回，不抛未捕获异常；
+- 订阅：`subscribeWordBank` → `main/index.ts` 广播 `IPC.wordBankChanged`，单词窗口与设置页即时同步。
+
+IPC / preload（10 个 invoke 通道 + 1 个广播）：`wordbank:get / setWords / setProgress / resetWords / resetProgress / import / export / openFile / reload / paths / changed`；IPC handler 统一兜底（任何异常返回结构合法的可用结果，渲染层不需要 try/catch）。`window.nexus.wordBank` 由 preload `contextBridge` 白名单暴露。
+
+### 19.2 分层与写作用域
+
+| 角色 | 文件 | 改动 |
+|---|---|---|
+| Lead / 主进程 | `src/shared/types.ts` | 注册 `EXTRA_WINDOW_KINDS` 的 wordstudy（label/page/defaultSize/defaults/placement/defaultOptions）；`extraWindows` 默认生成；`schemaVersion 11`；`IPC.wordBank*`；`NexusApi.wordBank` |
+| Lead / 主进程 | `src/shared/wordBank.ts`（新增） | 词库共享契约与全部纯函数、59 词种子、窗口选项 |
+| Lead / 主进程 | `src/main/wordBank.ts`（新增）、`src/main/ipc.ts`、`src/preload/index.ts`、`src/main/index.ts` | 双文件存储层、10 通道注册/注销、preload API、初始化与广播 |
+| Lead / 主进程 | `src/main/settingsStore.ts` | v10 → v11 迁移说明（纯增量，normalizeExtraWindows 补 wordstudy） |
+| 渲染层 | `src/renderer/wordstudy/{index.html,main.tsx,WordStudyCard.tsx,WordBankEditor.tsx,useOwnContentSize.ts,wordstudy.css}`（新增） | 学习卡片 + 词库管理视图；C7 尺寸上报；快捷键；所有 IPC 失败可见提示 |
+| 渲染层 | `electron.vite.config.ts` | `renderer.input.wordstudy` 构建入口 |
+| 设置页 | `src/renderer/settings/sections/WordStudySettings.tsx`（新增）、`ExtraWindowsSection.tsx` | `EXTRA_WINDOW_SETTINGS[WORD_STUDY_KIND] = WordStudySettings`；词库概览 / 5 开关 / 6 动作 / 内联二次确认；移除旧空栏文案 |
+| 测试 | `tests/wordbank-contract.test.mjs`（新增 9 项）、`tests/wiring.test.mjs`（新增 8 项） | 词库纯函数契约；IPC/注册表/渲染页/vite/DOM class/设置页/版本迁移/文件结构静态接线门禁 |
+| 文档 / 验收 | `README.md`、`操作指南.md`、`docs/{spec §14,plan §19,tasks 阶段 29,window-conventions,verification §v1.8}`、`scripts/v18-verify.mjs` | 需求、方案、任务、窗口准则、逐条验收与 CDP 脚本 |
+
+### 19.3 注册表 4 步落地（实际执行）
+
+1. **注册类型**：`EXTRA_WINDOW_KINDS.push({ kind:'wordstudy', page:'wordstudy', label:'英语单词学习', category:'extra', defaultSize:{width:360,height:236}, defaults:{visible:true, snapToEdge:true, alwaysOnTop:true, onlyOnDesktop:false, locked:false, theme:'dark'}, placement:{edge:'right', alongPercent:32}, defaultOptions:{...DEFAULT_WORD_STUDY_OPTIONS} })`。**默认 visible=true**：用户明确要求新增该窗口，升级后隐藏会让人以为没生效。
+2. **新建渲染页**：`src/renderer/wordstudy/`；学习视图 360 级宽、词库管理视图 480 级宽，切换视图后用 `ResizeObserver` 重新量测并 `window.nexus.window.setOwnContentSize()` 上报（C7）。
+3. **增加构建入口**：`electron.vite.config.ts` 的 `renderer.input` 增加 `wordstudy: resolve(__dirname, 'src/renderer/wordstudy/index.html')`。
+4. **注册独有设置组件**：`ExtraWindowsSection` 的 `EXTRA_WINDOW_SETTINGS[WORD_STUDY_KIND] = WordStudySettings`；不注册时通用代码显示「该窗口暂无可调选项」。
+
+通用代码（`extraWindows.ts` / `tray.ts` / 设置页外壳 / 迁移 / 显隐 / 吸附 / 锁定 / 仅在桌面 / 锁定汇总）**零改动**即自动生效——这正是 v1.7 接入位要验证的点。
+
+### 19.4 测试与验收策略（含无 GUI 环境替代方案）
+
+| 层次 | 内容 | 无 GUI/CI 可跑 | 真实结果 |
+|---|---|---|---|
+| 共享契约单测 | `tests/shared-contract.test.mjs` 24 项 | ✅ | 24/24 |
+| 词库契约单测 | `tests/wordbank-contract.test.mjs` 9 项（收敛/去重/兼容三种文件写法/进度裁剪/统计/学习顺序/options） | ✅ | 9/9 |
+| 静态接线门禁 | `tests/wiring.test.mjs` 8 项（IPC 三方一致、注册表↔渲染页↔vite↔loadRenderer、28 个窗口 DOM class、设置页注册、版本与迁移、UTF-8 无 BOM、`{version,words}` 写法与 reload 只读） | ✅ | 8/8 |
+| 类型 / 构建 | `npx tsc --noEmit`、`npm run build` → `out/renderer/wordstudy/index.html` | ✅ | tsc 0 错误；out/ 产物存在（Lead 预先构建） |
+| 运行时 CDP | `scripts/v18-verify.mjs`：`--prepare`（写 v10 种子 + 清词库）→ `--launch`（隔离 userData + CDP）→ `--check`（迁移 / 窗口 / C7 / 学习交互 / 三种词库修改途径 / 设置页 / 隐藏 / 回归 / 门禁）→ `--cleanup`（按 PID） | ❌ 需要真实 Electron | **42/43 通过、0 失败、1 项原生对话框列手动**（`docs/verification/v1.8/report.json`，5 张截图） |
+
+**沙箱 / 手工启动的坑（已写进脚本头注释）**：
+
+- 仓库路径含空格：PowerShell 必须用**单条带引号的参数字符串**（`--user-data-dir="E:\AI WorkRegion\..."`）；拆成多段再拼接会把路径拆坏，Electron 静默退出或读不到隔离配置。`--launch` 用 spawn + 参数数组从根上规避。
+- DSH / 宿主会注入 `ELECTRON_RUN_AS_NODE=1`：不 `Remove-Item Env:ELECTRON_RUN_AS_NODE` 则 electron 以 Node 模式运行、没有 GUI/CDP。
+- 不要 `Stop-Process` 全部 electron.exe（可能误杀用户其他 Electron 应用）；只清理命令行含 `v18-verify` 的进程 + `instance.json` 记录的 PID，不动安装版 `NexusDockApp`。
+- 无 GUI 环境（CI / 沙箱）时：契约测试 + 接线门禁 + `--prepare` 可跑；`--check` 只在交互式环境执行，文档如实标注「运行时项由交互式环境验收」，不伪造结果。
+
+### 19.5 已知限制
+
+- 外部删除 `wordbank.json` 后点「重新读取」：只读语义下不会重建文件，保留当前内存词库（下次启动才重新播种 59 词）；这是刻意设计——避免「重新读取」覆盖用户正在编辑的文件。
+- 导入词库只替换词条；导入文件若不含 `progress`，同名单词原有进度保留，不同名进度丢弃；导出文件只含词条（备份进度请直接备份两个 JSON 文件）。
+- 学习进度写入有约 1 次 IPC 往返的乐观更新：失败会回滚并显示错误条，但极端并发下以最后一次写入为准（`markSeq` 序号保护）。

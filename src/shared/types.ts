@@ -1,7 +1,12 @@
 /**
  * Nexus Dock — 共享契约（主进程 / preload / 渲染进程 唯一真源）
  * 修改此文件后必须同步检查：src/main/ipc.ts、src/preload/index.ts、各渲染层。
+ *
+ * 注意：这里只 `import type` 词库类型（运行时零依赖），词库的纯函数与常量在
+ * `src/shared/wordBank.ts`。注册表里的 kind / defaultOptions 必须与
+ * `WORD_STUDY_KIND` / `DEFAULT_WORD_STUDY_OPTIONS` 保持一致（契约测试会校验）。
  */
+import type { WordBank, WordBankOpenResult, WordBankOpResult, WordEntry, WordProgress } from './wordBank'
 
 export type DockEdge = 'bottom' | 'top' | 'left' | 'right'
 export type ThemeMode = 'dark' | 'light'
@@ -385,7 +390,19 @@ export const IPC = {
   mediaPickFiles: 'media:pickFiles',
   mediaUpdate: 'media:update',
   mediaSetLocalState: 'media:setLocalState',
-  mediaTracks: 'media:tracks'
+  mediaTracks: 'media:tracks',
+  /* v1.8 英语单词学习词库（附加窗口 wordstudy） */
+  wordBankGet: 'wordbank:get',
+  wordBankSetWords: 'wordbank:setWords',
+  wordBankSetProgress: 'wordbank:setProgress',
+  wordBankResetWords: 'wordbank:resetWords',
+  wordBankResetProgress: 'wordbank:resetProgress',
+  wordBankImport: 'wordbank:import',
+  wordBankExport: 'wordbank:export',
+  wordBankOpenFile: 'wordbank:openFile',
+  wordBankReload: 'wordbank:reload',
+  wordBankPaths: 'wordbank:paths',
+  wordBankChanged: 'wordbank:changed'
 } as const
 
 /** 默认内置应用（AppID 来自本机 Get-StartApps，统一用 shell:AppsFolder 启动最可靠） */
@@ -476,9 +493,13 @@ export const BUILTIN_WINDOW_SPECS: readonly WindowKindSpec[] = [
 ]
 
 /**
- * 附加窗口注册表（v1.7 预留接入位，当前为空：设置页显示「暂无附加窗口」空状态）。
+ * 附加窗口注册表（v1.7 建立的接入位；v1.8 起注册第一个功能窗口：英语单词学习）。
  *
- * 示例（以后真正接一个天气卡片时）：
+ * 新增功能窗口只需在数组里 push 一条 WindowKindSpec + 新建 src/renderer/<page>/ +
+ * electron.vite.config.ts 增加同名入口（详见 docs/window-conventions.md §5），
+ * 设置页「窗口 → 附加窗口」、托盘/Dock 右键显隐、吸附/锁定/置顶/仅在桌面全部自动生效。
+ *
+ * 示例（以后接天气卡片时）：
  *   {
  *     kind: 'weather',
  *     label: '天气卡片',
@@ -491,7 +512,35 @@ export const BUILTIN_WINDOW_SPECS: readonly WindowKindSpec[] = [
  *     defaultOptions: { city: '北京' }
  *   }
  */
-export const EXTRA_WINDOW_KINDS: readonly WindowKindSpec[] = []
+export const EXTRA_WINDOW_KINDS: readonly WindowKindSpec[] = [
+  {
+    // 与 src/shared/wordBank.ts 的 WORD_STUDY_KIND 一致（契约测试校验）
+    kind: 'wordstudy',
+    label: '英语单词学习',
+    description: '桌面背单词卡片：单词 / 音标 / 释义 / 例句，词库可自由增删改、导入导出',
+    category: 'extra',
+    page: 'wordstudy',
+    defaultSize: { width: 360, height: 236 },
+    defaults: {
+      // 首次升级即显示：用户明确要求新增这个窗口，隐藏反而会以为没生效
+      visible: true,
+      snapToEdge: true,
+      alwaysOnTop: true,
+      onlyOnDesktop: false,
+      locked: false,
+      theme: 'dark'
+    },
+    placement: { edge: 'right', alongPercent: 32 },
+    // 窗口独有选项（与 DEFAULT_WORD_STUDY_OPTIONS 一致）：全部是 JSON 标量
+    defaultOptions: {
+      showPhonetic: true,
+      showExample: true,
+      hideMeaning: true,
+      shuffle: false,
+      autoNext: true
+    }
+  }
+]
 
 /** 按 kind 查注册表（内置 + 附加都查） */
 export function findWindowKind(kind: string): WindowKindSpec | null {
@@ -631,8 +680,8 @@ export function patchExtraWindows(
 }
 
 export const DEFAULT_SETTINGS: Settings = {
-  // v10（v1.7）：新增 extraWindows（附加窗口接入机制，当前注册表为空 → 空数组）
-  schemaVersion: 10,
+  // v11（v1.8）：新增英语单词学习附加窗口（注册表登记 kind=wordstudy）与词库文件存储。
+  schemaVersion: 11,
   dock: {
     edge: 'bottom',
     alongPercent: 50,
@@ -698,7 +747,7 @@ export const DEFAULT_SETTINGS: Settings = {
     clickSound: false
   },
   apps: DEFAULT_APPS,
-  // v1.7：附加窗口默认配置由注册表 EXTRA_WINDOW_KINDS 生成（当前为空）
+  // 附加窗口默认配置由注册表 EXTRA_WINDOW_KINDS 生成（v1.8：英语单词学习）
   extraWindows: defaultExtraWindowConfigs()
 }
 
@@ -902,6 +951,33 @@ export interface NexusApi {
   }
   dock: {
     snap: () => Promise<void>
+  }
+  /**
+   * v1.8 英语单词学习词库（附加窗口 wordstudy 与设置页共用）。
+   * 词库 / 进度分别落盘到 userData/wordbank.json 与 wordbank-progress.json，
+   * 用户可以直接用文本编辑器修改，再用 reloadFromDisk() 让窗口生效。
+   */
+  wordBank: {
+    get: () => Promise<WordBank>
+    /** 整体替换词条列表（进度按归一化单词 key 自动保留/丢弃） */
+    setWords: (words: WordEntry[]) => Promise<WordBank>
+    /** 整体替换学习进度（未知单词 key 丢弃） */
+    setProgress: (progress: Record<string, WordProgress>) => Promise<WordBank>
+    /** 恢复默认种子词库（清空进度） */
+    resetWords: () => Promise<WordBank>
+    /** 清空学习进度（词库不变） */
+    resetProgress: () => Promise<WordBank>
+    /** 从用户选择的 JSON 文件导入词库（替换现有词条，进度按 key 保留） */
+    importFromFile: () => Promise<WordBankOpResult>
+    /** 把词库导出为 JSON 文件（供备份 / 手工编辑） */
+    exportToFile: () => Promise<WordBankOpResult>
+    /** 用系统默认程序打开 wordbank.json（便于直接编辑） */
+    openFile: () => Promise<WordBankOpenResult>
+    /** 重新读取磁盘上的词库 / 进度文件（手工改完文件后点它生效） */
+    reloadFromDisk: () => Promise<WordBank>
+    /** 词库 / 进度文件的绝对路径（设置页展示「词库文件在哪」） */
+    paths: () => Promise<{ words: string; progress: string }>
+    onChanged: (cb: (bank: WordBank) => void) => () => void
   }
   /** v1.1 系统能力 */
   system: {

@@ -451,3 +451,72 @@
 - 不改变「显示桌面」以外的 Windows 窗口管理器行为（如任务栏自动隐藏、多显示器策略）。
 - 不新增设置窗口的悬浮能力（设置窗口仍按准则豁免）。
 - 不引入新 UI 框架或动画库；沿用既有设计系统与动效令牌。
+
+## 14. v1.8 变更（2026-11-04 用户需求：附加窗口栏新增英语单词学习窗口，词库可自由修改）
+
+> 文档版本：v1.8 增补。状态：**已实现并完成运行时验收**（隔离 userData + CDP，42/43 通过、0 失败、1 项原生对话框列手动项；证据 `docs/verification/v1.8/report.json`，记录见 `docs/verification.md` §v1.8）。
+> 口径：方案 `docs/plan.md` §19、任务 `docs/tasks.md` 阶段 29、窗口准则 `docs/window-conventions.md` §5/§6。
+> 用户原话要点：附加窗口栏不能一直是空的，接入「英语单词学习」；**词库要能自由修改**（不想被内置词库绑死）。
+
+### 14.1 背景与设计目标
+
+v1.7 建立了注册表驱动的附加窗口接入机制（`EXTRA_WINDOW_KINDS`），但注册表为空、设置页是空栏。v1.8 用它接入第一个真实功能窗口，同时验证接入机制本身：
+
+1. **一个真实窗口**：桌面背单词卡片（单词 / 音标 / 释义 / 例句 / 认识度标记 / 上一词下一词 / 快捷键），与内置窗口一样具备吸附、置顶、仅在桌面显示、位置锁定、移回默认位置。
+2. **词库自由修改（用户明确要求）**：不能只读内置词库。必须同时支持 ①窗口内增删改；②设置页导入 / 导出 / 恢复默认 / 重置进度；③用户用任意编辑器直接改 `userData/wordbank.json` 后点「重新读取」生效。词库与学习进度分两个文件，任何读取失败都不能静默覆盖用户文件。
+3. **接入机制复用验证**：窗口创建 / 显隐 / 吸附 / 托盘与 Dock 右键入口 / 设置页折叠栏 / 配置迁移全部由注册表与通用代码自动生效，新增功能窗口不修改设置页/托盘/窗口管理器通用逻辑。
+4. **迁移零丢失**：`schemaVersion 10 → 11` 纯增量，旧设置（含 v1.6 自定义名称/图标）原样保留。
+
+### 14.2 用户故事与验收标准
+
+#### US-28.1 英语单词学习作为附加窗口注册并默认显示（P0）
+
+**作为** 用户，**我希望** 升级后桌面上直接出现英语单词学习卡片，**以便** 不用去设置里翻找就能开始背单词。
+
+1. **AC-28.1** 注册表 `EXTRA_WINDOW_KINDS` 含 `kind='wordstudy'`、`page='wordstudy'`、`category='extra'`；默认配置 `visible=true`，吸附屏幕右侧 32%；默认选项 = 共享契约 `DEFAULT_WORD_STUDY_OPTIONS`（showPhonetic/showExample/hideMeaning=true，shuffle/autoNext 中 autoNext=true）。
+2. **AC-28.2** 渲染页 `src/renderer/wordstudy/`（`index.html` + `main.tsx` + `WordStudyCard` + `WordBankEditor` + `wordstudy.css`）与 `electron.vite.config.ts` 的 `renderer.input.wordstudy` 一致；构建产物 `out/renderer/wordstudy/index.html` 存在；实际加载后 CDP 出现 `/wordstudy/` 页面，`document.title` 含「英语单词学习」。
+3. **AC-28.3** 卡片根节点 `.ws-root` 存在并带 `data-theme`（dark/light）与 `data-locked`（仅锁定时）；学习视图 `.ws-word` 非空。
+4. **AC-28.4** C7 尺寸自适应：学习视图窗口 inner 尺寸与 `.ws-root` 尺寸一致（实测 inner 362×252 / 根 360×250.3，容差 2px）；首次尺寸回报前窗口不显示（不出现隐形点击区）。
+
+#### US-28.2 学习卡片交互（P0）
+
+**作为** 用户，**我希望** 用键盘或鼠标快速翻词、显示释义、标记认识度，**以便** 把背单词塞进碎片时间。
+
+5. **AC-28.5** 默认「先遮住释义」：`.ws-meaning[data-revealed=false]`；点释义区 / 点「显示释义」/ 按 `空格` / `Enter` 后 `data-revealed=true` 且释义文本非空。
+6. **AC-28.6** 「下一词 / 上一词」按钮与 `←` / `→` 能切换单词；切词后释义重新遮住；上一词能切回原词。
+7. **AC-28.7** 认识度标记 `1` 不认识 / `2` 模糊 / `3` 认识（或三个按钮）：标「认识」写入进度 `status=mastered` 且 `seen≥1、remembered≥1`；标「不认识 / 模糊」写 `status=learning`。
+8. **AC-28.8** 「标记后自动下一词」（`autoNext`，默认开）开启时标记后切到下一词；关闭时停留在当前词。顶部统计「已掌握 n」随标记变化。
+
+#### US-28.3 词库自由修改（P0，用户核心诉求）
+
+**作为** 用户，**我希望** 用最顺手的方式改词库（窗口内 / 设置页 / 直接改文件），**以便** 词库完全属于我，而不是被内置词表绑死。
+
+9. **AC-28.9（途径①窗口内编辑）** 卡片「词库」→ 词库管理视图（`.ws-editor`）：列出全部词条（`.ws-bank-row`）、搜索、新增、编辑、删除；新增/编辑保存后立即写入 `userData/wordbank.json`，内存与磁盘词条数一致；删除有二次确认。
+10. **AC-28.10（文件结构）** `wordbank.json` 只写 `{ version: 1, words: [{ word, phonetic, meaning, example }] }`，**不包含学习进度**；词条只有 `word` 必填；读取兼容裸数组 / `{words}` / `{version,words}` 三种写法；按「小写 + 折叠空格」归一化去重、最多 5000 条、超长文本截断；UTF-8 无 BOM、tmp+rename 原子写。
+11. **AC-28.11（途径③外部编辑 + 重新读取）** 直接改盘上 `wordbank.json` 后点「重新读取文件」：窗口/设置页立即加载新词库；`reloadFromDisk` **只读不写**，文件缺失或解析失败时保留当前内存值并记日志，绝不覆盖用户文件。
+12. **AC-28.12（进度文件）** 学习进度单独存 `userData/wordbank-progress.json`（`{version, progress:{key:{status,seen,remembered,lastSeenAt}}}`）；未知单词 key 丢弃；`seen=0` 条目不落盘；删掉进度文件再「重新读取」等价清空进度。
+13. **AC-28.13（途径②设置页导入导出）** 设置页「导入词库」选择 JSON 文件替换词条（支持自包含 `{version,words,progress}`，取消返回 `canceled` 不报错）；「导出词库」另存为 `{version, words}`；原生对话框取消/异常都通过返回值表达，不抛未捕获异常。
+14. **AC-28.14（恢复默认 / 重置）** 窗口内「恢复默认词库」与设置页同名动作均先二次确认，确认后恢复内置 59 词并清空进度；「重置学习进度」只清进度不动词库；设置页危险按钮使用内联确认条（`.nx-confirm-bar`）而不是浏览器原生 confirm。
+
+#### US-28.4 设置页词库管理（P0）
+
+15. **AC-28.15** 设置「窗口 → 附加窗口」自动出现「英语单词学习」折叠栏（注册表驱动，v1.7 的「暂无附加窗口」空状态不再出现）；展开后渲染 `.ws-settings`。
+16. **AC-28.16** 折叠栏包含：词库概览（共 n 词 / 已掌握 / 学习中 / 未学）、`wordbank.json` 文件路径（含 `wordbank.json` 字样）、5 个学习选项开关（显示音标/显示例句/先遮住释义/随机顺序/标记后自动下一词）、6 个词库动作（导入词库/导出词库/打开词库文件/重新读取文件/恢复默认词库/重置学习进度）。
+17. **AC-28.17** 设置页开关写回 `settings.extraWindows[].options` 并即时广播到单词窗口（如 showPhonetic 翻转、hideMeaning 关闭后释义常显、主题 light 后 `data-theme=light`）；操作结果有可见消息（`.ws-settings-msg`），失败不静默。
+
+#### US-28.5 迁移、工程化与验收（P0）
+
+18. **AC-28.18** `schemaVersion 10 → 11`：旧 `settings.json`（无 wordstudy 配置）启动后自动迁移；`extraWindows` 按注册表补出 wordstudy（visible=true），Dock/音乐/时钟/锁定/外观/系统/应用列表/自定义名称全部保留；落盘 UTF-8 无 BOM。
+19. **AC-28.19** 首次启动播种 `wordbank.json`（59 词）；`initWordBank` 在注册 IPC / 创建窗口之前完成，初始化失败不阻断应用启动；进度/词库变更通过 `wordbank:changed` 广播给所有窗口。
+20. **AC-28.20** 安全边界：词库 IPC handler 任何异常都返回可用兜底值（不 reject 渲染层）；词库文件损坏时启动先备份 `.corrupt-<时间戳>.bak` 再回种子；进度文件损坏时备份并回退空进度；备份失败则不覆盖磁盘文件。
+21. **AC-28.21** 契约/接线门禁：`tests/shared-contract.test.mjs` 24 项 + `tests/wordbank-contract.test.mjs` 9 项 + `tests/wiring.test.mjs` 8 项（IPC 三方一致、注册表↔渲染页↔vite 入口、28 个窗口 DOM class、设置页注册、版本与迁移、源码编码、词库文件结构）全部通过。
+22. **AC-28.22** 工程门禁：`npx tsc --noEmit` 0 错误；构建产物 `out/main/index.js` 与 `out/renderer/wordstudy/index.html` 存在，`package.json` 版本 1.8.0；运行时 CDP 验收脚本 `scripts/v18-verify.mjs` 可 `--prepare / --launch / --check / --cleanup` 全流程执行，产物写入 `docs/verification/v1.8/`。
+
+### 14.3 非目标（v1.8 不做）
+
+- 不做单词发音（TTS/音频）、例句朗读、艾宾浩斯复习算法与云同步；学习进度只做「未学 / 学习中 / 已掌握」三态。
+- 不把词库塞进 `settings.json` / `extraWindows[].options`：词库属于窗口业务数据，单独文件存储（见窗口准则 §5.4 接入经验）。
+- 不新增设置导航项（附加窗口仍按注册表渲染在「窗口 → 附加窗口」内）。
+- 不改变内置三窗口的既有设置项与默认值，不改变 v1.7 的桌面状态桥 / 显示桌面恢复逻辑。
+- 不引入新 UI 框架、动画库或状态管理库；沿用既有设计系统与动效令牌。
+- 原生导入/导出对话框、托盘与 Dock 右键菜单、真实拖动吸附不作为自动化必过项，列入手动验收（脚本报告中标注为手动项）。

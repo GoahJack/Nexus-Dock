@@ -16,6 +16,7 @@ import {
   type Size,
   type WindowTarget
 } from '@shared/types'
+import type { WordBank, WordBankOpenResult, WordBankOpResult, WordEntry, WordProgress } from '@shared/wordBank'
 
 /** 统一的「订阅 → 返回取消订阅函数」工具，保证渲染层不会泄漏监听器 */
 function subscribe<T>(channel: string, cb: (payload: T) => void): () => void {
@@ -76,6 +77,21 @@ const api: NexusApi = {
   },
   dock: {
     snap: () => ipcRenderer.invoke(IPC.dockSnap) as Promise<void>
+  },
+  // v1.8 英语单词学习：词库读写 / 导入导出 / 直接编辑文件（单词窗口与设置页共用）
+  wordBank: {
+    get: () => ipcRenderer.invoke(IPC.wordBankGet) as Promise<WordBank>,
+    setWords: (words: WordEntry[]) => ipcRenderer.invoke(IPC.wordBankSetWords, words) as Promise<WordBank>,
+    setProgress: (progress: Record<string, WordProgress>) =>
+      ipcRenderer.invoke(IPC.wordBankSetProgress, progress) as Promise<WordBank>,
+    resetWords: () => ipcRenderer.invoke(IPC.wordBankResetWords) as Promise<WordBank>,
+    resetProgress: () => ipcRenderer.invoke(IPC.wordBankResetProgress) as Promise<WordBank>,
+    importFromFile: () => ipcRenderer.invoke(IPC.wordBankImport) as Promise<WordBankOpResult>,
+    exportToFile: () => ipcRenderer.invoke(IPC.wordBankExport) as Promise<WordBankOpResult>,
+    openFile: () => ipcRenderer.invoke(IPC.wordBankOpenFile) as Promise<WordBankOpenResult>,
+    reloadFromDisk: () => ipcRenderer.invoke(IPC.wordBankReload) as Promise<WordBank>,
+    paths: () => ipcRenderer.invoke(IPC.wordBankPaths) as Promise<{ words: string; progress: string }>,
+    onChanged: (cb) => subscribe<WordBank>(IPC.wordBankChanged, cb)
   },
   system: {
     setAutoStart: (enabled: boolean) => ipcRenderer.invoke(IPC.systemSetAutoStart, enabled) as Promise<AutoStartResult>

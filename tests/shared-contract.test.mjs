@@ -36,6 +36,7 @@ import {
   windowLockSummary,
   withAllWindowsLocked
 } from '../src/shared/types.ts'
+import { DEFAULT_WORD_STUDY_OPTIONS, WORD_STUDY_KIND } from '../src/shared/wordBank.ts'
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), '..')
 
@@ -236,16 +237,14 @@ test('托盘图标资源存在且是合法 PNG（打包 extraResources 依赖它
   }
 })
 
-/* ============================ v1.7 窗口体系 ============================
+/* ============================ v1.7 / v1.8 窗口体系 ============================
  *
- * v1.7 把「窗口」从三个硬编码窗口升级为注册表驱动：
- *   - schemaVersion 10 新增 extraWindows（附加窗口接入位，当前注册表为空）；
- *   - 共性项（吸附/置顶/仅在桌面/锁定/复位）从「系统」页迁到「窗口 → 内置窗口」；
- *   - 新增窗口只需在 EXTRA_WINDOW_KINDS 注册 + 新建渲染页 + vite 入口。
+ * v1.7 把「窗口」从三个硬编码窗口升级为注册表驱动（schemaVersion 10 新增 extraWindows）；
+ * v1.8 在注册表里登记第一个附加窗口「英语单词学习」（kind=wordstudy）并新增词库文件存储。
  * 这里把「脏数据收敛 / 注册表唯一 / 锁定汇总 / 仅在桌面判定 / 附加窗口补丁」钉成回归门禁。
  */
 
-/** 构造一条合法的附加窗口配置（当前注册表为空，只能手工拼对象做纯函数断言） */
+/** 构造一条合法的附加窗口配置（纯函数断言用；真实 kind 见 EXTRA_WINDOW_KINDS） */
 function fakeExtraWindow(overrides = {}) {
   return {
     kind: 'weather',
@@ -264,29 +263,56 @@ function fakeExtraWindow(overrides = {}) {
   }
 }
 
-test('v1.7 契约：schemaVersion=10，extraWindows 默认值与注册表一致（当前为空）', () => {
-  assert.equal(DEFAULT_SETTINGS.schemaVersion, 10)
-  assert.equal(EXTRA_WINDOW_KINDS.length, 0, 'v1.7 附加窗口注册表应为空（仅预留接入位）')
-  assert.deepEqual(DEFAULT_SETTINGS.extraWindows, [])
+test('v1.8 契约：schemaVersion=11，extraWindows 默认值与注册表一致（含英语单词学习）', () => {
+  assert.equal(DEFAULT_SETTINGS.schemaVersion, 11)
+  const kinds = EXTRA_WINDOW_KINDS.map((spec) => spec.kind)
+  assert.deepEqual(kinds, [WORD_STUDY_KIND], 'v1.8 注册表应注册英语单词学习窗口')
   assert.deepEqual(
     DEFAULT_SETTINGS.extraWindows.map((item) => item.kind),
-    EXTRA_WINDOW_KINDS.map((spec) => spec.kind)
+    kinds,
+    '默认配置必须逐个 kind 与注册表对齐'
   )
-  // 旧配置（schemaVersion 9，没有 extraWindows 字段）读入后补空数组，不抛错
-  const migrated = sanitizeSettings({ schemaVersion: 9, extraWindows: undefined })
-  assert.equal(migrated.schemaVersion, 10)
-  assert.deepEqual(migrated.extraWindows, [])
+  const wordStudy = DEFAULT_SETTINGS.extraWindows[0]
+  // 新增窗口默认可见（用户明确要求新增这个窗口，隐藏会被当成没生效）
+  assert.equal(wordStudy.visible, true)
+  assert.equal(wordStudy.theme, 'dark')
+  assert.equal(wordStudy.options.showPhonetic, true)
+  assert.equal(wordStudy.options.hideMeaning, true)
+  // 旧配置（schemaVersion 10，没有 wordstudy 配置）读入后自动补默认，不抛错
+  const migrated = sanitizeSettings({ schemaVersion: 10, extraWindows: [] })
+  assert.equal(migrated.schemaVersion, 11)
+  assert.deepEqual(
+    migrated.extraWindows.map((item) => item.kind),
+    [WORD_STUDY_KIND]
+  )
+  assert.equal(migrated.extraWindows[0].visible, true, '迁移后新窗口按注册表默认值显示')
 })
 
-test('v1.7 契约：extraWindows 脏数据收敛，未注册 kind 一律丢弃', () => {
-  // 非数组、null、数字等垃圾输入不能抛错
+test('v1.8 契约：extraWindows 脏数据收敛，未注册 kind 一律丢弃', () => {
+  // 非数组、null、数字等垃圾输入不能抛错：结果始终是「注册表默认配置」
   for (const raw of [undefined, null, 'garbage', 0, {}, { kind: 'weather' }]) {
-    assert.deepEqual(normalizeExtraWindows(raw), [], `normalizeExtraWindows(${JSON.stringify(raw)})`)
+    const normalized = normalizeExtraWindows(raw)
+    assert.deepEqual(
+      normalized.map((item) => item.kind),
+      [WORD_STUDY_KIND],
+      `normalizeExtraWindows(${JSON.stringify(raw)})`
+    )
   }
-  assert.deepEqual(sanitizeSettings({ extraWindows: 'garbage' }).extraWindows, [])
-  // 未注册 kind（注册表为空时的任意 kind）不得复活成配置项
-  assert.deepEqual(normalizeExtraWindows([{ kind: 'weather', visible: true }]), [])
-  assert.deepEqual(sanitizeSettings({ extraWindows: [{ kind: 'weather', visible: true }] }).extraWindows, [])
+  assert.deepEqual(
+    sanitizeSettings({ extraWindows: 'garbage' }).extraWindows.map((item) => item.kind),
+    [WORD_STUDY_KIND]
+  )
+  // 未注册 kind（weather）不得复活成配置项
+  assert.deepEqual(
+    normalizeExtraWindows([{ kind: 'weather', visible: true }]).map((item) => item.kind),
+    [WORD_STUDY_KIND]
+  )
+  assert.equal(
+    sanitizeSettings({ extraWindows: [{ kind: 'weather', visible: true }] }).extraWindows.some(
+      (item) => item.kind === 'weather'
+    ),
+    false
+  )
 })
 
 test('v1.7 契约：sanitizeWindowOptions 只保留 JSON 安全标量', () => {
@@ -332,10 +358,14 @@ test('v1.7 契约：hasOnlyOnDesktopWindow 覆盖内置三窗口与附加窗口'
   assert.equal(hasOnlyOnDesktopWindow({ ...none, extraWindows: [fakeExtraWindow({ onlyOnDesktop: false })] }), false)
 })
 
-test('v1.7 契约：windowLockSummary 汇总内置 3 窗口 + 附加窗口（n/N）', () => {
+test('v1.8 契约：windowLockSummary 汇总内置 3 窗口 + 附加窗口（n/N）', () => {
   const base = sanitizeSettings(undefined)
-  assert.deepEqual(windowLockSummary(base), { locked: 0, total: 3, allLocked: false })
-  const allLockedBuiltin = { ...base, lock: { dock: true, music: true, clock: true } }
+  // 默认注册表有 1 个附加窗口（wordstudy，默认未锁定）→ total=4
+  assert.deepEqual(windowLockSummary(base), { locked: 0, total: 4, allLocked: false })
+  // 没有附加窗口时（例如以后注册表变化）仍按内置 3 窗口汇总
+  const noExtra = { ...base, extraWindows: [] }
+  assert.deepEqual(windowLockSummary(noExtra), { locked: 0, total: 3, allLocked: false })
+  const allLockedBuiltin = { ...noExtra, lock: { dock: true, music: true, clock: true } }
   assert.deepEqual(windowLockSummary(allLockedBuiltin), { locked: 3, total: 3, allLocked: true })
   // 1 个附加窗口：total=4；内置全锁但附加未锁 → 未全部锁定
   const withUnlockedExtra = {
@@ -350,29 +380,30 @@ test('v1.7 契约：windowLockSummary 汇总内置 3 窗口 + 附加窗口（n/N
   assert.deepEqual(windowLockSummary(withLockedExtra), { locked: 4, total: 4, allLocked: true })
 })
 
-test('v1.7 契约：withAllWindowsLocked 同时锁定/解锁内置与附加窗口', () => {
+test('v1.8 契约：withAllWindowsLocked 同时锁定/解锁内置与附加窗口', () => {
   const base = sanitizeSettings(undefined)
   const settings = {
     ...base,
-    extraWindows: [fakeExtraWindow({ kind: 'weather', locked: false }), fakeExtraWindow({ kind: 'notes', locked: true })]
+    // 用真实注册 kind，保证 mergeSettings 收敛后仍保留该附加窗口
+    extraWindows: [{ ...base.extraWindows[0], locked: false }]
   }
   const lockPatch = withAllWindowsLocked(settings, true)
   assert.deepEqual(lockPatch.lock, { dock: true, music: true, clock: true })
-  assert.equal(lockPatch.extraWindows.length, 2)
+  assert.equal(lockPatch.extraWindows.length, 1)
   assert.ok(lockPatch.extraWindows.every((item) => item.locked === true))
-  // 通过 mergeSettings 应用补丁后，内置锁定的落盘结果正确
+  // 通过 mergeSettings 应用补丁后，内置 + 附加锁定的落盘结果正确
   const applied = mergeSettings(settings, lockPatch)
   assert.deepEqual(applied.lock, { dock: true, music: true, clock: true })
+  assert.equal(applied.extraWindows[0].locked, true)
 
   const unlockPatch = withAllWindowsLocked(settings, false)
   assert.deepEqual(unlockPatch.lock, { dock: false, music: false, clock: false })
   assert.ok(unlockPatch.extraWindows.every((item) => item.locked === false))
   // 纯函数：不得修改传入的 settings
   assert.equal(settings.extraWindows[0].locked, false)
-  assert.equal(settings.extraWindows[1].locked, true)
 })
 
-test('v1.7 契约：窗口注册表 kind/page 唯一且不与内置窗口冲突', () => {
+test('v1.7/v1.8 契约：窗口注册表 kind/page 唯一且不与内置窗口冲突', () => {
   const builtinKinds = BUILTIN_WINDOW_SPECS.map((spec) => spec.kind)
   assert.deepEqual([...builtinKinds].sort(), ['clock', 'dock', 'music'])
   assert.equal(new Set(builtinKinds).size, builtinKinds.length, '内置窗口 kind 重复')
@@ -380,6 +411,7 @@ test('v1.7 契约：窗口注册表 kind/page 唯一且不与内置窗口冲突'
 
   const extraKinds = EXTRA_WINDOW_KINDS.map((spec) => spec.kind)
   const extraPages = EXTRA_WINDOW_KINDS.map((spec) => spec.page)
+  assert.ok(extraKinds.length > 0, 'v1.8 起至少注册了英语单词学习窗口')
   assert.equal(new Set(extraKinds).size, extraKinds.length, '附加窗口 kind 重复')
   assert.equal(new Set(extraPages).size, extraPages.length, '附加窗口 page 重复')
   for (const spec of EXTRA_WINDOW_KINDS) {
@@ -398,27 +430,26 @@ test('v1.7 契约：窗口注册表 kind/page 唯一且不与内置窗口冲突'
   assert.equal(findWindowKind('dock')?.kind, 'dock')
   assert.equal(findWindowKind('music')?.page, 'music')
   assert.equal(findWindowKind('nope'), null)
-  assert.equal(isExtraWindowKind('weather'), false, '当前注册表为空，weather 还不是附加窗口')
+  // 英语单词学习：注册表 / kind 判定 / 渲染页目录一致
+  assert.equal(findWindowKind(WORD_STUDY_KIND)?.page, 'wordstudy')
+  assert.equal(isExtraWindowKind(WORD_STUDY_KIND), true)
+  assert.equal(isExtraWindowKind('weather'), false, '未注册类型不得被当成附加窗口')
+  // types.ts 里的注册表字面量必须与 wordBank.ts 的常量一致（防止两处漂移）
+  const wordStudySpec = EXTRA_WINDOW_KINDS.find((spec) => spec.kind === WORD_STUDY_KIND)
+  assert.ok(wordStudySpec, '注册表缺少 wordstudy')
+  assert.deepEqual(wordStudySpec.defaultOptions, { ...DEFAULT_WORD_STUDY_OPTIONS })
 })
 
-test('v1.7 契约：patchExtraWindows 只改目标项并返回新数组', () => {
+test('v1.8 契约：patchExtraWindows 只改目标项并返回新数组', () => {
   const base = sanitizeSettings(undefined)
-  const settings = {
-    ...base,
-    extraWindows: [
-      fakeExtraWindow({ kind: 'weather', visible: true }),
-      fakeExtraWindow({ kind: 'notes', visible: false })
-    ]
-  }
-  const next = patchExtraWindows(settings, 'weather', { visible: false })
-  assert.notEqual(next, settings.extraWindows, '必须返回新数组（交给 settings.update 整体替换）')
-  assert.equal(next.length, 2)
-  assert.equal(next[0].kind, 'weather')
+  const next = patchExtraWindows(base, WORD_STUDY_KIND, { visible: false })
+  assert.notEqual(next, base.extraWindows, '必须返回新数组（交给 settings.update 整体替换）')
+  assert.equal(next.length, base.extraWindows.length)
+  assert.equal(next[0].kind, WORD_STUDY_KIND)
   assert.equal(next[0].visible, false)
-  assert.deepEqual(next[1], settings.extraWindows[1], '其他项不得被修改')
-  assert.equal(settings.extraWindows[0].visible, true, '不得原地修改传入数组')
-  // 注册表为空时 extraWindows 默认为空数组：补丁是安全 no-op
-  assert.deepEqual(patchExtraWindows(base, 'weather', { visible: true }), [])
+  assert.equal(base.extraWindows[0].visible, true, '不得原地修改传入数组')
+  // 未注册 kind：内容不变的 no-op（返回新数组，语义上安全）
+  assert.deepEqual(patchExtraWindows(base, 'weather', { visible: true }), base.extraWindows)
 })
 
 test('v1.7 契约：isDesktopBusy 只在「可见 + 未最小化 + 最大化/全屏」时判定占用桌面', () => {

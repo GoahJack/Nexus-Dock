@@ -94,8 +94,15 @@ function migrate(settings: Settings, fromVersion: number): Settings {
   // 这里只提升 schemaVersion（见函数末尾），无需改写历史数据。
 
   // v9 → v10（v1.7）：新增 extraWindows（附加窗口接入机制）。
-  // 附加窗口类型由注册表 EXTRA_WINDOW_KINDS 声明（当前为空），sanitizeSettings 会
+  // 附加窗口类型由注册表 EXTRA_WINDOW_KINDS 声明，sanitizeSettings 会
   // 按注册表逐 kind 补齐默认配置、丢弃未知 kind —— 旧配置零丢失，无需手工迁移字段。
+
+  // v10 → v11（v1.8）：附加窗口注册表新增「英语单词学习」（kind=wordstudy），
+  // 并为它单独存放词库文件（userData/wordbank.json、wordbank-progress.json，不属于 settings）。
+  // 迁移语义：旧 v10 配置没有 extraWindows 里的 wordstudy 项 → 由 sanitizeSettings 的
+  // normalizeExtraWindows 按注册表自动补默认配置（visible=true，右侧 32% 停靠）；
+  // 其余字段（含旧 extraWindows 里已不存在的未知 kind）原样收敛，配置零丢失。
+  // 词库文件在 initWordBank()（main/index.ts）里读取/首次播种，与本迁移互不影响。
 
   return sanitizeSettings({ ...next, schemaVersion: DEFAULT_SETTINGS.schemaVersion })
 }

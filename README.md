@@ -13,7 +13,7 @@ npm install
 npm run dev
 ```
 
-启动后：屏幕底部出现 Dock，右上出现音乐卡片。桌面时钟默认隐藏，点击 Dock 末端时钟按钮（或设置 →「窗口 → 内置窗口 → 桌面时钟」）即可显示。右键 Dock →「Dock 设置」可打开设置面板。**系统托盘**有常驻图标（单击显示/隐藏 Dock、双击打开设置、右键完整菜单）。
+启动后：屏幕底部出现 Dock，右上出现音乐卡片，屏幕右侧出现**英语单词学习卡片**（v1.8，首次升级即显示；可拖动、可从托盘/设置隐藏）。桌面时钟默认隐藏，点击 Dock 末端时钟按钮（或设置 →「窗口 → 内置窗口 → 桌面时钟」）即可显示。右键 Dock →「Dock 设置」可打开设置面板。**系统托盘**有常驻图标（单击显示/隐藏 Dock、双击打开设置、右键完整菜单）。
 
 > 验收 / 日常使用请用安装版（自动安装到 `%LOCALAPPDATA%\NexusDock`，以正常权限运行）：
 >
@@ -21,6 +21,29 @@ npm run dev
 > npm run build
 > npm run install:local   # 或直接双击根目录「启动 Nexus Dock.cmd」
 > ```
+
+## v1.8 更新（2026-11-04）
+
+> 当前版本：**v1.8.0**（`package.json`）；口径：规格 `docs/spec.md` §14、方案 `docs/plan.md` §19、任务 `docs/tasks.md` 阶段 29、验收 `docs/verification.md` §v1.8。
+> 主题：**附加窗口栏的第一个真实功能窗口「英语单词学习」**——桌面背单词卡片 + 词库自由修改；设置 `schemaVersion` 由 10 升到 11。
+
+### 新增：英语单词学习附加窗口（`wordstudy`）
+
+- 桌面浮窗卡片：大号单词 + 音标 + 中文释义（默认先遮住，自测模式）+ 例句 + 认识度标记（不认识 / 模糊 / 认识）+ 上一词 / 下一词；快捷键 `空格`/`Enter` 显示释义、`←`/`→` 切词、`1`/`2`/`3` 标记。
+- 首次升级即默认显示（吸附屏幕右侧 32% 位置）；卡片右上「词库」进入管理视图、「✕」隐藏（可从托盘 / 设置恢复）；与内置窗口一样具备自动吸附屏幕边缘 / 始终置顶 / 仅在桌面显示 / 位置锁定 / 移回默认位置（注册表驱动，通用代码零改动）。
+- 设置页「窗口 → 附加窗口」出现「英语单词学习」折叠栏：词库概览（共 n 词 / 已掌握 / 学习中 / 未学）、5 个学习选项（显示音标 / 显示例句 / 先遮住释义 / 随机顺序 / 标记后自动下一词）、6 个词库动作（导入 / 导出 / 打开词库文件 / 重新读取文件 / 恢复默认词库 / 重置学习进度）。
+
+### 词库自由修改（3 种方式）
+
+1. **窗口内编辑**：卡片 →「词库」→ 新增 / 编辑 / 删除 / 搜索；改动立即写入 `userData\wordbank.json`。
+2. **设置页管理**：导入 / 导出 JSON、打开词库文件、恢复默认词库（内置 59 词）、重置学习进度；删除 / 覆盖 / 清空等危险操作有二次确认。
+3. **直接编辑文件**：用任意文本编辑器改 `%APPDATA%\nexus-dock\wordbank.json`（裸数组或 `{ version, words }` 均可），回窗口或设置页点「重新读取文件」立即生效；文件损坏会先备份为 `.corrupt-<时间戳>.bak`，不会静默覆盖用户数据；学习进度单独存 `%APPDATA%\nexus-dock\wordbank-progress.json`。
+
+### 迁移与工程化
+
+- `schemaVersion 10 → 11`：注册表新增 `kind=wordstudy`，`normalizeExtraWindows` 按注册表自动补默认配置；旧配置（Dock / 音乐 / 时钟 / 锁定 / 外观 / 应用列表 / v1.6 自定义名称与图标）零丢失。
+- 契约测试：共享契约 24 项 + 词库契约 9 项；新增 `tests/wiring.test.mjs` 静态接线门禁 8 项（词库 IPC 三方一致、注册表 ↔ 渲染页 ↔ vite 入口、28 个窗口 DOM class、设置页注册、版本与迁移、源码编码、词库文件结构），`npm test` 共 **41 项**。
+- 构建产物：`out/main/index.js` + `out/renderer/wordstudy/index.html`。运行时验收脚本 `scripts/v18-verify.mjs`（隔离 userData + CDP，`--prepare / --launch / --check / --cleanup` 四步）**已真实跑通：42/43 通过、0 失败、1 项原生对话框列手动项**（机器证据 `docs/verification/v1.8/report.json` + 5 张截图；启动引号坑见脚本头注释）。
 
 ## v1.7 更新（2026-11-04）
 
@@ -237,12 +260,12 @@ powershell -File scripts/mem-probe.ps1 -Label low-end -EnvPairs 'NEXUS_LOW_END=1
 | `npm run dev` | 开发模式（入口 `scripts/dev.ps1`：清宿主环境变量 + `--noSandbox` + 远程调试 9222） |
 | `npm run build` | 构建到 `out/` |
 | `npm run typecheck` | 全量类型检查 |
-| `npm test` | 共享契约单元测试（Node 内置 test runner，24 项，不需要 Electron） |
+| `npm test` | 契约与接线单元测试（Node 内置 test runner，**41 项**：共享契约 24 + 词库契约 9 + 静态接线门禁 8，不需要 Electron） |
 | `npm run check` | `typecheck` + `test`（提交前门禁） |
 | `npm run dist` | 打包 Windows 便携版到 `dist/`（electron-builder 配置为 **portable** 单文件 exe；如需 NSIS 安装包请先在 `package.json` 的 `build.win.target` 增加 `nsis`） |
 | `powershell -File scripts/start.ps1` | 启动已构建产物（试用/验收），可加 `-DebugPort 9222` |
 
-## 当前状态（v1.7.0，开发态）
+## 当前状态（v1.8.0，开发态）
 
 - ✅ Dock：玻璃质感、四边停靠、沿边位置、悬停放大（1.30×，邻项递减）、拖拽排序、右键菜单、图标提取
 - ✅ **Dock 应用个性化（v1.6）**：可改显示名称与图标（PNG/JPG/WebP/ICO/SVG），设置页 ✎ 与 Dock 右键双入口，支持一键恢复默认
@@ -255,54 +278,60 @@ powershell -File scripts/mem-probe.ps1 -Label low-end -EnvPairs 'NEXUS_LOW_END=1
 - ✅ 桌面时钟：可开关、24/12 小时制、显示秒/日期、字号/透明度/主题、拖动吸附开关与位置记忆
 - ✅ 设置面板：分组导航「**窗口**（内置窗口 / 附加窗口）/ 应用 / 外观 / 系统 / 关于」；**三窗口共性项统一在「窗口 → 内置窗口」的折叠栏管理**，窗口页只留独有特性；保存失败/加载失败均有可见提示（v1.7）
 - ✅ 窗口共性能力：吸附 / 始终置顶 / 仅在桌面显示 / 位置锁定 / 移回默认位置，内置三窗口一致且统一入口
-- ✅ **窗口体系（v1.7）**：注册表驱动（`BUILTIN_WINDOW_SPECS` + `EXTRA_WINDOW_KINDS`）；附加窗口接入位当前为空栏，未来新窗口 4 步接入后，窗口创建/显隐/吸附/锁定/仅在桌面/托盘入口/设置页自动生效
+- ✅ **窗口体系（v1.7）**：注册表驱动（`BUILTIN_WINDOW_SPECS` + `EXTRA_WINDOW_KINDS`）；新窗口 4 步接入后，窗口创建/显隐/吸附/锁定/仅在桌面/托盘入口/设置页自动生效
+- ✅ **英语单词学习附加窗口（v1.8）**：学习卡片（单词/音标/释义/例句/认识度标记/快捷键）+ 词库管理视图；词库与进度双文件存储、可自由修改（窗口内编辑 / 设置页导入导出与恢复默认 / 直接改 `wordbank.json` 后「重新读取」）；设置页「窗口 → 附加窗口」出现词库概览与 5 个学习选项
 - ✅ **显示桌面修复（v1.7）**：Win+D / 「显示桌面」后 Dock/音乐/时钟自动恢复；桌面状态桥新增 `minimized`/`visible` 判定，桌面占用由共享纯函数 `isDesktopBusy` 统一判定（「前台窗口最小化」不再占用桌面，修复不是只改 `isVisible()`）
 - ✅ 外观与动效：强度三档、减少动效、点击音效、效果预览
 - ✅ 开机自启：安装版写入 HKCU 登录项，状态以系统为准、失败回滚；portable 版使用 `PORTABLE_EXECUTABLE_FILE` 写入真实路径（v1.5）
 - ✅ 稳定性：桥崩溃循环治理 + 桥看门狗 + 渲染进程崩溃自愈 + 日志轮转 + 窗口导航加固（v1.5）
 - ✅ 窗口行为准则：`docs/window-conventions.md`（新窗口强制能力清单、附加窗口接入机制与验收契约）
 - ✅ 内存轻量化（v1.4）：常驻桥按需启停 + 原生 `desktop-state.exe`、时钟去 React、隐藏窗口降频；工作集 656.0 → 473.4MB（低配模式 421.1MB）
-- ✅ 自动化门禁：`npm run check`（typecheck + 24 个契约测试）+ `scripts/v15-verify.mjs` + `scripts/v15-overflow-check.mjs` + `scripts/v16-verify.mjs`（v1.6）
-- ⏳ 待人工验证（只能靠真人，脚本无法替代）：托盘图标在你自己任务栏的**视觉与单击/双击手感**、Dock/音乐/时钟真实拖动吸附手感、锁定后鼠标不可拖、开机自启在真实登录后的行为、动效主观手感、Win+D 后的恢复手感
+- ✅ 自动化门禁：`npm run check`（typecheck + 41 个契约/接线测试）+ `scripts/v1{5,6,7}-verify.mjs` + `scripts/v18-verify.mjs`（v1.8，隔离 userData + CDP）
+- ⏳ 待人工验证（只能靠真人，脚本无法替代）：托盘图标在你自己任务栏的**视觉与单击/双击手感**、Dock/音乐/时钟/单词卡片真实拖动吸附手感、锁定后鼠标不可拖、开机自启在真实登录后的行为、动效主观手感、Win+D 后的恢复手感、词库导入/导出原生对话框
 - ⏳ 待验收后打包：便携版单文件 exe（`npm run dist`）
 
-验收证据见 [docs/verification.md](docs/verification.md) §v1.6（18/18 通过，报告与截图在 `docs/verification/v1.6/`）与 §v1.5（9/9 + 5/5 通过）；**v1.7 见 §v1.7（由验收脚本生成）**；本机宿主环境限制见 [操作指南.md](操作指南.md) 末节。
+验收证据见 [docs/verification.md](docs/verification.md) §v1.6（18/18 通过，报告与截图在 `docs/verification/v1.6/`）与 §v1.5（9/9 + 5/5 通过）；**v1.7 见 §v1.7**、**v1.8 见 §v1.8（CDP 运行时 42/43 通过、0 失败、1 项原生对话框列手动项；证据 `docs/verification/v1.8/report.json`）**；本机宿主环境限制见 [操作指南.md](操作指南.md) 末节。
 
 ## 文档
 
 | 文档 | 内容 |
 |---|---|
-| [操作指南.md](操作指南.md) | 环境自检、执行顺序、日常使用说明、FAQ（含「显示桌面」修复与附加窗口接入说明） |
-| [docs/spec.md](docs/spec.md) | 需求规格与验收标准（SDD 阶段 1，§7 为 v1.0 精细化交互规格，§8 为 v1.1，§9 为 v1.2，§11 为 v1.3.1、§12 为 v1.4.1 补丁，**§13 为 v1.7 窗口体系**） |
-| [docs/window-conventions.md](docs/window-conventions.md) | 窗口行为准则：所有悬浮窗口的强制能力（吸附开关/位置记忆/位置锁定等）、**附加窗口接入机制（v1.7）**、接入清单与验收契约（**新窗口必读**） |
+| [操作指南.md](操作指南.md) | 环境自检、执行顺序、日常使用说明、FAQ（含「显示桌面」修复、附加窗口接入说明、**v1.8 英语单词学习与词库自由修改**） |
+| [docs/spec.md](docs/spec.md) | 需求规格与验收标准（SDD 阶段 1，§7 为 v1.0 精细化交互规格，§8 为 v1.1，§9 为 v1.2，§11 为 v1.3.1、§12 为 v1.4.1 补丁，§13 为 v1.7 窗口体系，**§14 为 v1.8 英语单词学习**） |
+| [docs/window-conventions.md](docs/window-conventions.md) | 窗口行为准则：所有悬浮窗口的强制能力（吸附开关/位置记忆/位置锁定等）、**附加窗口接入机制（v1.7，v1.8 起注册了 wordstudy 实例）**、接入清单与验收契约（**新窗口必读**） |
 | [docs/motion-spec.md](docs/motion-spec.md) | 动效设计规范（令牌/曲线/组件矩阵/降级，v1.0 唯一视觉真源） |
-| [docs/plan.md](docs/plan.md) | 技术方案与架构、IPC 契约（SDD 阶段 2，§12 为 v1.0 方案，§16、§17 为补丁方案，**§18 为 v1.7 方案**） |
-| [docs/tasks.md](docs/tasks.md) | 任务分解与状态（SDD 阶段 3，阶段 9–11 为 v1.0 任务，阶段 24 为 v1.4.1，阶段 25 为 v1.5，阶段 26 为 v1.6，**阶段 27 为 v1.7**） |
-| [docs/verification.md](docs/verification.md) | 逐条 AC 验收记录与截图（§v1.6 = 16/16 通过；§v1.5 = 9/9 + 5/5 通过；**§v1.7 由验收脚本生成**） |
+| [docs/plan.md](docs/plan.md) | 技术方案与架构、IPC 契约（SDD 阶段 2，§12 为 v1.0 方案，§16、§17 为补丁方案，§18 为 v1.7 方案，**§19 为 v1.8 方案**） |
+| [docs/tasks.md](docs/tasks.md) | 任务分解与状态（SDD 阶段 3，阶段 9–11 为 v1.0 任务，阶段 24 为 v1.4.1，阶段 25 为 v1.5，阶段 26 为 v1.6，阶段 27 为 v1.7，**阶段 29 为 v1.8**） |
+| [docs/verification.md](docs/verification.md) | 逐条 AC 验收记录与截图（§v1.6 = 16/16 通过；§v1.5 = 9/9 + 5/5 通过；§v1.7 由验收脚本生成；**§v1.8 = CDP 运行时 42/43 通过 + 0 失败 + 1 手动项**） |
 
 ## 目录结构
 
 ```
 src/
   shared/types.ts      # IPC 契约 + 配置模型 + 窗口注册表（唯一真源）
+  shared/wordBank.ts   # v1.8 词库共享契约：纯函数收敛 / 默认 59 词 / 窗口选项（唯一真源）
   main/                # 主进程：窗口/位置引擎、设置、应用、媒体桥
+    wordBank.ts        # v1.8 词库存储层：wordbank.json + wordbank-progress.json 双文件、原子写、损坏备份
     windowUtils.ts     # 窗口加固 / 崩溃自愈 / 显示恢复守卫（v1.7 新增）
     extraWindows.ts    # 附加窗口管理器：注册表驱动创建/布局/显隐/锁定（v1.7 新增）
     tray.ts            # 系统托盘（v1.5 新增）
     logger.ts          # 统一文件日志 + 1MB 轮转（v1.5 新增）
-  preload/index.ts     # contextBridge 白名单 API
+  preload/index.ts     # contextBridge 白名单 API（v1.8 含 window.nexus.wordBank）
   renderer/dock/       # Dock 界面
   renderer/music/      # 音乐卡片
   renderer/clock/      # 桌面时钟（v1.1 新增）
-  renderer/settings/   # 设置面板（v1.7 分内置窗口 / 附加窗口等分区）
+  renderer/wordstudy/  # v1.8 英语单词学习附加窗口（学习卡片 + 词库管理）
+  renderer/settings/   # 设置面板（v1.7 分内置窗口 / 附加窗口等分区；v1.8 附加窗口含词库管理）
   renderer/shared/     # 设计系统、通用 hooks、ErrorBoundary（v1.5）
 resources/             # 桥脚本与原生助手（smtc-bridge.ps1 / desktop-state.ps1 / desktop-state.cs + .exe，v1.7 协议含 minimized/visible）+ 托盘图标 tray-*.png
-tests/                 # 共享契约单元测试（node --test，v1.5 新增；v1.7 共 24 项）
-scripts/               # 验收辅助脚本（截屏、CDP 验收、溢出压力测试等）
+tests/                 # 契约 / 接线单元测试（node --test，v1.5 新增；v1.8 共 41 项）
+scripts/               # 验收辅助脚本（截屏、CDP 验收、溢出压力测试等；v1.8 新增 v18-verify.mjs）
 ```
 
 ## 配置与日志
 
-- 设置：`%APPDATA%\nexus-dock\settings.json`（删除即恢复默认；`schemaVersion` 当前 **10**，v1.7 新增 `extraWindows` 字段，当前为 `[]`）
+- 设置：`%APPDATA%\nexus-dock\settings.json`（删除即恢复默认；`schemaVersion` 当前 **11**（v1.8），v1.7 新增 `extraWindows` 字段，v1.8 起含 `kind=wordstudy` 配置）
+- 词库：`%APPDATA%\nexus-dock\wordbank.json`（`{ version, words }`，可直接编辑/整体替换）
+- 学习进度：`%APPDATA%\nexus-dock\wordbank-progress.json`（与词库分离，换词库不丢结构；删掉即清空进度）
 - 图标缓存：`%APPDATA%\nexus-dock\icons\`
 - 日志：`%APPDATA%\nexus-dock\logs\`

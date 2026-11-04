@@ -40,7 +40,9 @@ export default defineConfig({
           dock: resolve(__dirname, 'src/renderer/dock/index.html'),
           music: resolve(__dirname, 'src/renderer/music/index.html'),
           settings: resolve(__dirname, 'src/renderer/settings/index.html'),
-          clock: resolve(__dirname, 'src/renderer/clock/index.html')
+          clock: resolve(__dirname, 'src/renderer/clock/index.html'),
+          // v1.8 附加窗口：英语单词学习（注册表 kind=wordstudy / page=wordstudy）
+          wordstudy: resolve(__dirname, 'src/renderer/wordstudy/index.html')
         }
       }
     }

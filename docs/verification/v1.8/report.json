@@ -1,0 +1,894 @@
+{
+  "version": "1.8.0",
+  "title": "Nexus Dock v1.8 独立验收（隔离 userData + CDP）：英语单词学习附加窗口 + 词库自由修改",
+  "mode": "check",
+  "cdpPort": 9362,
+  "userDataDir": ".userdata/v18-verify",
+  "seed": {
+    "schemaVersion": 10,
+    "extraWindows": [],
+    "note": "启动前写入 v10 基线配置（无 wordstudy），验证 v10→v11 纯增量迁移；首次启动播种 59 词"
+  },
+  "startedAt": "2026-11-04T05:28:29.608Z",
+  "durationMs": 17005,
+  "summary": {
+    "total": 43,
+    "passed": 42,
+    "failed": 0,
+    "skipped": 1
+  },
+  "passed": 42,
+  "failed": 0,
+  "skipped": 1,
+  "fatal": null,
+  "environment": {
+    "appVersion": "1.8.0",
+    "electron": "44.7.0",
+    "chrome": "152.0.7977.130",
+    "node": "24.21.0",
+    "platform": "win32",
+    "isPackaged": false,
+    "installedPidsBefore": [
+      266704,
+      289840,
+      290312,
+      309088,
+      328556,
+      333068
+    ],
+    "installedPidsAfter": [
+      266704,
+      289840,
+      290312,
+      309088,
+      328556,
+      333068
+    ]
+  },
+  "checks": [
+    {
+      "id": "AC-28.0",
+      "title": "隔离实例为开发构建且版本 = 1.8.0",
+      "ok": true,
+      "status": "pass",
+      "detail": {
+        "appVersion": "1.8.0",
+        "isPackaged": false,
+        "versions": {
+          "electron": "44.7.0",
+          "chrome": "152.0.7977.130",
+          "node": "24.21.0"
+        }
+      },
+      "shots": []
+    },
+    {
+      "id": "AC-28.1a",
+      "title": "迁移：落盘 settings.json 的 schemaVersion 由种子 10 升到 11（UTF-8 无 BOM）",
+      "ok": true,
+      "status": "pass",
+      "detail": {
+        "path": ".userdata/v18-verify/settings.json",
+        "bytes": 3219,
+        "schemaVersion": 11,
+        "hasBom": false,
+        "parseError": null
+      },
+      "shots": []
+    },
+    {
+      "id": "AC-28.1b",
+      "title": "迁移：注册表自动补出 wordstudy 附加窗口配置（visible=true / 右侧 32% / 默认选项）",
+      "ok": true,
+      "status": "pass",
+      "detail": {
+        "kind": "wordstudy",
+        "visible": true,
+        "snapToEdge": true,
+        "edge": "right",
+        "alongPercent": 32,
+        "freeX": -1,
+        "freeY": -1,
+        "alwaysOnTop": true,
+        "onlyOnDesktop": false,
+        "locked": false,
+        "theme": "dark",
+        "options": {
+          "showPhonetic": true,
+          "showExample": true,
+          "hideMeaning": true,
+          "shuffle": false,
+          "autoNext": true
+        }
+      },
+      "shots": []
+    },
+    {
+      "id": "AC-28.1c",
+      "title": "迁移零丢失：Dock/音乐/时钟/锁定/外观/系统/应用列表（含 v1.6 自定义名称）全部保留",
+      "ok": true,
+      "status": "pass",
+      "detail": {
+        "dock": {
+          "edge": "bottom",
+          "alongPercent": 50,
+          "snapToEdge": false,
+          "freeX": -1,
+          "freeY": -1,
+          "onlyOnDesktop": true,
+          "iconSize": 52,
+          "magnification": 1.3,
+          "gap": 12,
+          "padding": 16,
+          "showIndicators": true,
+          "alwaysOnTop": true,
+          "acrylic": false,
+          "opacity": 0.35,
+          "theme": "dark"
+        },
+        "music": {
+          "visible": false,
+          "source": "system",
+          "anchor": "dock",
+          "snapToEdge": true,
+          "edge": "bottom",
+          "alongPercent": 50,
+          "freeX": -1,
+          "freeY": -1,
+          "width": 330,
+          "progressStyle": "ring",
+          "alwaysOnTop": true,
+          "onlyOnDesktop": false,
+          "theme": "light"
+        },
+        "clock": {
+          "visible": false,
+          "showSeconds": true,
+          "showDate": false,
+          "hour12": true,
+          "fontSize": 44,
+          "opacity": 0.9,
+          "alwaysOnTop": true,
+          "onlyOnDesktop": false,
+          "snapToEdge": true,
+          "theme": "light",
+          "freeX": 120,
+          "freeY": 140
+        },
+        "appearance": {
+          "motionIntensity": "light",
+          "reducedMotion": true,
+          "clickSound": true
+        },
+        "apps": 6,
+        "firstAppCustomName": "我的文件（v10 自定义名）"
+      },
+      "shots": []
+    },
+    {
+      "id": "AC-28.1d",
+      "title": "启动：首次运行播种词库文件（{version:1, words:59}，只含 version/words 两个键）",
+      "ok": true,
+      "status": "pass",
+      "detail": {
+        "path": ".userdata/v18-verify/wordbank.json",
+        "bytes": 10017,
+        "version": 1,
+        "count": 59,
+        "keys": [
+          "version",
+          "words"
+        ],
+        "hasBom": false
+      },
+      "shots": []
+    },
+    {
+      "id": "AC-28.1e",
+      "title": "迁移日志：主进程记录了「已从 v10 迁移到 v11」",
+      "ok": true,
+      "status": "pass",
+      "detail": {
+        "found": true,
+        "path": ".userdata/v18-verify/launch.out.log",
+        "line": "已从 v10 迁移到 v11"
+      },
+      "shots": []
+    },
+    {
+      "id": "AC-28.2a",
+      "title": "/wordstudy/ 页面在隔离实例中存在（注册表 page ↔ vite 入口 ↔ 实际加载一致）",
+      "ok": true,
+      "status": "pass",
+      "detail": {
+        "url": "file:///E:/AI%20WorkRegion/app_creator/out/renderer/wordstudy/index.html",
+        "targets": [
+          "file:///E:/AI%20WorkRegion/app_creator/out/renderer/dock/index.html",
+          "file:///E:/AI%20WorkRegion/app_creator/out/renderer/wordstudy/index.html"
+        ]
+      },
+      "shots": []
+    },
+    {
+      "id": "AC-28.2b",
+      "title": "学习卡片页 title 正确、.ws-root 存在且渲染出单词",
+      "ok": true,
+      "status": "pass",
+      "detail": {
+        "title": "Nexus 英语单词学习",
+        "view": "study",
+        "theme": "dark",
+        "locked": null,
+        "innerW": 362,
+        "innerH": 252,
+        "rootW": 360,
+        "rootH": 250.33334350585938,
+        "word": "ability",
+        "phonetic": "/əˈbɪləti/",
+        "meaningRevealed": "false",
+        "status": "未学",
+        "progress": "1 / 59",
+        "stats": "已掌握 0/共 59",
+        "bankWords": 59,
+        "hasRoot": true
+      },
+      "shots": []
+    },
+    {
+      "id": "AC-28.2c",
+      "title": "学习视图默认状态：深色主题 / 未锁定 / 释义默认遮住 / 进度 1 / 59",
+      "ok": true,
+      "status": "pass",
+      "detail": {
+        "title": "Nexus 英语单词学习",
+        "view": "study",
+        "theme": "dark",
+        "locked": null,
+        "innerW": 362,
+        "innerH": 252,
+        "rootW": 360,
+        "rootH": 250.33334350585938,
+        "word": "ability",
+        "phonetic": "/əˈbɪləti/",
+        "meaningRevealed": "false",
+        "status": "未学",
+        "progress": "1 / 59",
+        "stats": "已掌握 0/共 59",
+        "bankWords": 59,
+        "hasRoot": true
+      },
+      "shots": []
+    },
+    {
+      "id": "AC-28.2d",
+      "title": "C7 尺寸自适应：学习视图 .ws-root 尺寸 ≈ innerWidth/innerHeight（360×250 级，无隐形点击区）",
+      "ok": true,
+      "status": "pass",
+      "detail": {
+        "inner": [
+          362,
+          252
+        ],
+        "root": [
+          360,
+          250.33334350585938
+        ]
+      },
+      "shots": []
+    },
+    {
+      "id": "AC-28.2e",
+      "title": "截图：wordstudy-study-dark.png（深色学习卡片）",
+      "ok": true,
+      "status": "pass",
+      "detail": {
+        "shot": "docs/verification/v1.8/wordstudy-study-dark.png"
+      },
+      "shots": [
+        "docs/verification/v1.8/wordstudy-study-dark.png"
+      ]
+    },
+    {
+      "id": "AC-28.3a",
+      "title": "点「显示释义」后 data-revealed=true 且释义文本非空",
+      "ok": true,
+      "status": "pass",
+      "detail": {
+        "revealed": "true",
+        "text": "n. 能力；才能"
+      },
+      "shots": []
+    },
+    {
+      "id": "AC-28.3b",
+      "title": "「下一词」切换单词并在切词后重新遮住释义，「上一词」能切回原词",
+      "ok": true,
+      "status": "pass",
+      "detail": {
+        "before": "ability",
+        "afterNext": "achieve",
+        "afterPrev": "ability",
+        "revealedAfterNext": "false"
+      },
+      "shots": []
+    },
+    {
+      "id": "AC-28.3c",
+      "title": "快捷键：空格显示释义、→ 切到下一词",
+      "ok": true,
+      "status": "pass",
+      "detail": {
+        "first": "ability",
+        "afterSpace": "true",
+        "afterRight": "achieve"
+      },
+      "shots": []
+    },
+    {
+      "id": "AC-28.3d",
+      "title": "标记「认识」→ 进度 status=mastered、seen/remembered≥1；autoNext 关闭时停留在当前词",
+      "ok": true,
+      "status": "pass",
+      "detail": {
+        "word": "achieve",
+        "key": "achieve",
+        "progress": {
+          "status": "mastered",
+          "seen": 1,
+          "remembered": 1,
+          "lastSeenAt": 1793770111532
+        },
+        "wordAfterMark": "achieve",
+        "stats": "已掌握 1/共 59"
+      },
+      "shots": []
+    },
+    {
+      "id": "AC-28.3e",
+      "title": "统计区「已掌握」数字随标记变化",
+      "ok": true,
+      "status": "pass",
+      "detail": "已掌握 1/共 59",
+      "shots": []
+    },
+    {
+      "id": "AC-28.4a",
+      "title": "窗口内词库管理视图：打开成功、59 行、工具栏齐全（搜索/新增/导入/导出/打开文件/重新读取/恢复默认/重置进度）",
+      "ok": true,
+      "status": "pass",
+      "detail": {
+        "hasEditor": true,
+        "count": "共 59 词",
+        "rows": 59,
+        "search": true,
+        "add": true,
+        "importBtn": true,
+        "exportBtn": true,
+        "openFile": true,
+        "reload": true,
+        "resetWords": true,
+        "resetProgress": true,
+        "path": "词库文件：E:\\AI WorkRegion\\app_creator\\.userdata\\v18-verify\\wordbank.json",
+        "innerW": 482,
+        "innerH": 548
+      },
+      "shots": []
+    },
+    {
+      "id": "AC-28.4b",
+      "title": "词库管理视图展示 wordbank.json 路径，且 C7 尺寸切换到编辑视图（480 级宽 / 540 级高）",
+      "ok": true,
+      "status": "pass",
+      "detail": {
+        "path": "词库文件：E:\\AI WorkRegion\\app_creator\\.userdata\\v18-verify\\wordbank.json",
+        "inner": [
+          482,
+          548
+        ]
+      },
+      "shots": []
+    },
+    {
+      "id": "AC-28.4c",
+      "title": "截图：wordstudy-editor-dark.png（词库管理视图）",
+      "ok": true,
+      "status": "pass",
+      "detail": {
+        "shot": "docs/verification/v1.8/wordstudy-editor-dark.png"
+      },
+      "shots": [
+        "docs/verification/v1.8/wordstudy-editor-dark.png"
+      ]
+    },
+    {
+      "id": "AC-28.4d",
+      "title": "途径①（窗口内新增）：表单保存 → 内存 60 词、wordbank.json 落盘 60 词且仍只含 version/words",
+      "ok": true,
+      "status": "pass",
+      "detail": {
+        "ui": {
+          "fields": [
+            true,
+            true,
+            true,
+            true
+          ],
+          "total": 60,
+          "last": {
+            "word": "cdp-verify-word",
+            "phonetic": "/siː diː piː/",
+            "meaning": "CDP 验收词条",
+            "example": "This word was added by the v18-verify CDP script."
+          },
+          "count": "共 60 词",
+          "toast": "已添加「cdp-verify-word」"
+        },
+        "disk": {
+          "count": 60,
+          "keys": [
+            "version",
+            "words"
+          ]
+        }
+      },
+      "shots": []
+    },
+    {
+      "id": "AC-28.4e",
+      "title": "途径③（外部编辑 + 重新读取）：裸数组 wordbank.json 被识别为 2 词；「重新读取」只读不写、不覆盖用户文件",
+      "ok": true,
+      "status": "pass",
+      "detail": {
+        "ui": {
+          "total": 2,
+          "words": [
+            "external-edit",
+            "second-word"
+          ],
+          "count": "共 2 词",
+          "toast": "已重新读取磁盘文件：2 个单词"
+        },
+        "diskStillBareArray": true
+      },
+      "shots": []
+    },
+    {
+      "id": "AC-28.4f",
+      "title": "返回学习视图显示重新读取后的 2 词词库（1 / 2）",
+      "ok": true,
+      "status": "pass",
+      "detail": {
+        "word": "external-edit",
+        "progress": "1 / 2"
+      },
+      "shots": []
+    },
+    {
+      "id": "AC-28.4g",
+      "title": "截图：wordstudy-study-2words.png（外部替换词库后的学习视图）",
+      "ok": true,
+      "status": "pass",
+      "detail": {
+        "shot": "docs/verification/v1.8/wordstudy-study-2words.png"
+      },
+      "shots": [
+        "docs/verification/v1.8/wordstudy-study-2words.png"
+      ]
+    },
+    {
+      "id": "AC-28.4h",
+      "title": "途径②（恢复默认）：确认弹窗后恢复 59 词并清空进度，文件重新落盘",
+      "ok": true,
+      "status": "pass",
+      "detail": {
+        "total": 59,
+        "progressKeys": 0,
+        "count": "共 59 词",
+        "toast": "已恢复默认词库：59 个单词（进度已清空）"
+      },
+      "shots": []
+    },
+    {
+      "id": "AC-28.4i",
+      "title": "窗口内删除词条（确认弹窗）→ 58 词并落盘",
+      "ok": true,
+      "status": "pass",
+      "detail": {
+        "total": 58,
+        "count": "共 58 词"
+      },
+      "shots": []
+    },
+    {
+      "id": "AC-28.4j",
+      "title": "途径②的导入 / 导出（原生文件对话框）与「打开词库文件」：自动化跳过，列入手动项",
+      "ok": null,
+      "status": "skip",
+      "detail": {
+        "manualItems": [
+          "M-28.4",
+          "M-28.4b"
+        ]
+      },
+      "shots": []
+    },
+    {
+      "id": "AC-28.5a",
+      "title": "主题切换即时生效：设置改成浅色 + 关闭「先遮住释义」后卡片 data-theme=light 且释义常显",
+      "ok": true,
+      "status": "pass",
+      "detail": {
+        "theme": "light",
+        "revealed": "true"
+      },
+      "shots": []
+    },
+    {
+      "id": "AC-28.5b",
+      "title": "截图：wordstudy-study-light.png（浅色主题学习卡片）",
+      "ok": true,
+      "status": "pass",
+      "detail": {
+        "shot": "docs/verification/v1.8/wordstudy-study-light.png"
+      },
+      "shots": [
+        "docs/verification/v1.8/wordstudy-study-light.png"
+      ]
+    },
+    {
+      "id": "AC-28.5c",
+      "title": "从 Dock 打开设置窗口并连上 CDP",
+      "ok": true,
+      "status": "pass",
+      "detail": {
+        "opened": true
+      },
+      "shots": []
+    },
+    {
+      "id": "AC-28.5d",
+      "title": "设置页「窗口 → 附加窗口」出现「英语单词学习」折叠栏并可展开，渲染 .ws-settings",
+      "ok": true,
+      "status": "pass",
+      "detail": {
+        "navClicked": {
+          "clicked": true
+        },
+        "accordion": {
+          "found": true
+        },
+        "extraPage": {
+          "hasSettings": true,
+          "stats": "共 58 词已掌握 0学习中 0未学 58",
+          "path": "词库文件：E:\\AI WorkRegion\\app_creator\\.userdata\\v18-verify\\wordbank.json",
+          "switches": 5,
+          "actions": 6,
+          "actionLabels": [
+            "导入词库",
+            "导出词库",
+            "打开词库文件",
+            "重新读取文件",
+            "恢复默认词库",
+            "重置学习进度"
+          ],
+          "oldEmptyText": false
+        }
+      },
+      "shots": []
+    },
+    {
+      "id": "AC-28.5e",
+      "title": "设置页词库概览：共 58 词 / 已掌握 / 学习中 / 未学 + wordbank.json 路径",
+      "ok": true,
+      "status": "pass",
+      "detail": {
+        "stats": "共 58 词已掌握 0学习中 0未学 58",
+        "path": "词库文件：E:\\AI WorkRegion\\app_creator\\.userdata\\v18-verify\\wordbank.json"
+      },
+      "shots": []
+    },
+    {
+      "id": "AC-28.5f",
+      "title": "设置页 5 个学习选项开关 + 6 个词库管理按钮（文案与顺序正确），旧空状态文案已移除",
+      "ok": true,
+      "status": "pass",
+      "detail": {
+        "switches": 5,
+        "actionLabels": [
+          "导入词库",
+          "导出词库",
+          "打开词库文件",
+          "重新读取文件",
+          "恢复默认词库",
+          "重置学习进度"
+        ],
+        "oldEmptyText": false
+      },
+      "shots": []
+    },
+    {
+      "id": "AC-28.5g",
+      "title": "截图：settings-extra-windows.png（设置页附加窗口展开）",
+      "ok": true,
+      "status": "pass",
+      "detail": {
+        "shot": "docs/verification/v1.8/settings-extra-windows.png"
+      },
+      "shots": [
+        "docs/verification/v1.8/settings-extra-windows.png"
+      ]
+    },
+    {
+      "id": "AC-28.5h",
+      "title": "设置页开关写回 settings.extraWindows[].options（showPhonetic 翻转）",
+      "ok": true,
+      "status": "pass",
+      "detail": {
+        "beforeVal": true,
+        "afterVal": false
+      },
+      "shots": []
+    },
+    {
+      "id": "AC-28.5i",
+      "title": "设置页危险操作先出二次确认条（.nx-confirm-bar），点取消不执行",
+      "ok": true,
+      "status": "pass",
+      "detail": {
+        "shown": true,
+        "text": "恢复默认词库会用内置词库替换当前词库，并清空学习进度，确定继续？取消确认恢复",
+        "canceled": true
+      },
+      "shots": []
+    },
+    {
+      "id": "AC-28.5j",
+      "title": "设置页「重新读取文件」可执行并显示结果消息（.ws-settings-msg）",
+      "ok": true,
+      "status": "pass",
+      "detail": {
+        "clicked": true,
+        "msg": "已重新读取词库文件：共 58 个单词"
+      },
+      "shots": []
+    },
+    {
+      "id": "AC-28.6a",
+      "title": "点卡片「隐藏」按钮 → 配置 visible=false（窗口隐藏，可从托盘/设置恢复）",
+      "ok": true,
+      "status": "pass",
+      "detail": {
+        "visible": false
+      },
+      "shots": []
+    },
+    {
+      "id": "AC-28.6b",
+      "title": "Dock 回归：页面正常渲染 6 个图标（种子配置）、无空状态、preload 暴露 wordBank API",
+      "ok": true,
+      "status": "pass",
+      "detail": {
+        "title": "Nexus Dock",
+        "hasRoot": true,
+        "hasNexus": true,
+        "itemCount": 6,
+        "empty": false
+      },
+      "shots": []
+    },
+    {
+      "id": "AC-28.6c",
+      "title": "页面无 console error / 未捕获异常（Dock / 单词窗口 / 设置页，已过滤已知网络与安全警告噪声）",
+      "ok": true,
+      "status": "pass",
+      "detail": {
+        "counts": {
+          "dock": 0,
+          "wordstudy": 0,
+          "settings": 0
+        },
+        "items": [],
+        "totalDiagnostics": 0
+      },
+      "shots": []
+    },
+    {
+      "id": "AC-28.6d",
+      "title": "安全边界：用户安装版（NexusDockApp）进程 PID 全程未变（未触碰真实环境）",
+      "ok": true,
+      "status": "pass",
+      "detail": {
+        "before": [
+          266704,
+          289840,
+          290312,
+          309088,
+          328556,
+          333068
+        ],
+        "after": [
+          266704,
+          289840,
+          290312,
+          309088,
+          328556,
+          333068
+        ],
+        "note": null
+      },
+      "shots": []
+    },
+    {
+      "id": "AC-28.7a",
+      "title": "工程门禁：npx tsc --noEmit 退出码 0",
+      "ok": true,
+      "status": "pass",
+      "detail": {
+        "exitCode": 0
+      },
+      "shots": []
+    },
+    {
+      "id": "AC-28.7b",
+      "title": "工程门禁：契约测试 24 项 + 词库 9 项 + 静态接线门禁全部通过、0 失败",
+      "ok": true,
+      "status": "pass",
+      "detail": [
+        {
+          "file": "tests/shared-contract.test.mjs",
+          "expectAtLeast": 24,
+          "label": "共享契约测试",
+          "exists": true,
+          "exitCode": 0,
+          "pass": 24,
+          "fail": 0,
+          "ok": true,
+          "spawnBlocked": false
+        },
+        {
+          "file": "tests/wordbank-contract.test.mjs",
+          "expectAtLeast": 9,
+          "label": "词库契约测试",
+          "exists": true,
+          "exitCode": 0,
+          "pass": 9,
+          "fail": 0,
+          "ok": true,
+          "spawnBlocked": false
+        },
+        {
+          "file": "tests/wiring.test.mjs",
+          "expectAtLeast": 1,
+          "label": "静态接线门禁",
+          "exists": true,
+          "exitCode": 0,
+          "pass": 8,
+          "fail": 0,
+          "ok": true,
+          "spawnBlocked": false
+        }
+      ],
+      "shots": []
+    },
+    {
+      "id": "AC-28.7c",
+      "title": "构建产物：package.json = 1.8.0，out/main/index.js 与 out/renderer/wordstudy/index.html 存在",
+      "ok": true,
+      "status": "pass",
+      "detail": {
+        "packageVersion": "1.8.0",
+        "outMain": true,
+        "outWordstudyHtml": true,
+        "note": "out/ 由 Lead 预先构建，本脚本不重建，避免与运行中的隔离实例冲突"
+      },
+      "shots": []
+    }
+  ],
+  "screenshots": [
+    "docs/verification/v1.8/wordstudy-study-dark.png",
+    "docs/verification/v1.8/wordstudy-editor-dark.png",
+    "docs/verification/v1.8/wordstudy-study-2words.png",
+    "docs/verification/v1.8/wordstudy-study-light.png",
+    "docs/verification/v1.8/settings-extra-windows.png"
+  ],
+  "gates": {
+    "typecheck": {
+      "exitCode": 0,
+      "ok": true
+    },
+    "tests": [
+      {
+        "file": "tests/shared-contract.test.mjs",
+        "expectAtLeast": 24,
+        "label": "共享契约测试",
+        "exists": true,
+        "exitCode": 0,
+        "pass": 24,
+        "fail": 0,
+        "ok": true,
+        "spawnBlocked": false
+      },
+      {
+        "file": "tests/wordbank-contract.test.mjs",
+        "expectAtLeast": 9,
+        "label": "词库契约测试",
+        "exists": true,
+        "exitCode": 0,
+        "pass": 9,
+        "fail": 0,
+        "ok": true,
+        "spawnBlocked": false
+      },
+      {
+        "file": "tests/wiring.test.mjs",
+        "expectAtLeast": 1,
+        "label": "静态接线门禁",
+        "exists": true,
+        "exitCode": 0,
+        "pass": 8,
+        "fail": 0,
+        "ok": true,
+        "spawnBlocked": false
+      }
+    ],
+    "build": {
+      "packageVersion": "1.8.0",
+      "outMain": true,
+      "outWordstudyHtml": true
+    }
+  },
+  "manualItems": [
+    {
+      "id": "M-28.4",
+      "title": "导入 / 导出词库的原生文件对话框",
+      "reason": "主进程使用 dialog.showOpenDialog / showSaveDialog，CDP 无法操作系统原生对话框；代码路径已静态审查（含 JSON 解析失败、空词条、取消等分支）。",
+      "how": "打开单词窗口 → 词库 → 导出词库（另存为 JSON）→ 删掉一个词 → 导入刚导出的 JSON → 确认词条恢复；再点「导入」后取消，确认不报错。"
+    },
+    {
+      "id": "M-28.4b",
+      "title": "「打开词库文件」唤起系统默认编辑器",
+      "reason": "会启动外部程序（记事本 / VSCode），自动化不点击，避免污染桌面与文件句柄。",
+      "how": "单词窗口 → 词库 → 打开词库文件 → 确认用默认程序打开了 wordbank.json；改一个释义保存 → 回窗口点「重新读取」→ 确认卡片释义已更新。"
+    },
+    {
+      "id": "M-28.5",
+      "title": "托盘菜单 / Dock 右键的「英语单词学习」显隐入口",
+      "reason": "系统托盘与原生右键菜单不可通过 CDP 稳定驱动（Tray 由主进程原生渲染）。",
+      "how": "单击托盘图标 → 右键菜单应出现「英语单词学习」相关项；切换显示/隐藏后设置里 visible 同步；Dock 右键菜单同样检查。"
+    },
+    {
+      "id": "M-28.6",
+      "title": "真实拖动 / 吸附 / 锁定 / 仅在桌面显示",
+      "reason": "脚本只验证配置字段、窗口几何与布局 IPC，不模拟真实鼠标拖动（会与用户桌面操作冲突）。",
+      "how": "拖动单词卡片到屏幕边缘松手应吸附；在设置里开关「自动吸附屏幕边缘 / 锁定位置 / 仅在桌面显示」各试一次；打开一个最大化窗口确认卡片按选项隐藏/保留。"
+    },
+    {
+      "id": "M-28.6b",
+      "title": "真实桌面合成观感（透明 / 圆角 / 主题切换）",
+      "reason": "截图来自 CDP Page.captureScreenshot，只渲染页面本身，不含 Windows 桌面合成、阴影与亚克力效果。",
+      "how": "在真实桌面上切换深色/浅色主题，确认卡片背景、文字对比度与圆角观感；确认没有「看得见但点不到 / 点得到但看不见」的透明区域。"
+    }
+  ],
+  "diagnostics": {
+    "total": 0,
+    "real": 0,
+    "items": [],
+    "ignored": 0,
+    "notes": "只统计页面自身 error；ignored 为已知网络/媒体/安全警告噪声"
+  },
+  "notes": [
+    "本脚本只操作隔离 userData（.userdata/v18-verify）与命令行含 v18-verify 的 electron.exe，不触碰安装版 NexusDockApp。",
+    "启动（PowerShell 手工方式）必须用单条带引号的参数字符串，否则仓库路径空格会把 --user-data-dir 拆坏；且要先 Remove-Item Env:ELECTRON_RUN_AS_NODE。",
+    "导入/导出原生对话框、托盘/Dock 右键菜单、真实拖动吸附、桌面合成观感列入手动项（见 manualItems）。",
+    "out/ 由 Lead 预先构建，本脚本不重建，避免与运行中的隔离实例冲突。"
+  ],
+  "safety": {
+    "scope": "仅隔离实例 electron.exe（命令行含 v18-verify）与 .userdata/v18-verify",
+    "forbidden": [
+      "按进程名 Stop-Process 全部 electron.exe",
+      "操作安装版 NexusDockApp 窗口",
+      "读写 %APPDATA%\\nexus-dock"
+    ],
+    "installedPidsUntouched": true
+  }
+}

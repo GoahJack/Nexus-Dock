@@ -1,9 +1,9 @@
 # WINDOW CONVENTIONS — Nexus Dock 悬浮窗口行为准则 v1.0
 
-> 状态：已定稿（2026-10-30，用户决策：**今后所有窗口都要有「自动吸附屏幕边缘」开关**，并沉淀为强制准则；v1.3 用户再次确认：**吸附/始终置顶/仅在桌面显示等共性项统一放「系统」页，用折叠栏按窗口单独设置；窗口缺少的共性选项必须补齐**；v1.7 用户确认：**设置导航按「窗口」分组，共性项入口迁移到「窗口 → 内置窗口」，并新增注册表驱动的「附加窗口」接入位（当前空栏）**）。
-> 适用范围：Dock、音乐卡片、桌面时钟，以及**今后新增的任何桌面悬浮窗口**（内置或附加窗口）。
+> 状态：已定稿（2026-10-30，用户决策：**今后所有窗口都要有「自动吸附屏幕边缘」开关**，并沉淀为强制准则；v1.3 用户再次确认：**吸附/始终置顶/仅在桌面显示等共性项统一放「系统」页，用折叠栏按窗口单独设置；窗口缺少的共性选项必须补齐**；v1.7 用户确认：**设置导航按「窗口」分组，共性项入口迁移到「窗口 → 内置窗口」，并新增注册表驱动的「附加窗口」接入位**；v1.8：**接入位注册首个真实实例「英语单词学习」（kind=`wordstudy`）**，同步验证了「窗口内数据不进 settings」的扩展方式）。
+> 适用范围：Dock、音乐卡片、桌面时钟、**英语单词学习（v1.8 附加窗口）**，以及**今后新增的任何桌面悬浮窗口**（内置或附加窗口）。
 > 本文件是窗口能力的**唯一标准真源**。新增窗口先对照本准则，再写 spec/plan，不允许「先实现后补准则」。
-> 关联文档：`docs/spec.md` §13、`docs/plan.md` §18、`docs/motion-spec.md`、`docs/verification.md` §v1.7。
+> 关联文档：`docs/spec.md` §13/§14、`docs/plan.md` §18/§19、`docs/motion-spec.md`、`docs/verification.md` §v1.7/§v1.8。
 
 ## 1. 设计原则
 
@@ -39,11 +39,11 @@
 
 | 规则 | 内容 |
 |---|---|
-| 导航分组（v1.7） | 设置左侧导航按「**窗口** / 应用 / 外观 / 系统 / 关于」分组；「窗口」组含**内置窗口**（Dock/音乐/时钟合并为一页）与**附加窗口**（注册表驱动，当前空栏）。不再保留 Dock / 音乐 / 时钟三个独立导航项 |
+| 导航分组（v1.7） | 设置左侧导航按「**窗口** / 应用 / 外观 / 系统 / 关于」分组；「窗口」组含**内置窗口**（Dock/音乐/时钟合并为一页）与**附加窗口**（注册表驱动，v1.8 起已含「英语单词学习」）。不再保留 Dock / 音乐 / 时钟三个独立导航项 |
 | 共性归「内置窗口」页 | 吸附、始终置顶、仅在桌面显示、位置锁定、移回默认位置等**所有窗口共有的行为**，统一放在「窗口 → 内置窗口」中管理；「系统」页不再承载窗口共性设置，只保留启动项与跳转按钮 |
 | 折叠栏单窗口管理 | 内置窗口页按窗口提供折叠栏（Dock / 音乐卡片 / 桌面时钟）；**默认全部收起**，标题行右侧展示状态摘要（如「吸附开 · 置顶开 · 始终显示 · 未锁定」），展开后单独调整共有开关 + 该窗口独有设置 |
 | 独有归窗口 | 窗口独有特性放在同一折叠栏的「该窗口独有设置」区域：Dock=停靠边/沿边位置/图标/背景/主题；音乐卡片=显示/来源/卡片宽度/进度样式/卡片位置；时钟=显示内容/字号/透明度/主题 |
-| 附加窗口注册表驱动 | 附加窗口在「窗口 → 附加窗口」按 `EXTRA_WINDOW_KINDS` 渲染；注册表为空时显示「暂无附加窗口」空状态 + 接入说明；新增窗口**不新增导航项**，页面自动出现 |
+| 附加窗口注册表驱动 | 附加窗口在「窗口 → 附加窗口」按 `EXTRA_WINDOW_KINDS` 渲染；v1.8 注册了 `wordstudy`，页面自动出现「英语单词学习」折叠栏；**只有注册表为空时**才显示「暂无附加窗口」空状态 + 接入说明；新增窗口**不新增导航项**，页面自动出现 |
 | 能力一致 | 若某窗口缺少某项共性能力（尤其吸附/置顶/仅在桌面/锁定），**必须补齐**，不允许只在部分窗口提供；新增字段同时补 `schemaVersion` 迁移 |
 | 默认值稳定 | 新增共性开关的默认值必须保留该窗口既有观感（例如 Dock `onlyOnDesktop=true`，音乐/时钟 `onlyOnDesktop=false`），避免升级后行为突变 |
 
@@ -92,7 +92,7 @@
 > 定义区分：
 > - **内置窗口** = 随 Nexus 交付、配置字段写死在 `Settings.dock / music / clock` 的窗口：**Dock、音乐卡片、桌面时钟**。
 > - **附加窗口** = 以后新增、只登记在 `EXTRA_WINDOW_KINDS` 注册表的功能窗口（如天气卡片、便签）。它们复用 §2 的全部强制能力，但不新增配置组、不新增导航项。
-> - v1.7 的 `EXTRA_WINDOW_KINDS` 是**空数组**（预留接入位），因此「窗口 → 附加窗口」显示「暂无附加窗口」空状态；这是预期状态，不是加载失败。
+> - v1.7 只预留接入位；v1.8 起注册表已有首个真实实例 **`wordstudy`（英语单词学习）**，「窗口 → 附加窗口」显示其折叠栏（实测见 `docs/verification.md` §v1.8）。清空注册表时才会回到「暂无附加窗口」空状态，这是预期状态，不是加载失败。
 
 ### 5.1 注册表模型（唯一登记处）
 
@@ -100,7 +100,7 @@
 |---|---|---|
 | `WindowKindSpec` | `src/shared/types.ts` | 窗口类型元数据：`kind`（唯一键，同时是配置实例键）、`label`、`description`、`category`（`builtin`/`extra`）、`page`（渲染页目录名，与 `electron.vite.config.ts` 的 `renderer.input` 同名）、`defaultSize`、`defaults`（visible/snapToEdge/edge/alongPercent/alwaysOnTop/onlyOnDesktop/locked/theme）、`placement`（默认停靠边/沿边位置）、`defaultOptions`（独有选项默认值） |
 | `BUILTIN_WINDOW_SPECS` | `src/shared/types.ts` | 内置窗口注册表（`dock` / `music` / `clock`），设置页分组、托盘入口、锁定汇总从这张表驱动 |
-| `EXTRA_WINDOW_KINDS` | `src/shared/types.ts` | 附加窗口注册表，v1.7 为空数组；新增功能窗口只在这里登记 |
+| `EXTRA_WINDOW_KINDS` | `src/shared/types.ts` | 附加窗口注册表；v1.8 起含 `wordstudy`（英语单词学习），新增功能窗口只在这里登记 |
 | `ExtraWindowConfig` | `src/shared/types.ts` | 附加窗口**只存状态**：visible / snapToEdge / edge / alongPercent / freeX / freeY / alwaysOnTop / onlyOnDesktop / locked / theme / options；类型信息一律来自注册表 |
 | `normalizeExtraWindows` / `sanitizeWindowOptions` | `src/shared/types.ts` | 收敛入口：按注册表逐 kind 生成配置、丢弃未知/重复 kind；`options` 只保留 JSON 安全标量（字符串 ≤2000、键 ≤64） |
 | `src/main/extraWindows.ts` | 主进程 | 通用管理器：按注册表创建/销毁、加载 `src/renderer/<page>/`、内容尺寸、拖动落盘、吸附、锁定、置顶、仅在桌面、托盘/Dock 右键菜单项 |
@@ -132,15 +132,17 @@
 - **options 只存 JSON 标量**：数组/函数/超长键丢弃，字符串截断 2000 字符；默认值只来自注册表 `defaultOptions`。
 - **能力完整**：附加窗口同样受 §2 强制能力约束，缺项不得合入；新增 IPC 通道必须登记 `IPC` 常量 + preload 白名单。
 - **默认值稳定**：注册表 `defaults`/`placement` 必须声明清楚，避免升级后窗口位置/显隐突变。
+- **窗口内业务数据不进 `options`**（v1.8 接入经验）：`options` 只允许 JSON 安全标量，适合放少量偏好（如 5 个布尔学习选项）；像「词库 + 学习进度」这种可能上千条、用户还要手工编辑的数据，**不能塞进 settings.json**。正确做法是单独文件存储（`userData/wordbank.json`、`userData/wordbank-progress.json`），由专属主进程模块负责原子写 / 损坏备份 / sanitize，通过独立 IPC 通道读写并广播变更；设置页只展示统计与文件路径，不搬运数据本体。这样 `settings.json` 体积稳定、可读，词库也能被任意编辑器/脚本整体替换。
 
 ### 5.5 验收要求
 
 - **契约测试**（`npm test`，不需要 Electron）：注册表 kind/page 唯一、`normalizeExtraWindows` 对未知/重复 kind 丢弃、`sanitizeWindowOptions` 标量白名单、`hasOnlyOnDesktopWindow` 覆盖附加窗口、`windowLockSummary` n/N 汇总、`withAllWindowsLocked` 同时锁内置+附加、`patchExtraWindows` 纯函数、桌面占用判定 `isDesktopBusy`（最小化/不可见不算占用，是「显示桌面」bug 的回归点）。
-- **运行时验收**：临时注册一个 kind → 设置页自动出现折叠栏、托盘/Dock 右键出现显隐项、开关落盘、吸附/锁定/置顶/仅在桌面生效；移除该 kind → 配置收敛为空、不残留窗口。
-- **迁移验收**：旧 `settings.json`（schemaVersion 9）升级到 10 后 `extraWindows` 补 `[]`，其余设置零丢失。
-- 具体结果写入 `docs/verification.md` §v1.7（由验收脚本生成），本节只定义要求。
+- **运行时验收**：临时注册一个 kind → 设置页自动出现折叠栏、托盘/Dock 右键出现显隐项、开关落盘、吸附/锁定/置顶/仅在桌面生效；移除该 kind → 配置收敛为空、不残留窗口。v1.8 已用 `wordstudy` 实例完整走通该链路（CDP 运行时 42/43，见 §v1.8）。
+- **迁移验收**：旧 `settings.json`（schemaVersion 9）升级到 10 后 `extraWindows` 补 `[]`，其余设置零丢失；schemaVersion 10 升级到 11 时按注册表补出 `wordstudy`，旧配置同样零丢失（v1.8 实测见 `docs/verification.md` §v1.8）。
+- **接线门禁**（v1.8 新增）：`tests/wiring.test.mjs` 用静态断言钉住「IPC 声明 ↔ 主进程 handler ↔ preload」「注册表 ↔ 渲染页 ↔ vite 入口 ↔ `loadRenderer(spec.page)`」「设置页 `EXTRA_WINDOW_SETTINGS` 注册」与「DOM class 契约」，防止单测全绿但窗口按钮没反应。
+- 具体结果写入 `docs/verification.md` §v1.7 / §v1.8（由验收脚本生成），本节只定义要求。
 
-## 6. 当前窗口符合性矩阵（v1.7）
+## 6. 当前窗口符合性矩阵（v1.7 / v1.8）
 
 | 能力 | Dock | 音乐卡片 | 桌面时钟 | 设置窗口（豁免） |
 |---|---|---|---|---|
@@ -156,21 +158,23 @@
 | C11 仅在桌面显示 | ✅ `dock.onlyOnDesktop`（默认开，v0.2） | ✅ `music.onlyOnDesktop`（v1.3 补齐，默认关） | ✅ `clock.onlyOnDesktop`（v1.3 补齐，默认关） | 豁免 |
 | C12 移回默认位置 | ✅ → 底部居中 | ✅ → 跟随 Dock | ✅ → 主屏右上角 | 豁免 |
 
-**附加窗口（注册表驱动，v1.7）**：
+**附加窗口（注册表驱动，v1.7 机制 / v1.8 首个实例）**：
 
-| 能力 | 附加窗口（接入后自动具备） | 说明 |
-|---|---|---|
-| C1 显示/隐藏 | ✅ `visible` + 托盘/Dock 右键菜单项 | 注册表驱动生成，无需改设置页 |
-| C2/C3 位置 + 吸附 | ✅ `snapToEdge` / `edge` / `alongPercent` / `freeX` / `freeY` | 12px 边距、最近边规则与内置窗口一致 |
-| C4 位置锁定 | ✅ `locked`（n/N 汇总计入） | 与内置窗口共用总开关补丁 |
-| C5 始终置顶 | ✅ `alwaysOnTop` | 创建与设置变更时生效 |
-| C7 尺寸自适应 | ✅ `setOwnContentSize`（按 IPC sender 定位） | 首次尺寸回报前不显示 |
-| C8 配置迁移 | ✅ schemaVersion 10，未知 kind 丢弃 | 注册表逐 kind 补默认 |
-| C11 仅在桌面显示 | ✅ `onlyOnDesktop`（并入桌面状态桥） | v1.7 修复「显示桌面」后不恢复 |
-| C12 移回默认位置 | ✅ 清空自由坐标、回落到注册表默认停靠位置 | 折叠栏内按钮 |
-| C6 统一动效 / C10 验收 | 新页面自行遵循 `motion.css` 令牌，并按 §4.1/§5.5 验收 | 当前注册表为空，无实例 |
+| 能力 | 附加窗口通用机制（接入后自动具备） | `wordstudy`（英语单词学习，v1.8） | 说明 |
+|---|---|---|---|
+| C1 显示/隐藏 | ✅ `visible` + 托盘/Dock 右键菜单项 | ✅ 卡片右上 ✕ / 托盘 / Dock 右键 / 设置折叠栏 | 注册表驱动生成，无需改设置页 |
+| C2/C3 位置 + 吸附 | ✅ `snapToEdge` / `edge` / `alongPercent` / `freeX` / `freeY` | ✅ 默认吸附右侧 32%，可在「窗口 → 附加窗口」切换 | 12px 边距、最近边规则与内置窗口一致 |
+| C4 位置锁定 | ✅ `locked`（n/N 汇总计入） | ✅ 设置折叠栏 / 「锁定全部窗口位置」 | 与内置窗口共用总开关补丁 |
+| C5 始终置顶 | ✅ `alwaysOnTop` | ✅ 默认开，设置变更即时生效 | 创建与设置变更时生效 |
+| C6 统一动效 | 新页面自行遵循 `motion.css` 令牌 | ✅ 复用 `theme.css` / `ui.css` / `motion.css` | 无硬编码毫秒 |
+| C7 尺寸自适应 | ✅ `setOwnContentSize`（按 IPC sender 定位） | ✅ 学习视图 inner 362×252 / 根 360×250.3；词库管理 inner 482×548（CDP 实测） | 首次尺寸回报前不显示 |
+| C8 配置迁移 | ✅ schemaVersion 逐版本补默认，未知 kind 丢弃 | ✅ v10 → v11 自动补 `wordstudy`，旧配置零丢失 | 注册表逐 kind 补默认 |
+| C9/C10 接入与验收 | 按 §4.1/§5 接入，补 spec/plan/tasks/verification + CDP | ✅ spec §14 / plan §19 / tasks 阶段 29 / verification §v1.8 + `scripts/v18-verify.mjs` | `npm test` 41 项（含 8 项接线门禁） |
+| C11 仅在桌面显示 | ✅ `onlyOnDesktop`（并入桌面状态桥） | ✅ 默认关，可在折叠栏开启 | v1.7 修复「显示桌面」后不恢复 |
+| C12 移回默认位置 | ✅ 清空自由坐标、回落到注册表默认停靠位置 | ✅ 折叠栏内「移回默认位置」 | 折叠栏内按钮 |
 
-> v1.7 起，C3/C4/C5/C11/C12 五类共性项的入口统一为「窗口 → 内置窗口」的按窗口折叠栏（附加窗口为「窗口 → 附加窗口」按注册表渲染）；「系统」页不再承载窗口共性项，只保留启动项与跳转按钮。
+> v1.7 起，C3/C4/C5/C11/C12 五类共性项的入口统一为「窗口 → 内置窗口」的按窗口折叠栏；附加窗口为「窗口 → 附加窗口」按注册表渲染（v1.8 起含 `wordstudy` 真实实例）；「系统」页不再承载窗口共性项，只保留启动项与跳转按钮。
+> v1.8 运行时验收（`docs/verification.md` §v1.8）：C1/C2/C3/C4/C5/C7/C8/C11/C12 由 CDP 脚本与设置页开关写回验证（42/43 通过、0 失败、1 项原生对话框列手动），C6 由代码审查 + 截图核对，C9/C10 由 spec/plan/tasks/verification 与 `tests/wiring.test.mjs` 覆盖。
 
 ## 7. 变更与评审流程
 

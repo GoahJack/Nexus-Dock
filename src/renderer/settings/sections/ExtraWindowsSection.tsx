@@ -2,8 +2,10 @@ import { useState } from 'react'
 import type { ComponentType, JSX } from 'react'
 import type { DeepPartial, ExtraWindowConfig, Settings } from '@shared/types'
 import { findWindowKind, patchExtraWindows } from '@shared/types'
+import { WORD_STUDY_KIND } from '@shared/wordBank'
 import { spawnRipple } from '@renderer/shared/motion'
 import { Button, Section, Switch } from '@renderer/shared/ui'
+import { WordStudySettings } from './WordStudySettings'
 
 interface Props {
   settings: Settings
@@ -11,7 +13,7 @@ interface Props {
 }
 
 /**
- * 附加窗口独有设置组件接口：当前版本注册表为空，等以后接入功能窗口时再在这里注册。
+ * 附加窗口独有设置组件接口：每个需要在设置页暴露专属选项的窗口实现一份。
  * patch 只写「当前窗口的配置」（含 options），ExtraWindowsSection 负责写回整个 extraWindows 数组。
  */
 export interface ExtraWindowSettingsProps {
@@ -25,8 +27,11 @@ export interface ExtraWindowSettingsProps {
 /**
  * kind → 独有设置组件。
  * 以后新增附加窗口若要暴露专属选项，在这张表里注册一个组件即可；未注册时页面显示「该窗口暂无可调选项」。
+ * v1.8 起第一个附加窗口「英语单词学习」（kind=wordstudy）注册了词库管理组件。
  */
-const EXTRA_WINDOW_SETTINGS: Record<string, ComponentType<ExtraWindowSettingsProps>> = {}
+const EXTRA_WINDOW_SETTINGS: Record<string, ComponentType<ExtraWindowSettingsProps>> = {
+  [WORD_STUDY_KIND]: WordStudySettings
+}
 
 /** 折叠栏摘要：显示/隐藏 + 吸附/置顶/仅在桌面/锁定 */
 function summaryOf(config: ExtraWindowConfig): string {
@@ -41,7 +46,8 @@ function summaryOf(config: ExtraWindowConfig): string {
 
 /**
  * v1.7 附加窗口页：从注册表 EXTRA_WINDOW_KINDS 驱动。
- * 当前注册表为空 → 空状态卡片 + 接入说明；以后注册类型后配置会自动出现在这里（无需改本页）。
+ * 每个已注册类型都会在这里出现一个折叠栏，共性行为 + 独有设置统一管理；
+ * 以后注册新类型后配置会自动出现在这里（无需改本页）。
  */
 export function ExtraWindowsSection({ settings, patch }: Props): JSX.Element {
   /** 折叠栏默认收起（与内置窗口页一致） */
@@ -60,7 +66,7 @@ export function ExtraWindowsSection({ settings, patch }: Props): JSX.Element {
     <div className="nx-sections">
       <Section
         title="附加窗口"
-        desc="附加窗口是以后新增的功能窗口（例如天气卡片、便签），会在这里统一管理；当前版本还没有注册附加窗口。"
+        desc="附加窗口是随应用提供的功能窗口，显示 / 吸附 / 置顶 / 锁定与各窗口的独有选项都在这里统一管理；当前已注册：英语单词学习。"
       >
         {settings.extraWindows.length === 0 ? (
           <div className="nx-empty nx-empty-card" role="status">

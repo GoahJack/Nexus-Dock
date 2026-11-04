@@ -1,0 +1,348 @@
+{
+  "at": "2026-11-04T05:23:11.341Z",
+  "passed": 39,
+  "total": 39,
+  "results": [
+    {
+      "name": "迁移：settings.json schemaVersion 10 → 11",
+      "ok": true,
+      "detail": 11
+    },
+    {
+      "name": "迁移：自动补出 wordstudy 附加窗口配置（默认显示）",
+      "ok": true,
+      "detail": {
+        "kind": "wordstudy",
+        "visible": true,
+        "snapToEdge": true,
+        "edge": "right",
+        "alongPercent": 32,
+        "freeX": -1,
+        "freeY": -1,
+        "alwaysOnTop": true,
+        "onlyOnDesktop": false,
+        "locked": false,
+        "theme": "dark",
+        "options": {
+          "showPhonetic": true,
+          "showExample": true,
+          "hideMeaning": true,
+          "shuffle": false,
+          "autoNext": true
+        }
+      }
+    },
+    {
+      "name": "迁移：旧设置零丢失（dock.iconSize 保持 52）",
+      "ok": true,
+      "detail": 52
+    },
+    {
+      "name": "迁移：旧设置零丢失（appearance.motionIntensity=light / 空 apps 列表保留）",
+      "ok": true,
+      "detail": {
+        "motion": "light",
+        "apps": 0
+      }
+    },
+    {
+      "name": "启动：首次运行播种词库文件（{version:1, words:59}）",
+      "ok": true,
+      "detail": {
+        "version": 1,
+        "count": 59
+      }
+    },
+    {
+      "name": "wordstudy 窗口页 title 正确",
+      "ok": true,
+      "detail": "Nexus 英语单词学习"
+    },
+    {
+      "name": "学习卡片根节点 .ws-root 存在",
+      "ok": true
+    },
+    {
+      "name": "学习视图渲染单词",
+      "ok": true,
+      "detail": "ability"
+    },
+    {
+      "name": "种子词库 59 词",
+      "ok": true,
+      "detail": 59
+    },
+    {
+      "name": "C7 内容尺寸=窗口尺寸（root rect ≈ innerWidth/Height）",
+      "ok": true,
+      "detail": {
+        "inner": [
+          362,
+          252
+        ],
+        "root": [
+          360,
+          250.33334350585938
+        ]
+      }
+    },
+    {
+      "name": "默认释义遮住（hideMeaning）",
+      "ok": true,
+      "detail": "false"
+    },
+    {
+      "name": "主题默认 dark 且未锁定",
+      "ok": true,
+      "detail": {
+        "theme": "dark",
+        "locked": null
+      }
+    },
+    {
+      "name": "点「显示释义」后释义可见",
+      "ok": true,
+      "detail": {
+        "revealed": "true",
+        "text": "n. 能力；才能"
+      }
+    },
+    {
+      "name": "下一词切换单词",
+      "ok": true,
+      "detail": {
+        "before": "ability",
+        "after": "achieve",
+        "revealedAfterNext": "false"
+      }
+    },
+    {
+      "name": "切词后重新遮住释义",
+      "ok": true,
+      "detail": "false"
+    },
+    {
+      "name": "标记「认识」写入进度 status=mastered / seen>=1",
+      "ok": true,
+      "detail": {
+        "word": "achieve",
+        "key": "achieve",
+        "progress": {
+          "status": "mastered",
+          "seen": 1,
+          "remembered": 1,
+          "lastSeenAt": 1793769780458
+        },
+        "statsAfter": "已掌握 1/共 59"
+      }
+    },
+    {
+      "name": "统计区显示已掌握数变化",
+      "ok": true,
+      "detail": "已掌握 1/共 59"
+    },
+    {
+      "name": "词库管理视图打开 + 工具栏齐全",
+      "ok": true,
+      "detail": {
+        "hasEditor": true,
+        "count": "共 59 词",
+        "rows": 59,
+        "search": true,
+        "add": true,
+        "importBtn": true,
+        "exportBtn": true,
+        "openFile": true,
+        "reload": true,
+        "resetWords": true,
+        "resetProgress": true,
+        "path": "词库文件：E:\\AI WorkRegion\\app_creator\\.userdata\\v18-smoke\\wordbank.json"
+      }
+    },
+    {
+      "name": "词库列表渲染 59 行 + 计数文本",
+      "ok": true,
+      "detail": {
+        "rows": 59,
+        "count": "共 59 词"
+      }
+    },
+    {
+      "name": "词库文件路径展示",
+      "ok": true,
+      "detail": "词库文件：E:\\AI WorkRegion\\app_creator\\.userdata\\v18-smoke\\wordbank.json"
+    },
+    {
+      "name": "编辑器视图 C7 尺寸（宽 480 级）",
+      "ok": true,
+      "detail": {
+        "innerW": 482,
+        "innerH": 548
+      }
+    },
+    {
+      "name": "窗口内新增词条（UI 表单保存）",
+      "ok": true,
+      "detail": {
+        "fields": [
+          true,
+          true,
+          true,
+          true
+        ],
+        "count": "共 60 词",
+        "total": 60,
+        "last": {
+          "word": "cdp-verify-word",
+          "phonetic": "/siː diː piː/",
+          "meaning": "CDP 验收词条",
+          "example": "This word was added by the CDP smoke test."
+        },
+        "toast": "已添加「cdp-verify-word」"
+      }
+    },
+    {
+      "name": "新增后计数与 toast 更新",
+      "ok": true,
+      "detail": {
+        "fields": [
+          true,
+          true,
+          true,
+          true
+        ],
+        "count": "共 60 词",
+        "total": 60,
+        "last": {
+          "word": "cdp-verify-word",
+          "phonetic": "/siː diː piː/",
+          "meaning": "CDP 验收词条",
+          "example": "This word was added by the CDP smoke test."
+        },
+        "toast": "已添加「cdp-verify-word」"
+      }
+    },
+    {
+      "name": "外部改 wordbank.json + 点「重新读取」生效",
+      "ok": true,
+      "detail": {
+        "total": 2,
+        "words": [
+          "external-edit",
+          "second-word"
+        ],
+        "count": "共 2 词",
+        "toast": "已重新读取磁盘文件：2 个单词"
+      }
+    },
+    {
+      "name": "返回学习视图显示重读后的词库（2 词）",
+      "ok": true,
+      "detail": {
+        "word": "external-edit",
+        "progress": "1 / 2"
+      }
+    },
+    {
+      "name": "恢复默认词库（确认弹窗自动接受）→ 59 词 + 进度清空",
+      "ok": true,
+      "detail": {
+        "total": 59,
+        "progressKeys": 0,
+        "count": "共 59 词",
+        "toast": "已恢复默认词库：59 个单词（进度已清空）"
+      }
+    },
+    {
+      "name": "恢复默认后计数与 toast",
+      "ok": true,
+      "detail": {
+        "total": 59,
+        "progressKeys": 0,
+        "count": "共 59 词",
+        "toast": "已恢复默认词库：59 个单词（进度已清空）"
+      }
+    },
+    {
+      "name": "删除词条（确认弹窗）→ 58 词",
+      "ok": true,
+      "detail": {
+        "total": 58,
+        "count": "共 58 词"
+      }
+    },
+    {
+      "name": "浅色主题 + 释义常显（设置广播生效）",
+      "ok": true,
+      "detail": {
+        "theme": "light",
+        "meaningRevealed": "true"
+      }
+    },
+    {
+      "name": "设置窗口可打开并连上 CDP",
+      "ok": true
+    },
+    {
+      "name": "设置导航存在「附加窗口」项并切换",
+      "ok": true,
+      "detail": {
+        "ok": true
+      }
+    },
+    {
+      "name": "附加窗口折叠栏出现「英语单词学习」并可展开",
+      "ok": true,
+      "detail": {
+        "ok": true,
+        "summary": "›英语单词学习显示 · 吸附开 · 置顶开 · 始终显示 · 未锁定"
+      }
+    },
+    {
+      "name": "词库概览（共 n 词 / 已掌握 / 学习中 / 未学）",
+      "ok": true,
+      "detail": "共 58 词已掌握 0学习中 0未学 58"
+    },
+    {
+      "name": "设置页词库文件路径展示",
+      "ok": true,
+      "detail": "词库文件：E:\\AI WorkRegion\\app_creator\\.userdata\\v18-smoke\\wordbank.json"
+    },
+    {
+      "name": "5 个学习选项开关",
+      "ok": true,
+      "detail": 5
+    },
+    {
+      "name": "6 个词库管理动作按钮",
+      "ok": true,
+      "detail": [
+        "导入词库",
+        "导出词库",
+        "打开词库文件",
+        "重新读取文件",
+        "恢复默认词库",
+        "重置学习进度"
+      ]
+    },
+    {
+      "name": "旧「当前还没有注册附加窗口」文案已移除",
+      "ok": true
+    },
+    {
+      "name": "设置页开关写回 extraWindows[].options.showPhonetic",
+      "ok": true,
+      "detail": {
+        "beforeVal": true,
+        "afterVal": false
+      }
+    },
+    {
+      "name": "点隐藏按钮 → 配置 visible=false（窗口隐藏，可从托盘/设置恢复）",
+      "ok": true,
+      "detail": {
+        "visible": false
+      }
+    }
+  ]
+}

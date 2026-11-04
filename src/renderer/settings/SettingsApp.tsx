@@ -18,7 +18,7 @@ interface NavItem {
   label: string
 }
 
-/** 「窗口」分组：内置窗口（Dock/音乐/时钟合并）+ 附加窗口（注册表驱动，v1.7 为空） */
+/** 「窗口」分组：内置窗口（Dock/音乐/时钟合并）+ 附加窗口（注册表驱动，v1.8 起含英语单词学习） */
 const WINDOW_NAV_ITEMS: NavItem[] = [
   { key: 'windows', label: '内置窗口' },
   { key: 'extra', label: '附加窗口' }

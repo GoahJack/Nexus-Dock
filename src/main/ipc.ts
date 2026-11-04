@@ -18,6 +18,7 @@ import {
   type Size,
   type WindowTarget
 } from '@shared/types'
+import type { WordBankOpenResult, WordBankOpResult } from '@shared/wordBank'
 import {
   addStartMenuItem,
   launchApp,
@@ -32,6 +33,18 @@ import { applyAutoStart } from './autostart'
 import { extraWindowMenuItems, setOwnContentSize } from './extraWindows'
 import { allowMediaFile } from './protocol'
 import { getSettings, resetSettings, updateSettings } from './settingsStore'
+import {
+  exportWordBankToFile,
+  getWordBank,
+  getWordBankPaths,
+  importWordBankFromFile,
+  openWordBankFile,
+  reloadWordBankFromDisk,
+  resetWordEntries,
+  resetWordProgress,
+  setWordEntries,
+  setWordProgress
+} from './wordBank'
 import type { MediaHub } from './media/mediaHub'
 import {
   broadcast,
@@ -80,7 +93,7 @@ function showDockMenu(window: BrowserWindow | null): void {
         updateSettings({ clock: { visible: item.checked } })
       }
     },
-    // v1.7：附加窗口（注册表驱动，当前为空 → 不产生菜单项）
+    // 附加窗口（注册表驱动；v1.8 起含英语单词学习）
     ...extraWindowMenuItems(),
     {
       // 总开关语义：所有窗口（内置 + 附加）全部锁定时勾选；勾选/取消即同时设置
@@ -297,6 +310,54 @@ function registerMediaIpc(): void {
   })
 }
 
+/**
+ * v1.8 英语单词学习：词库 IPC。
+ *
+ * 词库数据层（./wordBank）内部已经把任意脏输入收敛为合法结构且不抛错，
+ * 这里再兜一层：任何 handler 异常都返回「可用结果」而不是让 invoke reject，
+ * 渲染层（单词窗口 / 设置页）因此不需要 try/catch 也不会崩。
+ */
+function registerWordBankIpc(): void {
+  const handle = <T>(channel: string, fallback: () => T, run: (...args: unknown[]) => T | Promise<T>): void => {
+    ipcMain.handle(channel, async (_event, ...args: unknown[]): Promise<T> => {
+      try {
+        return await run(...args)
+      } catch (error) {
+        console.error('[wordbank] IPC 处理失败：', channel, error)
+        return fallback()
+      }
+    })
+  }
+
+  handle(IPC.wordBankGet, getWordBank, () => getWordBank())
+  handle(IPC.wordBankSetWords, getWordBank, (raw) => setWordEntries(raw))
+  handle(IPC.wordBankSetProgress, getWordBank, (raw) => setWordProgress(raw))
+  handle(IPC.wordBankResetWords, getWordBank, () => resetWordEntries())
+  handle(IPC.wordBankResetProgress, getWordBank, () => resetWordProgress())
+  handle(
+    IPC.wordBankImport,
+    (): WordBankOpResult => ({ ok: false, canceled: false, error: '导入失败' }),
+    () => importWordBankFromFile()
+  )
+  handle(
+    IPC.wordBankExport,
+    (): WordBankOpResult => ({ ok: false, canceled: false, error: '导出失败' }),
+    () => exportWordBankToFile()
+  )
+  handle(
+    IPC.wordBankOpenFile,
+    (): WordBankOpenResult => ({ ok: false, path: '', error: '打开词库文件失败' }),
+    () => openWordBankFile()
+  )
+  handle(IPC.wordBankReload, getWordBank, () => reloadWordBankFromDisk())
+  // paths 的兜底值必须保持同一结构：渲染层会直接读 .words/.progress 展示路径
+  handle(
+    IPC.wordBankPaths,
+    (): { words: string; progress: string } => ({ words: '', progress: '' }),
+    () => getWordBankPaths()
+  )
+}
+
 export function registerIpc(mediaHub: MediaHub): void {
   hub = mediaHub
   hub.onStateChange((state) => {
@@ -307,6 +368,7 @@ export function registerIpc(mediaHub: MediaHub): void {
   registerAppIpc()
   registerWindowIpc()
   registerMediaIpc()
+  registerWordBankIpc()
 }
 
 export function disposeIpc(): void {
@@ -332,6 +394,17 @@ export function disposeIpc(): void {
   ipcMain.removeHandler(IPC.mediaGetState)
   ipcMain.removeHandler(IPC.mediaControl)
   ipcMain.removeHandler(IPC.mediaPickFiles)
+  // v1.8 英语单词学习词库
+  ipcMain.removeHandler(IPC.wordBankGet)
+  ipcMain.removeHandler(IPC.wordBankSetWords)
+  ipcMain.removeHandler(IPC.wordBankSetProgress)
+  ipcMain.removeHandler(IPC.wordBankResetWords)
+  ipcMain.removeHandler(IPC.wordBankResetProgress)
+  ipcMain.removeHandler(IPC.wordBankImport)
+  ipcMain.removeHandler(IPC.wordBankExport)
+  ipcMain.removeHandler(IPC.wordBankOpenFile)
+  ipcMain.removeHandler(IPC.wordBankReload)
+  ipcMain.removeHandler(IPC.wordBankPaths)
   ipcMain.removeAllListeners(IPC.windowSetContentSize)
   ipcMain.removeAllListeners(IPC.windowSetOwnContentSize)
   ipcMain.removeAllListeners(IPC.windowOpenSettings)
