@@ -1,8 +1,19 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { JSX } from 'react'
 import type { NexusApi } from '@shared/types'
-import { resolveWordStudyOptions, wordBankStats } from '@shared/wordBank'
-import type { WordBank, WordBankOpResult, WordStudyOptions } from '@shared/wordBank'
+import {
+  formatDueAt,
+  resolveWordStudyOptions,
+  wordBankReviewStats,
+  wordBankStats,
+  wordDueLabel
+} from '@shared/wordBank'
+import type {
+  WordBank,
+  WordBankOpResult,
+  WordStudyOptions,
+  WordProgress
+} from '@shared/wordBank'
 import { Button, Section, Switch } from '@renderer/shared/ui'
 import type { ExtraWindowSettingsProps } from './ExtraWindowsSection'
 
@@ -39,10 +50,25 @@ function wordBankApi(): WordBankApi {
 }
 
 /**
- * v1.8 英语单词学习（附加窗口 kind=wordstudy）的独有设置：
+ * 词库里「最近到期」的那条进度：未学 / 尚未排期的词跳过。
+ * 只遍历 bank.progress（键已归一化且只保留有效词条），不依赖词库顺序。
+ */
+function nextDueProgress(bank: WordBank): WordProgress | null {
+  let next: WordProgress | null = null
+  for (const progress of Object.values(bank.progress)) {
+    if (progress.status === 'new' || progress.dueAt <= 0) continue
+    if (next === null || progress.dueAt < next.dueAt) next = progress
+  }
+  return next
+}
+
+/**
+ * v1.8 / v1.9 英语单词学习（附加窗口 kind=wordstudy）的独有设置：
  *
- * - 词库概览：挂载时 wordBank.get() 读统计，并订阅 onChanged 跟随窗口 / 重置操作实时刷新；
- * - 学习选项：5 个开关写回 config.options（由 ExtraWindowsSection 的 patch 写回 extraWindows）；
+ * - 词库概览：挂载时 wordBank.get() 读统计（含 v1.9「待复习」口径），并订阅 onChanged
+ *   跟随窗口 / 重置操作实时刷新；
+ * - 学习选项：7 个开关写回 config.options（由 ExtraWindowsSection 的 patch 写回 extraWindows）；
+ * - 记忆曲线：说明简化 SM-2 的间隔规则，实时显示待复习数量与最近到期时间；
  * - 词库管理：导入 / 导出 / 打开文件 / 重新读取 / 恢复默认 / 重置进度，结果消息显示在同区域。
  *
  * 词库 / 进度文件是用户可直接编辑的 JSON，所以这里也展示词库文件路径，
@@ -56,9 +82,18 @@ export function WordStudySettings({ config, patch }: ExtraWindowSettingsProps): 
   const [notice, setNotice] = useState<Notice | null>(null)
   const [busy, setBusy] = useState<ActionKey | null>(null)
   const [pendingConfirm, setPendingConfirm] = useState<'resetWords' | 'resetProgress' | null>(null)
+  /** 待复习数会随时间自然变化：30 秒刷新一次 now，长时间开着设置页数字也不会陈旧 */
+  const [now, setNow] = useState<number>(() => Date.now())
 
   const options = resolveWordStudyOptions(config.options)
-  const stats = bank ? wordBankStats(bank) : null
+  /** 概览统计 + v1.9 待复习口径（用 now 判定，跨过 dueAt 的单词会自动计入） */
+  const reviewStats = bank ? wordBankReviewStats(bank, now) : null
+  /** 「记忆曲线」区块的最近到期时间：没有已排期的词时为 null */
+  const nextDue = bank ? nextDueProgress(bank) : null
+  const nextDueLabel = nextDue ? wordDueLabel(nextDue, now) : '暂无排期'
+  const nextDueTitle = nextDue
+    ? `最近到期：${formatDueAt(nextDue.dueAt, now)}`
+    : '还没有已排期的单词'
 
   /** 读词库统计 + 文件路径；两者互不阻塞（路径只用于展示，失败不影响统计） */
   const load = useCallback(async (): Promise<void> => {
@@ -101,6 +136,12 @@ export function WordStudySettings({ config, patch }: ExtraWindowSettingsProps): 
       off?.()
     }
   }, [load])
+
+  /* 待复习数 / 最近到期时间随真实时间推移：每 30 秒刷新 now（卸载时清掉定时器） */
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 30_000)
+    return () => window.clearInterval(timer)
+  }, [])
 
   /** 操作后刷新统计（主进程 onChanged 也会广播，这里兜底避免广播延迟 / 丢失） */
   const refreshBank = async (): Promise<WordBank | null> => {
@@ -219,19 +260,22 @@ export function WordStudySettings({ config, patch }: ExtraWindowSettingsProps): 
                 重试
               </Button>
             </>
-          ) : stats ? (
+          ) : reviewStats ? (
             <>
               <span className="ws-settings-stat">
-                共 <strong>{stats.total}</strong> 词
+                共 <strong>{reviewStats.total}</strong> 词
               </span>
               <span className="ws-settings-stat">
-                已掌握 <strong>{stats.mastered}</strong>
+                已掌握 <strong>{reviewStats.mastered}</strong>
               </span>
               <span className="ws-settings-stat">
-                学习中 <strong>{stats.learning}</strong>
+                学习中 <strong>{reviewStats.learning}</strong>
               </span>
               <span className="ws-settings-stat">
-                未学 <strong>{stats.untouched}</strong>
+                未学 <strong>{reviewStats.untouched}</strong>
+              </span>
+              <span className="ws-settings-stat is-due">
+                待复习 <strong>{reviewStats.due}</strong>
               </span>
             </>
           ) : (
@@ -248,7 +292,7 @@ export function WordStudySettings({ config, patch }: ExtraWindowSettingsProps): 
       </Section>
 
       <Section title="学习选项" desc="只影响英语单词学习窗口，切换后立即生效。">
-        {/* 5 个开关全部写回当前窗口的 options */}
+        {/* 7 个开关全部写回当前窗口的 options */}
         <div className="ws-settings-switches">
           <Switch
             label="显示音标"
@@ -280,7 +324,49 @@ export function WordStudySettings({ config, patch }: ExtraWindowSettingsProps): 
             checked={options.autoNext}
             onChange={(value) => updateOption('autoNext', value)}
           />
+          <Switch
+            label="优先复习到期单词"
+            hint="打开卡片先过一遍遗忘曲线排到的词"
+            checked={options.reviewFirst}
+            onChange={(value) => updateOption('reviewFirst', value)}
+          />
+          <Switch
+            label="显示复习计划"
+            hint="在卡片上显示下次复习时间与记忆强度"
+            checked={options.showSchedule}
+            onChange={(value) => updateOption('showSchedule', value)}
+          />
         </div>
+      </Section>
+
+      <Section
+        title="记忆曲线"
+        desc="复习时间由简化 SM-2 间隔重复排定，只影响当前词库的学习进度。"
+      >
+        {/* 待复习数量 / 最近到期时间都基于 now 计算，30 秒自动刷新 */}
+        <div className="ws-settings-review-stats">
+          <span className="ws-settings-stat is-due">
+            当前待复习 <strong>{reviewStats ? reviewStats.due : '—'}</strong> 词
+          </span>
+          <span className="ws-settings-stat" title={nextDueTitle}>
+            最近到期 <strong>{nextDueLabel}</strong>
+          </span>
+        </div>
+        <ul className="ws-settings-rules">
+          <li>
+            <strong>不认识</strong>：10 分钟后重新练，还没记住就继续按短间隔重复。
+          </li>
+          <li>
+            <strong>模糊</strong>：从 1 天起排，比上次间隔略短一些再复习。
+          </li>
+          <li>
+            <strong>认识</strong>：间隔按 1 → 3 → 7 天递增，之后按记忆强度继续拉长（约 15、30
+            天……最长一年）。
+          </li>
+        </ul>
+        <p className="ws-settings-hint">
+          这是简化 SM-2：不做完整的难度矩阵，只按「认识 / 模糊 / 不认识」和连续答对次数推算下一次复习时间，因此个别单词的排期不会像专业背单词软件那样精确。
+        </p>
       </Section>
 
       <Section

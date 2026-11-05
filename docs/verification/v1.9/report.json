@@ -1,0 +1,754 @@
+{
+  "version": "v1.9",
+  "scope": "electron",
+  "generatedAt": "2026-11-04T15:50:16.225Z",
+  "environment": {
+    "electron": "available: electron --version 崩溃（exit 2147483651 / 0x80000003，原因不明，疑为无控制台上下文），但 electron . GUI 启动正常、CDP 可用（Electron 44.7.0 / Chrome/152.0.7977.130）",
+    "browser": "Edge headless (Edg/156.0.4314.58)",
+    "note": "主结果 scope=\"electron\"：真实 Electron 44.7.0 main + preload + IPC + 磁盘读写，隔离 userData=.userdata/v19-verify/electron-userdata。 `electron --version` 在本会话崩溃（exit 0x80000003，疑为无控制台上下文），但 `electron .` GUI 启动正常、CDP 可用；这是环境事实，如实记录。 renderer 字段是 Edge headless + CDP 注入 window.nexus stub 的对照路径（非主结论）。 未写真实 %APPDATA%\\nexus-dock；只操作 .userdata/v19-verify/；未改 src/、tests/、package.json。",
+    "electronDetail": {
+      "electron": "available: electron --version 崩溃（exit 2147483651 / 0x80000003，原因不明，疑为无控制台上下文），但 electron . GUI 启动正常、CDP 可用（Electron 44.7.0 / Chrome/152.0.7977.130）",
+      "versionCheck": {
+        "exitCode": 2147483651,
+        "exitHex": "0x80000003",
+        "signal": null,
+        "stdout": "\r\n",
+        "stderr": "",
+        "error": null
+      },
+      "launch": {
+        "pid": 312148,
+        "cdpPort": 9393,
+        "reused": false,
+        "browser": "Chrome/152.0.7977.130",
+        "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) nexus-dock/1.9.0 Chrome/152.0.7977.130 Electron/44.7.0 Safari/537.36",
+        "guiStartedAt": "2026-11-04T15:50:08.392Z"
+      },
+      "targets": [
+        {
+          "title": "",
+          "url": "file:///E:/AI%20WorkRegion/app_creator/out/renderer/music/index.html"
+        },
+        {
+          "title": "Nexus Dock",
+          "url": "file:///E:/AI%20WorkRegion/app_creator/out/renderer/dock/index.html"
+        },
+        {
+          "title": "",
+          "url": "file:///E:/AI%20WorkRegion/app_creator/out/renderer/wordstudy/index.html"
+        }
+      ],
+      "userData": ".userdata/v19-verify/electron-userdata",
+      "fixture": {
+        "dir": ".userdata/v19-verify/electron-userdata",
+        "settings": ".userdata/v19-verify/electron-userdata/settings.json",
+        "words": ".userdata/v19-verify/electron-userdata/wordbank.json",
+        "progress": ".userdata/v19-verify/electron-userdata/wordbank-progress.json"
+      },
+      "progressAfterRun": {
+        "version": 2,
+        "entries": 4
+      },
+      "stderrTail": "\nDevTools listening on ws://127.0.0.1:9393/devtools/browser/d225726a-7960-4596-9e95-24793c78d3b0\n",
+      "stdoutTail": "\n[userData] 使用目录： E:\\AI WorkRegion\\app_creator\\.userdata\\v19-verify\\electron-userdata\n[autostart] 开发模式：登录项状态按关闭处理，不读取/不写入系统\n"
+    },
+    "electronVersion": {
+      "exitCode": 2147483651,
+      "exitHex": "0x80000003",
+      "signal": null,
+      "stdout": "\r\n",
+      "stderr": "",
+      "error": null
+    }
+  },
+  "fixtures": {
+    "userData": ".userdata/v19-verify",
+    "electronUserData": ".userdata/v19-verify/electron-userdata",
+    "settings": {
+      "path": ".userdata/v19-verify/settings.json",
+      "schemaVersion": 11,
+      "wordstudy": {
+        "kind": "wordstudy",
+        "visible": true,
+        "snapToEdge": true,
+        "edge": "top",
+        "alongPercent": 50,
+        "freeX": -1,
+        "freeY": -1,
+        "alwaysOnTop": true,
+        "onlyOnDesktop": false,
+        "locked": false,
+        "theme": "dark",
+        "options": {
+          "showPhonetic": true,
+          "showExample": true,
+          "hideMeaning": true,
+          "shuffle": false,
+          "autoNext": true,
+          "reviewFirst": true,
+          "showSchedule": true
+        }
+      },
+      "bom": false
+    },
+    "words": {
+      "path": ".userdata/v19-verify/wordbank.json",
+      "count": 8,
+      "version": 1,
+      "bom": false
+    },
+    "progress": {
+      "path": ".userdata/v19-verify/wordbank-progress.json",
+      "version": 1,
+      "format": "v1（仅 status/seen/remembered/lastSeenAt，无 dueAt/intervalDays/ease/streak/lapses）",
+      "entries": 4,
+      "bom": false
+    },
+    "electronProgress": {
+      "path": ".userdata/v19-verify/electron-userdata/wordbank-progress.json",
+      "seededVersion": 1,
+      "entries": 4,
+      "format": "v1 旧格式种子，由产品 main 进程 sanitizer 迁移为 version=2"
+    },
+    "migration": {
+      "legacyVersion": 1,
+      "legacyEntries": 4,
+      "migratedEntries": 4,
+      "stats": {
+        "total": 8,
+        "mastered": 2,
+        "learning": 2,
+        "untouched": 4,
+        "due": 4
+      },
+      "due": 4,
+      "expectedQueue": [
+        "advantage",
+        "achieve",
+        "ability",
+        "adapt",
+        "approach",
+        "benefit"
+      ],
+      "sample": {
+        "key": "ability",
+        "legacy": {
+          "status": "learning",
+          "seen": 3,
+          "remembered": 1,
+          "lastSeenAt": 1793548208275
+        },
+        "migrated": {
+          "status": "learning",
+          "seen": 3,
+          "remembered": 1,
+          "lastSeenAt": 1793548208275,
+          "dueAt": 1793548208275,
+          "intervalDays": 0,
+          "ease": 2.5,
+          "streak": 0,
+          "lapses": 0
+        }
+      },
+      "wordCount": 8
+    }
+  },
+  "summary": {
+    "total": 10,
+    "pass": 10,
+    "fail": 0
+  },
+  "items": [
+    {
+      "id": "a",
+      "name": "v1 旧进度经真实 main 迁移后已学词进入待复习（dueAt=lastSeenAt）",
+      "scope": "electron",
+      "pass": true,
+      "evidence": {
+        "pill": "待复习 4",
+        "due": 4,
+        "expectedDue": 4,
+        "wordsCount": 8,
+        "paths": {
+          "words": "E:\\AI WorkRegion\\app_creator\\.userdata\\v19-verify\\electron-userdata\\wordbank.json",
+          "progress": "E:\\AI WorkRegion\\app_creator\\.userdata\\v19-verify\\electron-userdata\\wordbank-progress.json"
+        },
+        "legacySample": {
+          "status": "learning",
+          "seen": 3,
+          "remembered": 1,
+          "lastSeenAt": 1793548208275
+        },
+        "migratedSample": {
+          "status": "learning",
+          "seen": 3,
+          "remembered": 1,
+          "lastSeenAt": 1793548208275,
+          "dueAt": 1793548208275,
+          "intervalDays": 0,
+          "ease": 2.5,
+          "streak": 0,
+          "lapses": 0
+        }
+      },
+      "detail": "真实 Electron 读取隔离 userData 里的 v1 wordbank-progress.json（无 dueAt/intervalDays/ease/streak/lapses）；preload→IPC→main 迁移后 pill 显示待复习 n>0，wordBank.get() 返回的条目补齐 5 个字段且 dueAt=lastSeenAt。"
+    },
+    {
+      "id": "b",
+      "name": "学习视图渲染单词/音标/释义，hideMeaning 时先遮住",
+      "scope": "electron",
+      "pass": true,
+      "evidence": {
+        "word": "advantage",
+        "phonetic": "/ədˈvɑːntɪdʒ/",
+        "meaning": "n. 优势；好处",
+        "revealed": "false",
+        "cover": true,
+        "schedule": "下次复习 待复习 · 连续 0",
+        "status": "已掌握",
+        "progress": "1 / 8",
+        "expectedFirst": "advantage",
+        "hideMeaning": true,
+        "baseState": {
+          "title": "Nexus 英语单词学习",
+          "nexus": "object",
+          "view": "study",
+          "error": null,
+          "innerWidth": 362,
+          "innerHeight": 276
+        }
+      },
+      "detail": "fixture 词库 8 词、reviewFirst=true：队列首位为最早到期词；hideMeaning=true 时 data-revealed=false 且有遮罩；已学词显示记忆计划条。"
+    },
+    {
+      "id": "c",
+      "name": "空格显示释义；1/2/3 标记后 toast 含「复习」，wordbank-progress.json 真实落盘 version=2 且 5 字段齐全",
+      "scope": "electron",
+      "pass": true,
+      "evidence": {
+        "revealState": {
+          "revealed": "true",
+          "cover": false
+        },
+        "marks": [
+          {
+            "key": "1",
+            "word": "advantage",
+            "normalizedKey": "advantage",
+            "status": "learning",
+            "intervalDays": 0,
+            "toast": "已记录 · 10 分钟后复习",
+            "toastChanged": true,
+            "toastNewNode": true,
+            "toastHasReview": true,
+            "diskVersion": 2,
+            "fields": {
+              "dueAt": true,
+              "intervalDays": true,
+              "ease": true,
+              "streak": true,
+              "lapses": true
+            },
+            "fieldsOk": true
+          },
+          {
+            "key": "2",
+            "word": "achieve",
+            "normalizedKey": "achieve",
+            "status": "learning",
+            "intervalDays": 1,
+            "toast": "已记录 · 明天复习",
+            "toastChanged": true,
+            "toastNewNode": true,
+            "toastHasReview": true,
+            "diskVersion": 2,
+            "fields": {
+              "dueAt": true,
+              "intervalDays": true,
+              "ease": true,
+              "streak": true,
+              "lapses": true
+            },
+            "fieldsOk": true
+          },
+          {
+            "key": "3",
+            "word": "ability",
+            "normalizedKey": "ability",
+            "status": "mastered",
+            "intervalDays": 1,
+            "toast": "已记录 · 明天复习",
+            "toastChanged": false,
+            "toastNewNode": true,
+            "toastHasReview": true,
+            "diskVersion": 2,
+            "fields": {
+              "dueAt": true,
+              "intervalDays": true,
+              "ease": true,
+              "streak": true,
+              "lapses": true
+            },
+            "fieldsOk": true
+          }
+        ]
+      },
+      "detail": "真实渲染层 keydown → applyWordReview → IPC setProgress → main 写 .userdata/v19-verify/electron-userdata/wordbank-progress.json；三次标记（again/hard/good）应依次 learning/learning/mastered，文件 version=2，条目含 dueAt/intervalDays/ease/streak/lapses，toast 文案含「复习」。"
+    },
+    {
+      "id": "d",
+      "name": "点「单词表」进入 list 视图，出现 5 档筛选与行",
+      "scope": "electron",
+      "pass": true,
+      "evidence": {
+        "view": "list",
+        "filters": [
+          "全部8",
+          "待复习1",
+          "未学4",
+          "学习中3",
+          "已掌握1"
+        ],
+        "rowCount": 8,
+        "countText": "8 / 8 · 待复习 1",
+        "innerWidth": 482
+      },
+      "detail": "真实窗口内点「单词表」应切到 list 视图，渲染 全部/待复习/未学/学习中/已掌握 5 个筛选与词条行。"
+    },
+    {
+      "id": "e",
+      "name": "待复习筛选行数 > 0；已掌握筛选行数 > 0",
+      "scope": "electron",
+      "pass": true,
+      "evidence": {
+        "due": {
+          "count": 1,
+          "statuses": [
+            "learning"
+          ],
+          "countText": "1 / 8 · 待复习 1",
+          "allDue": true
+        },
+        "mastered": {
+          "count": 1,
+          "statuses": [
+            "mastered"
+          ],
+          "allMastered": true
+        }
+      },
+      "detail": "真实词库筛选：待复习只剩 due 行（.ws-list-row-due[data-due=\"true\"]），已掌握只剩 data-status=mastered 行。"
+    },
+    {
+      "id": "f",
+      "name": "行内下拉改「已掌握」→ 真实落盘 status=mastered，列表 status 徽标同步",
+      "scope": "electron",
+      "pass": true,
+      "evidence": {
+        "picked": "achieve",
+        "expectedStatusKey": "achieve",
+        "disk": {
+          "version": 2,
+          "entry": {
+            "status": "mastered",
+            "seen": 6,
+            "remembered": 4,
+            "lastSeenAt": 1793807409923,
+            "dueAt": 1793893810730,
+            "intervalDays": 1,
+            "ease": 2.4,
+            "streak": 1,
+            "lapses": 0
+          }
+        },
+        "badge": {
+          "word": "achieve",
+          "status": "mastered",
+          "badge": "已掌握",
+          "select": "mastered"
+        }
+      },
+      "detail": "改状态下拉 → IPC setProgress → main 写盘：目标词 status=mastered、version=2、5 个复习字段齐全；行内 .ws-list-row-status 徽标与 select 同步为「已掌握」。"
+    },
+    {
+      "id": "g",
+      "name": "点行内 ▶ 回到 study 视图，且当前词为该行单词",
+      "scope": "electron",
+      "pass": true,
+      "evidence": {
+        "clicked": true,
+        "view": "study",
+        "word": "achieve",
+        "innerWidth": 362,
+        "expected": "achieve"
+      },
+      "detail": "点行尾 ▶ 应切回学习视图并把 currentKey 指向该行单词；同时真实 BrowserWindow 内容宽度应从 list 480 级回到 study 360 级。"
+    },
+    {
+      "id": "i",
+      "name": "切 list 视图真实窗口宽度 480 级、回 study 360 级",
+      "scope": "electron",
+      "pass": true,
+      "evidence": {
+        "studyWidth": 362,
+        "listWidth": 482,
+        "backToStudyWidth": 362,
+        "widths": [
+          362,
+          482,
+          362
+        ]
+      },
+      "detail": "useOwnContentSize 上报 → preload → main setContentSize 真实改变 BrowserWindow.contentSize：渲染层 innerWidth study≈360、list≈480。"
+    },
+    {
+      "id": "h",
+      "name": "真实设置窗口出现 7 个学习开关与「待复习」统计",
+      "scope": "electron",
+      "pass": true,
+      "evidence": {
+        "switchCount": 7,
+        "labels": [
+          "显示音标在单词下方显示 /ˈæpl/ 这样的音标",
+          "显示例句在释义下方显示例句",
+          "先遮住释义先只显示单词，点击或按空格再显示释义；关闭后直接显示释义",
+          "随机顺序每轮按随机顺序学习单词",
+          "标记后自动下一词点「认识 / 不认识」后自动切到下一个单词",
+          "优先复习到期单词打开卡片先过一遍遗忘曲线排到的词",
+          "显示复习计划在卡片上显示下次复习时间与记忆强度"
+        ],
+        "dueStatText": "待复习 1",
+        "reviewStatsText": "当前待复习 1 词最近到期 待复习",
+        "pathVisible": true
+      },
+      "detail": "从真实学习窗口调用 window.nexus.window.openSettings() → main 创建设置窗口；附加窗口→英语单词学习展开后应有 7 个 Switch，词库概览与记忆曲线区显示「待复习」统计。"
+    },
+    {
+      "id": "j",
+      "name": "真实 Electron 两个页面均无 console error / 未捕获异常",
+      "scope": "electron",
+      "pass": true,
+      "evidence": {
+        "wordstudy": [],
+        "settings": []
+      },
+      "detail": "收集 Runtime.consoleAPICalled(type=error)、Log.entryAdded(level=error)、Runtime.exceptionThrown；忽略 favicon/网络噪声。"
+    }
+  ],
+  "renderer": {
+    "scope": "renderer",
+    "summary": {
+      "total": 10,
+      "pass": 10,
+      "fail": 0
+    },
+    "items": [
+      {
+        "id": "a",
+        "name": "迁移后已学词进入待复习（v1 旧进度 → dueAt=lastSeenAt）",
+        "scope": "renderer",
+        "pass": true,
+        "evidence": {
+          "pill": "待复习 4",
+          "due": 4,
+          "legacySample": {
+            "status": "learning",
+            "seen": 3,
+            "remembered": 1,
+            "lastSeenAt": 1793548208275
+          },
+          "migratedSample": {
+            "status": "learning",
+            "seen": 3,
+            "remembered": 1,
+            "lastSeenAt": 1793548208275,
+            "dueAt": 1793548208275,
+            "intervalDays": 0,
+            "ease": 2.5,
+            "streak": 0,
+            "lapses": 0
+          },
+          "legacyVersion": 1
+        },
+        "detail": "fixture 为 8 词 + 4 条 v1 旧进度（learning/mastered）；页面加载后 pill 应显示待复习 n>0，迁移后进度含 dueAt/intervalDays/ease/streak/lapses。"
+      },
+      {
+        "id": "b",
+        "name": "学习视图渲染单词/音标/释义，hideMeaning 时先遮住",
+        "scope": "renderer",
+        "pass": true,
+        "evidence": {
+          "word": "advantage",
+          "phonetic": "/ədˈvɑːntɪdʒ/",
+          "meaning": "n. 优势；好处",
+          "revealed": "false",
+          "cover": true,
+          "schedule": "下次复习 待复习 · 连续 0",
+          "status": "已掌握",
+          "progress": "1 / 8",
+          "expectedFirst": "advantage",
+          "hideMeaning": true
+        },
+        "detail": "默认队列首位（reviewFirst 到期优先）应渲染 word/phonetic/meaning；hideMeaning=true 时 data-revealed=false 且有遮罩；非 new 词显示记忆计划条。"
+      },
+      {
+        "id": "c",
+        "name": "空格显示释义；1/2/3 标记 toast 含「复习」且 setProgress 收到 dueAt/intervalDays/ease/streak/lapses",
+        "scope": "renderer",
+        "pass": true,
+        "evidence": {
+          "revealState": {
+            "revealed": "true",
+            "cover": false
+          },
+          "marks": [
+            {
+              "key": "1",
+              "word": "advantage",
+              "changedKey": "advantage",
+              "status": "learning",
+              "intervalDays": 0,
+              "toast": "已记录 · 10 分钟后复习",
+              "toastChanged": true,
+              "toastNewNode": true,
+              "toastHasReview": true,
+              "fields": {
+                "dueAt": true,
+                "intervalDays": true,
+                "ease": true,
+                "streak": true,
+                "lapses": true
+              },
+              "fieldsOk": true
+            },
+            {
+              "key": "2",
+              "word": "achieve",
+              "changedKey": "achieve",
+              "status": "learning",
+              "intervalDays": 1,
+              "toast": "已记录 · 明天复习",
+              "toastChanged": true,
+              "toastNewNode": true,
+              "toastHasReview": true,
+              "fields": {
+                "dueAt": true,
+                "intervalDays": true,
+                "ease": true,
+                "streak": true,
+                "lapses": true
+              },
+              "fieldsOk": true
+            },
+            {
+              "key": "3",
+              "word": "ability",
+              "changedKey": "ability",
+              "status": "mastered",
+              "intervalDays": 1,
+              "toast": "已记录 · 明天复习",
+              "toastChanged": false,
+              "toastNewNode": true,
+              "toastHasReview": true,
+              "fields": {
+                "dueAt": true,
+                "intervalDays": true,
+                "ease": true,
+                "streak": true,
+                "lapses": true
+              },
+              "fieldsOk": true
+            }
+          ]
+        },
+        "detail": "空格键应把 data-revealed 置 true 并移除遮罩；三次标记（again/hard/good）各触发一次 setProgress，写入条目必须含 5 个复习字段，toast 文案含「复习」。"
+      },
+      {
+        "id": "d",
+        "name": "点「单词表」进入 list 视图，出现 5 档筛选与行",
+        "scope": "renderer",
+        "pass": true,
+        "evidence": {
+          "view": "list",
+          "filters": [
+            "全部8",
+            "待复习1",
+            "未学4",
+            "学习中3",
+            "已掌握1"
+          ],
+          "rowCount": 8,
+          "countText": "8 / 8 · 待复习 1"
+        },
+        "detail": "list 视图应出现 全部/待复习/未学/学习中/已掌握 5 个筛选按钮，并渲染词条行。"
+      },
+      {
+        "id": "e",
+        "name": "待复习筛选行数 > 0；已掌握筛选行数 > 0",
+        "scope": "renderer",
+        "pass": true,
+        "evidence": {
+          "due": {
+            "count": 1,
+            "statuses": [
+              "learning"
+            ],
+            "countText": "1 / 8 · 待复习 1",
+            "allDue": true
+          },
+          "mastered": {
+            "count": 1,
+            "statuses": [
+              "mastered"
+            ],
+            "allMastered": true
+          }
+        },
+        "detail": "待复习筛选应只剩 due 行（行内 .ws-list-row-due[data-due=\"true\"]），已掌握筛选应只剩 data-status=mastered 行。"
+      },
+      {
+        "id": "f",
+        "name": "行内下拉改「已掌握」→ setProgress status=mastered，列表徽标同步",
+        "scope": "renderer",
+        "pass": true,
+        "evidence": {
+          "picked": "achieve",
+          "expectedStatusKey": "achieve",
+          "write": {
+            "key": "achieve",
+            "entry": {
+              "status": "mastered",
+              "seen": 6,
+              "remembered": 4,
+              "lastSeenAt": 1793807414732,
+              "dueAt": 1793893814856,
+              "intervalDays": 1,
+              "ease": 2.4,
+              "streak": 1,
+              "lapses": 0
+            }
+          },
+          "badge": {
+            "word": "achieve",
+            "status": "mastered",
+            "badge": "已掌握",
+            "select": "mastered"
+          }
+        },
+        "detail": "改状态下拉应调用 wordBank.setProgress，写入该词 status=mastered 且含全部复习字段；行内 status 徽标（.ws-list-row-status）与 select 值同步为已掌握。"
+      },
+      {
+        "id": "g",
+        "name": "点行内 ▶ 回到 study 视图，且当前词为该行单词",
+        "scope": "renderer",
+        "pass": true,
+        "evidence": {
+          "clicked": true,
+          "view": "study",
+          "word": "achieve",
+          "expected": "achieve"
+        },
+        "detail": "点行尾 ▶ 应切回学习视图并把 currentKey 指向该行单词。"
+      },
+      {
+        "id": "i",
+        "name": "切 list 视图 setOwnContentSize 宽度 480 级、回 study 360 级",
+        "scope": "renderer",
+        "pass": true,
+        "evidence": {
+          "widths": [
+            361,
+            361,
+            481,
+            481,
+            361
+          ],
+          "lastWidth": 361,
+          "sizeCalls": [
+            {
+              "at": 1793807414536,
+              "width": 361,
+              "height": 276
+            },
+            {
+              "at": 1793807414554,
+              "width": 361,
+              "height": 318
+            },
+            {
+              "at": 1793807414769,
+              "width": 481,
+              "height": 519
+            },
+            {
+              "at": 1793807414789,
+              "width": 481,
+              "height": 241
+            },
+            {
+              "at": 1793807414867,
+              "width": 361,
+              "height": 318
+            }
+          ]
+        },
+        "detail": "useOwnContentSize 按 .ws-root 实测宽度 +1 上报：study 360→361，list 480→481；切回 study 后最后一次上报应回到 360 级。"
+      },
+      {
+        "id": "h",
+        "name": "设置页出现 7 个学习开关与「待复习」统计",
+        "scope": "renderer",
+        "pass": true,
+        "evidence": {
+          "switchCount": 7,
+          "labels": [
+            "显示音标在单词下方显示 /ˈæpl/ 这样的音标",
+            "显示例句在释义下方显示例句",
+            "先遮住释义先只显示单词，点击或按空格再显示释义；关闭后直接显示释义",
+            "随机顺序每轮按随机顺序学习单词",
+            "标记后自动下一词点「认识 / 不认识」后自动切到下一个单词",
+            "优先复习到期单词打开卡片先过一遍遗忘曲线排到的词",
+            "显示复习计划在卡片上显示下次复习时间与记忆强度"
+          ],
+          "dueStatText": "待复习 4",
+          "reviewStatsText": "当前待复习 4 词最近到期 待复习",
+          "pathVisible": true
+        },
+        "detail": "附加窗口→英语单词学习展开后应有 7 个 Switch，词库概览与记忆曲线区都应显示「待复习」统计。"
+      },
+      {
+        "id": "j",
+        "name": "两个页面均无 console error / 未捕获异常",
+        "scope": "renderer",
+        "pass": true,
+        "evidence": {
+          "wordstudy": [],
+          "settings": []
+        },
+        "detail": "收集 Runtime.consoleAPICalled(type=error)、Log.entryAdded(level=error)、Runtime.exceptionThrown；忽略 favicon/网络噪声。"
+      }
+    ],
+    "environment": {
+      "browser": "Edge headless (Edg/156.0.4314.58)",
+      "edge": {
+        "executable": "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe",
+        "cdpPort": 9373,
+        "httpPort": 9380,
+        "reused": false,
+        "browser": "Edg/156.0.4314.58",
+        "userDataDir": ".userdata/v19-verify/edge-profile"
+      },
+      "note": "对照路径（scope=renderer）：out/renderer 构建产物 + 内置静态服务器 + CDP 注入 window.nexus stub；stub 迁移/统计调用 src/shared/wordBank.ts 同源函数。不是主结论。"
+    }
+  },
+  "screenshots": [
+    "docs/verification/v1.9/electron-study.png",
+    "docs/verification/v1.9/electron-study-revealed.png",
+    "docs/verification/v1.9/electron-word-list-due.png",
+    "docs/verification/v1.9/electron-settings-review-curve.png",
+    "docs/verification/v1.9/study.png",
+    "docs/verification/v1.9/study-revealed.png",
+    "docs/verification/v1.9/word-list-due.png",
+    "docs/verification/v1.9/settings-review-curve.png"
+  ]
+}

@@ -418,3 +418,36 @@
 - 需人工确认：M-28.4 导入/导出原生对话框、M-28.4b 打开词库文件、M-28.5 托盘/Dock 右键显隐、M-28.6 真实拖动吸附/锁定/仅在桌面、M-28.6b 桌面合成观感（清单见验收脚本 `manualItems` 与 verification §v1.8）。
 - 已知限制：外部删除 `wordbank.json` 后点「重新读取」不会重建种子（只读语义，保留内存值，下次启动才播种）；导入/导出只处理词条，备份进度需直接备份两个 JSON 文件。详见 `docs/plan.md` §19.5。
 
+## v1.9 迭代（2026-11-04 用户需求：单词按认识状态整理 + 遗忘曲线复习）
+
+> 用户诉求：「更新Nexus Doc的英语单词学习，使其可以按照单词是否认识等状态整理，最好增加记忆遗忘曲线的功能，方便复习前面未完全掌握的单词。」
+> 验收：`docs/spec.md` §15（AC-15.1 状态整理 / AC-15.2 遗忘曲线排期 / AC-15.3 旧进度迁移 / AC-15.4 设置项 / AC-15.5 零 IPC 变更）；方案：`docs/plan.md` §20；记录：`docs/verification.md` §v1.9。
+
+### 阶段 30 — v1.9 交付
+
+| # | 任务 | 归属 | 文件 | 状态 |
+|---|---|---|---|---|
+| 30.1 | 共享契约：`WordProgress` v2（+`dueAt/intervalDays/ease/streak/lapses`，`WORD_PROGRESS_VERSION=2`，v1 进度自动迁移为已学词 `dueAt=lastSeenAt`）；简化 SM-2（`reviewWord`/`setWordStatus`/`isWordDue`/`wordDueLabel`/`formatReviewInterval`/`formatDueAt`）；单词表纯函数（`wordBankReviewStats`/`filterWordBank`/`sortWordList`/`studyQueueKeys`/`applyWordReview`/`applyWordStatus`）；`DEFAULT_WORD_STUDY_OPTIONS` 5→7，注册表 wordstudy `defaultOptions` 同步 7 项；`package.json` 1.9.0 | lead | `src/shared/wordBank.ts`、`src/shared/types.ts`、`package.json` | ✅ |
+| 30.2 | 卡片改造：`ws-review-pill` 待复习入口（一键 `dueOnly` 只复习到期词，0 时禁用）、`ws-list-toggle` 单词表入口、`data-view` 三视图切换、学习队列改用 `studyQueueKeys`（标记后不重排）、三档评级 `kind→grade` + 乐观更新/回滚 + `已记录 · …复习` toast、`ws-schedule` 记忆计划条（可关）、30s 刷新待复习数 | ui-card | `src/renderer/wordstudy/WordStudyCard.tsx`、`wordstudy.css` | ✅ |
+| 30.3 | 单词表视图（新增，480 级宽）：5 档筛选 + 计数、单词/释义搜索、3 档排序、行内状态下拉（未学=删进度）、▶ 跳转学习定位、空态、Esc 返回；28 个新契约 class + 样式（合计 56） | ui-card | `src/renderer/wordstudy/WordListView.tsx`（新增）、`wordstudy.css` | ✅ |
+| 30.4 | 设置页：概览加「待复习 n」（`wordBankReviewStats`）、学习选项 5→7（优先复习到期单词 / 显示复习计划）、新增「记忆曲线」说明区（三档规则 + 待复习数/最近到期）、结果消息与 30s tick | ui-settings | `src/renderer/settings/sections/WordStudySettings.tsx`、`src/renderer/settings/settings.css` | ✅ |
+| 30.5 | 测试：词库契约（v1 进度迁移、`seen=0 && new` 丢弃、字段收敛）+ 共享契约（`good` 阶梯 1/3/7/`round(7×ease)`、`again`/`hard`、`setWordStatus`、`ease`/365 天边界、`isWordDue`/文案、`wordBankReviewStats.due`、`filterWordBank`/`sortWordList`/`studyQueueKeys`、`apply*` 不改入参）+ 接线门禁（1.9.0、`WORD_PROGRESS_VERSION=2`、注册表 `defaultOptions` 7 项、`WS_DOM_CONTRACT` 28→56、`WordListView` 入口、设置页 7 标签与「记忆曲线」文案） | tests-gate | `tests/wordbank-contract.test.mjs`、`tests/shared-contract.test.mjs`、`tests/wiring.test.mjs` | ✅ |
+| 30.6 | 构建门禁：`npm run check`（typecheck + node --test tests/*.test.mjs）全绿、`npm run build` 产出 `out/renderer/wordstudy/index.html`、版本 1.9.0 | lead | `package.json`、`out/` | ✅ |
+| 30.7 | 运行时验收：`scripts/v19-verify.mjs`（隔离 userData + CDP：v1 进度种子 → 迁移 → 待复习计数 → 三档评级排期 → 单词表筛选/搜索/排序/改状态/跳转 → 设置页 7 开关与记忆曲线 → v1.8 回归），产物 `docs/verification/v1.9/report.json` + ≥3 张截图 | runtime-verify | `scripts/v19-verify.mjs`（新增）、`docs/verification/v1.9/**`、`.userdata/v19-verify/**` | ✅ |
+| 30.8 | SDD 文档：spec §15（需求 + AC-15.1..15.5）、plan §20（数据模型 v2 / 简化 SM-2 / 共享 API / 三视图 UI / 测试策略 / 已知限制）、tasks 阶段 30 | docs-sdd | `docs/spec.md`、`docs/plan.md`、`docs/tasks.md` | ✅ |
+| 30.9 | 用户文档与验收记录：README v1.9、操作指南 v1.9（单词表操作 / 待复习 / 记忆曲线 FAQ / 升级验证）、`docs/verification.md` §v1.9（逐条 AC + 静态门禁 + 运行时证据回填） | docs-user | `README.md`、`操作指南.md`、`docs/verification.md` | ✅ |
+| 30.10 | 人工确认：三档评级的复习手感与排序是否合理、单词表 480 视图的滚动/缩放观感、长时间挂起后「待复习 n」刷新、改写系统时间后的到期表现 | user | — | [ ] |
+
+### 验收结论与遗留
+
+- 已核对事实（**静态**，截至本文档撰写，不含运行时）：共享契约 `src/shared/wordBank.ts` 已含 §20.3 全部纯函数与常量（`WordProgress` 9 字段、`WORD_PROGRESS_VERSION=2`、7 项默认选项、`WORD_FILTERS`/`WORD_SORTS`）；注册表 `src/shared/types.ts` 的 wordstudy `defaultOptions` 已与 `DEFAULT_WORD_STUDY_OPTIONS` 的 7 项一致（`tests/shared-contract.test.mjs` 的 `deepEqual` 断言可过）；`src/main/wordBank.ts` 未改且进度写入用 `{ version: WORD_PROGRESS_VERSION, progress }`，故升级后自动落 v2；11 个 wordbank IPC 通道（`src/shared/types.ts` 的 `IPC.wordBank*`）与 `wordbank.json` 格式未变；`settings.schemaVersion` 仍 11；`package.json` 版本 1.9.0。
+- 静态门禁结论（**本地实测**，2026-11-04 23:3x）：`npm run check` 全绿——typecheck 0 error、`node --test tests/*.test.mjs` **54 项 / 54 通过 / 0 失败**（shared-contract 24 + wordbank-contract 22 + wiring 8，覆盖 1.9.0 版本、`WORD_PROGRESS_VERSION=2`、注册表 7 项默认值、`WS_DOM_CONTRACT` 56 个 class、设置页 7 个选项标签）；`npm run build` 通过并产出 `out/renderer/wordstudy/index.html`（`wordstudy` chunk JS 56.08 kB / CSS 33.40 kB）。
+- 运行时验收结论（**真实 Electron 实测**，2026-11-04）：`scripts/v19-verify.mjs` 四步 `--prepare → --launch → --check → --cleanup` 真跑，主路径 **真实 Electron 44.7.0 / 10 项 / 10 通过 / 0 失败**，Edge headless + `window.nexus` stub 对照同样 10/10；证据 `docs/verification/v1.9/report.json`（`scope="electron"`）与 4 张 `electron-*.png`。逐项：a v1 旧进度 4 条读取时迁移（`dueAt=lastSeenAt`、`ease=2.5`）且 pill「待复习 4」；b study 渲染 + 释义遮罩 + 记忆计划条；c 空格显释义、`1/2/3` 落盘 `version=2` 且 5 个复习字段齐全、toast 含下次复习间隔；d/e 单词表 5 档筛选（全部 8 / 待复习 1 / 未学 4 / 学习中 3 / 已掌握 1）与筛选行；f 行内改「已掌握」落盘 `status=mastered`；g ▶ 回 study 且当前词 `achieve`；h 设置页 7 开关 + 待复习统计；i 真实窗口宽度 study 362 / list 482 / 回 study 362；j 两页面 0 console error / 0 未捕获异常。
+- 运行时环境说明（**实测纠正**）：本机 `electron --version` 会崩（exit `2147483651` / `0x80000003`，疑无控制台上下文），但 `electron . --no-sandbox --remote-debugging-port=9393 --user-data-dir=隔离目录` 的 GUI / CDP / preload / IPC / 磁盘读写均正常；故 30.7 主路径为真实 Electron，无头 Chromium + stub 仅作渲染层对照。脚本只操作隔离 userData，未触碰真实 `%APPDATA%\nexus-dock`。
+- 迁移口径：`wordbank-progress.json` v1 → v2 是**读取时迁移**（`combineWordBank` → 共享 `sanitizeWordProgressMap`：已学词 `dueAt=lastSeenAt`、`ease=2.5`、`intervalDays=0`、`streak=lapses=0`，升级后立即待复习），磁盘文件在下一次进度写入（标记单词 / 重置进度）时才落成 `version: 2`，**启动不重写进度文件**；用户无需操作、不丢已学词；无法恢复 v1 文件中从未存在的排期信息（首轮复习由用户重新评级决定）。
+- 已知限制：简化 SM-2 非严格 SM-2、本地时钟到期、队列不持久化、待复习数最多滞后约 30 秒、单词表无虚拟滚动、手改状态不计复习、迁移后待复习数可能一次性变大——详见 `docs/plan.md` §20.8。
+- 需人工确认（M-29.x）：M-29.1 三档评级后的复习手感与队列顺序；M-29.2 单词表 480 视图的滚动/缩放观感；M-29.3 长时间挂起后「待复习 n」的刷新；M-29.4 改写系统时间后的到期表现。
+- 明确不做：严格 SM-2 全参数、每日配额、发音/听写、云同步、新增窗口/IPC/设置字段、`schemaVersion` 变更、词库格式改动——见 `docs/spec.md` §15.3。
+
+
+

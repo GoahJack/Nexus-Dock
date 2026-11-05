@@ -98,5 +98,9 @@ try {
 }
 
 # 6) Start the installed app
+# Defensive: some dev harnesses export ELECTRON_RUN_AS_NODE=1. If inherited, Electron starts
+# as plain Node, the app exits immediately with no window and no log line. Clear it for the
+# launched process so the installed app always starts as a GUI.
+Remove-Item Env:ELECTRON_RUN_AS_NODE -ErrorAction SilentlyContinue
 Start-Process -FilePath $exe -WorkingDirectory $target
 Write-Host "[install] started: $exe"

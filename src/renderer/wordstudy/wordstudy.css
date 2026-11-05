@@ -1109,3 +1109,425 @@ body,
 :root[data-reduced-motion='true'] .ws-error {
   animation: none;
 }
+
+/* ========================= v1.9 复习排期 / 单词表 ========================= */
+
+/* 单词表视图与词库管理同宽（480），切换后由 ResizeObserver 重量测 */
+.ws-root[data-view='list'] {
+  width: 480px;
+}
+
+/* 头部多了「待复习」「单词表」两个入口：360px 一行放不下，允许操作区折到第二行。
+   不改变根节点宽度，量测值保持稳定。 */
+.ws-root[data-view='study'] .ws-header {
+  flex-wrap: wrap;
+  row-gap: 6px;
+}
+
+/* 待复习按钮：数字等宽，避免秒级刷新时按钮宽度抖动 */
+.ws-review-pill {
+  font-variant-numeric: tabular-nums;
+}
+
+.ws-review-pill.is-active {
+  color: #dceaff;
+  background: rgba(110, 168, 254, 0.22);
+  border-color: rgba(110, 168, 254, 0.42);
+}
+
+.ws-review-pill.is-active:hover:not(:disabled) {
+  background: rgba(110, 168, 254, 0.34);
+}
+
+/* ------------------------------- 记忆计划条 ------------------------------- */
+
+.ws-schedule {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 5px 8px;
+  border-radius: 9px;
+  background: var(--ws-panel);
+  border: 1px solid var(--nx-border);
+}
+
+.ws-schedule-text {
+  font-size: 10.5px;
+  line-height: 1.4;
+  letter-spacing: 0.2px;
+  color: var(--nx-text-dim);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ws-schedule-bar {
+  display: block;
+  height: 3px;
+  border-radius: var(--nx-radius-pill);
+  background: var(--nx-accent-soft);
+  overflow: hidden;
+}
+
+.ws-schedule-fill {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--nx-accent), var(--nx-accent-strong));
+  transition: width var(--nx-dur-slow) var(--nx-ease-out);
+}
+
+/* =============================== 单词表视图 =============================== */
+
+.ws-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 14px 12px;
+}
+
+/* 标题栏：未锁定时可拖动（按钮由通用规则 no-drag） */
+.ws-list-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 24px;
+  -webkit-app-region: drag;
+}
+
+.ws-root[data-locked='true'] .ws-list-head {
+  -webkit-app-region: no-drag;
+}
+
+.ws-list-title {
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.2px;
+  white-space: nowrap;
+}
+
+.ws-list-count {
+  margin-left: auto;
+  font-size: 10.5px;
+  color: var(--nx-text-faint);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* ------------------------------- 工具栏 ------------------------------- */
+
+.ws-list-toolbar {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.ws-list-filters {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.ws-list-filter {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+  padding: 3px 8px;
+  border-radius: var(--nx-radius-pill);
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--nx-text-dim);
+  background: var(--ws-panel);
+  border: 1px solid var(--nx-border);
+  white-space: nowrap;
+}
+
+.ws-list-filter:hover:not(:disabled) {
+  color: var(--nx-text);
+  background: var(--ws-panel-strong);
+  border-color: var(--nx-border-strong);
+}
+
+.ws-list-filter.is-active {
+  color: #dceaff;
+  background: rgba(110, 168, 254, 0.22);
+  border-color: rgba(110, 168, 254, 0.42);
+}
+
+.ws-list-filter.is-active:hover:not(:disabled) {
+  background: rgba(110, 168, 254, 0.34);
+}
+
+.ws-list-filter-count {
+  font-size: 9.5px;
+  color: var(--nx-text-faint);
+  font-variant-numeric: tabular-nums;
+}
+
+.ws-list-filter.is-active .ws-list-filter-count {
+  color: rgba(220, 234, 255, 0.78);
+}
+
+.ws-list-tools {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.ws-list-search {
+  flex: 1;
+  min-width: 0;
+  padding: 5px 10px;
+  border-radius: var(--nx-radius-pill);
+  font-size: 12px;
+  color: var(--nx-text);
+  background: var(--ws-input-bg);
+  border: 1px solid var(--nx-border);
+  outline: none;
+  transition:
+    border-color var(--nx-dur-fast) var(--nx-ease-out),
+    background-color var(--nx-dur-fast) var(--nx-ease-out);
+}
+
+.ws-list-search::placeholder {
+  color: var(--nx-text-faint);
+}
+
+.ws-list-search:focus {
+  border-color: rgba(110, 168, 254, 0.55);
+  background: var(--nx-accent-soft);
+}
+
+.ws-list-search:focus-visible {
+  outline: 2px solid var(--nx-focus-color);
+  outline-offset: 1px;
+}
+
+.ws-list-sort {
+  flex: none;
+  max-width: 116px;
+  padding: 5px 8px;
+  border-radius: var(--nx-radius-pill);
+  font-size: 11.5px;
+  color: var(--nx-text);
+  background: var(--ws-input-bg);
+  border: 1px solid var(--nx-border);
+  outline: none;
+  cursor: pointer;
+}
+
+.ws-list-sort:focus-visible {
+  outline: 2px solid var(--nx-focus-color);
+  outline-offset: 1px;
+}
+
+/* 原生下拉展开面板在深色玻璃上默认白底，这里统一配色 */
+.ws-list-sort option,
+.ws-list-status-select option {
+  color: var(--nx-text);
+  background: #1a1e28;
+}
+
+.ws-root[data-theme='light'] .ws-list-sort option,
+.ws-root[data-theme='light'] .ws-list-status-select option {
+  background: #ffffff;
+}
+
+/* ------------------------------- 词条列表 ------------------------------- */
+
+.ws-list-body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-height: 120px;
+  max-height: 420px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 1px 3px 1px 1px;
+}
+
+.ws-list-empty {
+  padding: 40px 8px;
+  text-align: center;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--nx-text-dim);
+}
+
+.ws-list-row {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 7px;
+  border-radius: 9px;
+  background: var(--ws-panel);
+  border: 1px solid var(--nx-border);
+  transition:
+    background-color var(--nx-dur-fast) var(--nx-ease-out),
+    border-color var(--nx-dur-fast) var(--nx-ease-out);
+}
+
+.ws-list-row:hover {
+  background: var(--ws-panel-strong);
+  border-color: var(--nx-border-strong);
+}
+
+.ws-list-row-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.ws-list-row-top {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+  min-width: 0;
+}
+
+.ws-list-row-word {
+  font-size: 13px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ws-list-row-phonetic {
+  flex: none;
+  max-width: 120px;
+  font-size: 10px;
+  color: var(--nx-text-faint);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ws-list-row-status {
+  margin-left: auto;
+  flex: none;
+  font-size: 9px;
+  padding: 1px 5px;
+  border-radius: var(--nx-radius-pill);
+  border: 1px solid transparent;
+  white-space: nowrap;
+}
+
+.ws-list-row-status.is-new {
+  color: var(--nx-text-faint);
+  border-color: var(--nx-border);
+}
+
+.ws-list-row-status.is-learning {
+  color: #cfe1ff;
+  background: rgba(110, 168, 254, 0.14);
+  border-color: rgba(110, 168, 254, 0.32);
+}
+
+.ws-list-row-status.is-mastered {
+  color: #d7f7e3;
+  background: rgba(74, 222, 128, 0.12);
+  border-color: rgba(74, 222, 128, 0.32);
+}
+
+.ws-list-row-meaning {
+  font-size: 11px;
+  color: var(--nx-text-dim);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 复习计划短标签：固定宽度，行与行之间不抖动；到期时用警示色 */
+.ws-list-row-due {
+  flex: none;
+  width: 58px;
+  text-align: right;
+  font-size: 10px;
+  color: var(--nx-text-faint);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.ws-list-row-due[data-due='true'] {
+  color: var(--ws-warn);
+  font-weight: 600;
+}
+
+.ws-list-status-select {
+  flex: none;
+  width: 68px;
+  padding: 3px 4px;
+  border-radius: 7px;
+  font-size: 10.5px;
+  color: var(--nx-text-dim);
+  background: var(--ws-input-bg);
+  border: 1px solid var(--nx-border);
+  outline: none;
+  cursor: pointer;
+}
+
+.ws-list-status-select:hover {
+  color: var(--nx-text);
+  border-color: var(--nx-border-strong);
+}
+
+.ws-list-status-select:focus-visible {
+  outline: 2px solid var(--nx-focus-color);
+  outline-offset: 1px;
+}
+
+.ws-list-study-btn {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  font-size: 9px;
+  line-height: 1;
+  color: var(--nx-accent-strong);
+  background: var(--nx-accent-soft);
+  border: 1px solid var(--nx-border);
+}
+
+.ws-list-study-btn:hover:not(:disabled) {
+  color: var(--nx-text);
+  background: rgba(110, 168, 254, 0.3);
+  border-color: rgba(110, 168, 254, 0.5);
+}
+
+/* ------------------------- 单词表 · 浅色主题 ------------------------- */
+
+.ws-root[data-theme='light'] .ws-review-pill.is-active {
+  color: #1c4fae;
+}
+
+.ws-root[data-theme='light'] .ws-list-filter.is-active {
+  color: #1c4fae;
+}
+
+.ws-root[data-theme='light'] .ws-list-filter.is-active .ws-list-filter-count {
+  color: rgba(28, 79, 174, 0.72);
+}
+
+.ws-root[data-theme='light'] .ws-list-row-status.is-new {
+  color: rgba(26, 29, 38, 0.5);
+}
+
+.ws-root[data-theme='light'] .ws-list-row-status.is-learning {
+  color: #1d4fae;
+}
+
+.ws-root[data-theme='light'] .ws-list-row-status.is-mastered {
+  color: #14603a;
+}
+
+.ws-root[data-theme='light'] .ws-list-study-btn:hover:not(:disabled) {
+  color: #1c4fae;
+}
+

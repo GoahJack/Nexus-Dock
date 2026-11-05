@@ -537,7 +537,10 @@ export const EXTRA_WINDOW_KINDS: readonly WindowKindSpec[] = [
       showExample: true,
       hideMeaning: true,
       shuffle: false,
-      autoNext: true
+      autoNext: true,
+      // v1.9：记忆曲线复习（与 DEFAULT_WORD_STUDY_OPTIONS 保持一致）
+      reviewFirst: true,
+      showSchedule: true
     }
   }
 ]

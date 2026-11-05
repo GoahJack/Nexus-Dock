@@ -1622,7 +1622,7 @@
   user-select: text;
 }
 
-/* -------------------- 5 个学习选项开关 -------------------- */
+/* -------------------- 7 个学习选项开关 -------------------- */
 .ws-settings-switches {
   display: flex;
   flex-direction: column;
@@ -1674,6 +1674,66 @@
   background: rgba(255, 107, 107, 0.09);
   color: var(--nx-danger);
 }
+
+/* ============================================================
+   v1.9：单词学习的复习排期（待复习统计 / 记忆曲线说明）
+   - 只追加 .ws-settings-* 独占选择器，不改动上面任何既有规则
+   - 颜色走 --nx-* 令牌 / 半透明白，深底浅底都可读
+   ============================================================ */
+
+/* 概览里「待复习」用强调色描边，和只读统计区分开 */
+.ws-settings-stat.is-due {
+  border-color: rgba(110, 168, 254, 0.34);
+  background: var(--nx-accent-soft);
+  color: var(--nx-text);
+}
+
+/* -------------------- 记忆曲线：待复习数量 / 最近到期 -------------------- */
+.ws-settings-review-stats {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 2px;
+}
+
+/* 最近到期时间可能较长（「待复习」/「3 个月后」），允许换行 */
+.ws-settings-review-stats .ws-settings-stat:last-child {
+  flex-wrap: wrap;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* -------------------- 间隔规则列表 -------------------- */
+.ws-settings-rules {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 8px 0 0;
+  padding-left: 18px;
+  font-size: var(--nx-font-xs);
+  line-height: var(--nx-leading);
+  color: var(--nx-text-dim);
+}
+
+.ws-settings-rules li {
+  padding-left: 2px;
+}
+
+.ws-settings-rules strong {
+  color: var(--nx-text);
+  font-weight: 600;
+}
+
+/* -------------------- 说明性小字（简化 SM-2 的边界） -------------------- */
+.ws-settings-hint {
+  margin: 8px 0 0;
+  font-size: var(--nx-font-xs);
+  line-height: var(--nx-leading);
+  color: var(--nx-text-faint);
+  overflow-wrap: anywhere;
+}
+
 
 
 

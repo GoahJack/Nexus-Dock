@@ -278,6 +278,9 @@ test('v1.8 契约：schemaVersion=11，extraWindows 默认值与注册表一致�
   assert.equal(wordStudy.theme, 'dark')
   assert.equal(wordStudy.options.showPhonetic, true)
   assert.equal(wordStudy.options.hideMeaning, true)
+  // v1.9：遗忘曲线相关的新选项同样来自注册表默认值（设置页 7 个学习开关）
+  assert.equal(wordStudy.options.reviewFirst, true, 'v1.9 新增：优先复习到期单词')
+  assert.equal(wordStudy.options.showSchedule, true, 'v1.9 新增：卡片显示复习计划')
   // 旧配置（schemaVersion 10，没有 wordstudy 配置）读入后自动补默认，不抛错
   const migrated = sanitizeSettings({ schemaVersion: 10, extraWindows: [] })
   assert.equal(migrated.schemaVersion, 11)

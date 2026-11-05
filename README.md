@@ -13,7 +13,7 @@ npm install
 npm run dev
 ```
 
-启动后：屏幕底部出现 Dock，右上出现音乐卡片，屏幕右侧出现**英语单词学习卡片**（v1.8，首次升级即显示；可拖动、可从托盘/设置隐藏）。桌面时钟默认隐藏，点击 Dock 末端时钟按钮（或设置 →「窗口 → 内置窗口 → 桌面时钟」）即可显示。右键 Dock →「Dock 设置」可打开设置面板。**系统托盘**有常驻图标（单击显示/隐藏 Dock、双击打开设置、右键完整菜单）。
+启动后：屏幕底部出现 Dock，右上出现音乐卡片，屏幕右侧出现**英语单词学习卡片**（v1.8 首次升级即显示，v1.9 起可在卡片内切「单词表」按认识状态整理、按遗忘曲线复习；可拖动、可从托盘/设置隐藏）。桌面时钟默认隐藏，点击 Dock 末端时钟按钮（或设置 →「窗口 → 内置窗口 → 桌面时钟」）即可显示。右键 Dock →「Dock 设置」可打开设置面板。**系统托盘**有常驻图标（单击显示/隐藏 Dock、双击打开设置、右键完整菜单）。
 
 > 验收 / 日常使用请用安装版（自动安装到 `%LOCALAPPDATA%\NexusDock`，以正常权限运行）：
 >
@@ -21,6 +21,46 @@ npm run dev
 > npm run build
 > npm run install:local   # 或直接双击根目录「启动 Nexus Dock.cmd」
 > ```
+
+## v1.9 更新（2026-11-04）
+
+> 当前版本：**v1.9.0**（`package.json`）；口径：规格 `docs/spec.md` §15、方案 `docs/plan.md` §20、任务 `docs/tasks.md` 阶段 30、验收 `docs/verification.md` §v1.9。
+> 主题：**英语单词学习升级——按认识状态整理单词 + 简化遗忘曲线（SM-2）安排复习**；设置 `schemaVersion` 仍为 11（没有设置形状变更）。
+
+### 新增：单词表整理视图
+
+- 单词卡片头部新增「**单词表**」按钮（与 v1.8 的「词库」并列）：进入 480 级宽的整理视图，左上「← 返回」或 `Esc` 回到学习卡片。
+- **5 档筛选**：全部 / 待复习 / 未学 / 学习中 / 已掌握，每档带数量；**搜索**按单词或释义（大小写不敏感）；**排序**：词库顺序 / 到期优先 / 字母 A→Z。
+- **每行直接改状态**：右侧下拉「未学 / 学习中 / 已掌握」——未学＝清空该词进度；学习中＝立即到期；已掌握＝至少 1 天后到期。改动立即写入进度文件。
+- 每行「▶ 学习该词」：回到学习视图并定位到该词；列表内部滚动，不撑高窗口。
+
+### 遗忘曲线（简化 SM-2）
+
+- 认识度三档直接决定下次复习时间：**不认识** → 10 分钟后重练（回到「学习中」）；**模糊** → 1 天起、间隔按当前间隔 ×0.6 缩短；**认识** → 已掌握，间隔按 1 → 3 → 7 → 15 → 30 天…逐级拉长（× 难度系数，上限 365 天）。
+- 难度系数（ease）范围 1.3–2.8：不认识 −0.2、模糊 −0.1、认识 +0.1；连续「认识」次数累加，不认识 / 模糊清零。
+- 已掌握的词到期后仍会回到队列；到期后再点「不认识」会降级回学习中并重新排期，历史记住次数不丢。
+- 卡片头部「**待复习 n**」按钮：一键只过到期单词（0 时禁用）；复习完显示「待复习已清空」，可「回到全部」。
+- 卡片新增**记忆计划条**（可在设置关闭）：下次复习时间、连续记住次数、按复习间隔显示的强度条；标记后 toast 提示下次复习间隔（如「已记录 · 明天复习」）。
+- 学习队列默认把到期词排在最前（设置「优先复习到期单词」可关）；v1.8 的键盘快捷键与认识度按钮保持不变。
+
+### 设置页与数据迁移
+
+- 设置 → 窗口 → 附加窗口 → 英语单词学习：概览新增「待复习 n」；学习选项由 5 个增至 **7 个**（新增「优先复习到期单词」「显示复习计划」）；新增「**记忆曲线**」说明区（排期规则 + 待复习数量 + 最近到期时间）。
+- `schemaVersion` 仍 **11**：本次没有设置形状变更，旧配置原样保留，新选项缺失时自动回落到默认值。
+- 学习进度文件 `wordbank-progress.json` 由 **v1 升到 v2**：新增 `dueAt / intervalDays / ease / streak / lapses`。迁移发生在**读取时**（主进程 `combineWordBank` → `sanitizeWordProgressMap` 在内存中把旧记录补齐，已学词按 `lastSeenAt` 视为已到期，升级后立即进入待复习），**历史记录不丢**；磁盘文件要等下一次学习 / 改状态写入进度时才变为 `version=2`，因此不要手工改版本号，也不用删文件重来。删除该文件仍是清空进度。
+- IPC / 主进程存储层**零新增通道**：复用 v1.8 的 `wordbank` 通道，写盘自动使用 v2 版本常量。
+
+### 工程化与验证
+
+- 契约与门禁：共享契约与词库契约补齐 SRS 字段与算法断言，`tests/wiring.test.mjs` 更新版本门禁（1.9.0）、窗口 DOM class（56 个）与设置页 7 选项断言；`npm test` **共 54 项**（共享契约 24 + 词库/SRS 契约 22 + 静态接线门禁 8；v1.8 为 41 项），全部通过。
+- `npm run typecheck` / `npm run build`：均通过（typecheck 0 error；build 130ms，产物含 `out/renderer/wordstudy/index.html`、`wordstudy-CC8R3Dkt.js` 56.08 kB、`wordstudy-Bk_cVJrA.css` 33.40 kB）。
+- 运行时验收：新增 `scripts/v19-verify.mjs`（隔离 userData + CDP，`--prepare / --launch / --check / --cleanup` 四步），证据见 [`docs/verification/v1.9/report.json`](docs/verification/v1.9/report.json)（由运行时验收任务产出，Lead 汇总；本文件不写未复核的通过率）。
+
+### 快速体验（3 分钟）
+
+1. 打开单词卡片 → 点头部「待复习 n」：只复习到期词；没有到期词时按钮为禁用态。
+2. 点「单词表」→ 切「待复习」筛选 → 搜索一个词 → 把某词改为「未学」→ 回卡片确认它重新进入学习队列。
+3. 标记一个「不认识」→ toast 显示「已记录 · 10 分钟后复习」；设置页「记忆曲线」区可看到待复习数量与最近到期时间。
 
 ## v1.8 更新（2026-11-04）
 
@@ -260,12 +300,12 @@ powershell -File scripts/mem-probe.ps1 -Label low-end -EnvPairs 'NEXUS_LOW_END=1
 | `npm run dev` | 开发模式（入口 `scripts/dev.ps1`：清宿主环境变量 + `--noSandbox` + 远程调试 9222） |
 | `npm run build` | 构建到 `out/` |
 | `npm run typecheck` | 全量类型检查 |
-| `npm test` | 契约与接线单元测试（Node 内置 test runner，**41 项**：共享契约 24 + 词库契约 9 + 静态接线门禁 8，不需要 Electron） |
+| `npm test` | 契约与接线单元测试（Node 内置 test runner，**54 项**：共享契约 24 + 词库/SRS 契约 22 + 静态接线门禁 8；v1.8 为 41 项，不需要 Electron） |
 | `npm run check` | `typecheck` + `test`（提交前门禁） |
 | `npm run dist` | 打包 Windows 便携版到 `dist/`（electron-builder 配置为 **portable** 单文件 exe；如需 NSIS 安装包请先在 `package.json` 的 `build.win.target` 增加 `nsis`） |
 | `powershell -File scripts/start.ps1` | 启动已构建产物（试用/验收），可加 `-DebugPort 9222` |
 
-## 当前状态（v1.8.0，开发态）
+## 当前状态（v1.9.0，开发态）
 
 - ✅ Dock：玻璃质感、四边停靠、沿边位置、悬停放大（1.30×，邻项递减）、拖拽排序、右键菜单、图标提取
 - ✅ **Dock 应用个性化（v1.6）**：可改显示名称与图标（PNG/JPG/WebP/ICO/SVG），设置页 ✎ 与 Dock 右键双入口，支持一键恢复默认
@@ -280,38 +320,39 @@ powershell -File scripts/mem-probe.ps1 -Label low-end -EnvPairs 'NEXUS_LOW_END=1
 - ✅ 窗口共性能力：吸附 / 始终置顶 / 仅在桌面显示 / 位置锁定 / 移回默认位置，内置三窗口一致且统一入口
 - ✅ **窗口体系（v1.7）**：注册表驱动（`BUILTIN_WINDOW_SPECS` + `EXTRA_WINDOW_KINDS`）；新窗口 4 步接入后，窗口创建/显隐/吸附/锁定/仅在桌面/托盘入口/设置页自动生效
 - ✅ **英语单词学习附加窗口（v1.8）**：学习卡片（单词/音标/释义/例句/认识度标记/快捷键）+ 词库管理视图；词库与进度双文件存储、可自由修改（窗口内编辑 / 设置页导入导出与恢复默认 / 直接改 `wordbank.json` 后「重新读取」）；设置页「窗口 → 附加窗口」出现词库概览与 5 个学习选项
+- ✅ **单词状态整理与遗忘曲线（v1.9）**：单词卡片新增「单词表」视图（5 档筛选 + 搜索 + 3 档排序 + 每行状态下拉 + ▶ 学习该词）、头部「待复习 n」一键复习到期词、记忆计划条（下次复习 / 连续次数 / 强度）、标记后提示下次复习间隔；设置页学习选项 5 → 7 个并新增「记忆曲线」说明区；进度文件 v1 → v2 **读取时**自动迁移（已学词升级后立即待复习，磁盘文件下次写入才更新版本号）
 - ✅ **显示桌面修复（v1.7）**：Win+D / 「显示桌面」后 Dock/音乐/时钟自动恢复；桌面状态桥新增 `minimized`/`visible` 判定，桌面占用由共享纯函数 `isDesktopBusy` 统一判定（「前台窗口最小化」不再占用桌面，修复不是只改 `isVisible()`）
 - ✅ 外观与动效：强度三档、减少动效、点击音效、效果预览
 - ✅ 开机自启：安装版写入 HKCU 登录项，状态以系统为准、失败回滚；portable 版使用 `PORTABLE_EXECUTABLE_FILE` 写入真实路径（v1.5）
 - ✅ 稳定性：桥崩溃循环治理 + 桥看门狗 + 渲染进程崩溃自愈 + 日志轮转 + 窗口导航加固（v1.5）
 - ✅ 窗口行为准则：`docs/window-conventions.md`（新窗口强制能力清单、附加窗口接入机制与验收契约）
 - ✅ 内存轻量化（v1.4）：常驻桥按需启停 + 原生 `desktop-state.exe`、时钟去 React、隐藏窗口降频；工作集 656.0 → 473.4MB（低配模式 421.1MB）
-- ✅ 自动化门禁：`npm run check`（typecheck + 41 个契约/接线测试）+ `scripts/v1{5,6,7}-verify.mjs` + `scripts/v18-verify.mjs`（v1.8，隔离 userData + CDP）
-- ⏳ 待人工验证（只能靠真人，脚本无法替代）：托盘图标在你自己任务栏的**视觉与单击/双击手感**、Dock/音乐/时钟/单词卡片真实拖动吸附手感、锁定后鼠标不可拖、开机自启在真实登录后的行为、动效主观手感、Win+D 后的恢复手感、词库导入/导出原生对话框
+- ✅ 自动化门禁：`npm run check`（typecheck + 54 个契约/接线测试）+ `scripts/v1{5,6,7,8}-verify.mjs` + `scripts/v19-verify.mjs`（v1.9，隔离 userData + CDP；真实 Electron 10/10、Edge 对照 10/10，报告与截图在 `docs/verification/v1.9/`）
+- ⏳ 待人工验证（只能靠真人，脚本无法替代）：托盘图标在你自己任务栏的**视觉与单击/双击手感**、Dock/音乐/时钟/单词卡片真实拖动吸附手感、锁定后鼠标不可拖、开机自启在真实登录后的行为、动效主观手感、Win+D 后的恢复手感、词库导入/导出原生对话框、**v1.9 单词表筛选/搜索/排序与状态下拉的手感、记忆计划条与 toast 的可读性**
 - ⏳ 待验收后打包：便携版单文件 exe（`npm run dist`）
 
-验收证据见 [docs/verification.md](docs/verification.md) §v1.6（18/18 通过，报告与截图在 `docs/verification/v1.6/`）与 §v1.5（9/9 + 5/5 通过）；**v1.7 见 §v1.7**、**v1.8 见 §v1.8（CDP 运行时 42/43 通过、0 失败、1 项原生对话框列手动项；证据 `docs/verification/v1.8/report.json`）**；本机宿主环境限制见 [操作指南.md](操作指南.md) 末节。
+验收证据见 [docs/verification.md](docs/verification.md) §v1.6（18/18 通过，报告与截图在 `docs/verification/v1.6/`）与 §v1.5（9/9 + 5/5 通过）；**v1.7 见 §v1.7**、**v1.8 见 §v1.8（CDP 运行时 42/43 通过、0 失败、1 项原生对话框列手动项；证据 `docs/verification/v1.8/report.json`）**、**v1.9 见 §v1.9（真实 Electron 10/10、Edge 对照 10/10 通过；证据 `docs/verification/v1.9/report.json`）**；本机宿主环境限制见 [操作指南.md](操作指南.md) 末节。
 
 ## 文档
 
 | 文档 | 内容 |
 |---|---|
-| [操作指南.md](操作指南.md) | 环境自检、执行顺序、日常使用说明、FAQ（含「显示桌面」修复、附加窗口接入说明、**v1.8 英语单词学习与词库自由修改**） |
-| [docs/spec.md](docs/spec.md) | 需求规格与验收标准（SDD 阶段 1，§7 为 v1.0 精细化交互规格，§8 为 v1.1，§9 为 v1.2，§11 为 v1.3.1、§12 为 v1.4.1 补丁，§13 为 v1.7 窗口体系，**§14 为 v1.8 英语单词学习**） |
+| [操作指南.md](操作指南.md) | 环境自检、执行顺序、日常使用说明、FAQ（含「显示桌面」修复、附加窗口接入说明、**v1.8 英语单词学习与词库自由修改**、**v1.9 按认识状态整理与遗忘曲线复习**） |
+| [docs/spec.md](docs/spec.md) | 需求规格与验收标准（SDD 阶段 1，§7 为 v1.0 精细化交互规格，§8 为 v1.1，§9 为 v1.2，§11 为 v1.3.1、§12 为 v1.4.1 补丁，§13 为 v1.7 窗口体系，§14 为 v1.8 英语单词学习，**§15 为 v1.9 状态整理与遗忘曲线**） |
 | [docs/window-conventions.md](docs/window-conventions.md) | 窗口行为准则：所有悬浮窗口的强制能力（吸附开关/位置记忆/位置锁定等）、**附加窗口接入机制（v1.7，v1.8 起注册了 wordstudy 实例）**、接入清单与验收契约（**新窗口必读**） |
 | [docs/motion-spec.md](docs/motion-spec.md) | 动效设计规范（令牌/曲线/组件矩阵/降级，v1.0 唯一视觉真源） |
-| [docs/plan.md](docs/plan.md) | 技术方案与架构、IPC 契约（SDD 阶段 2，§12 为 v1.0 方案，§16、§17 为补丁方案，§18 为 v1.7 方案，**§19 为 v1.8 方案**） |
-| [docs/tasks.md](docs/tasks.md) | 任务分解与状态（SDD 阶段 3，阶段 9–11 为 v1.0 任务，阶段 24 为 v1.4.1，阶段 25 为 v1.5，阶段 26 为 v1.6，阶段 27 为 v1.7，**阶段 29 为 v1.8**） |
-| [docs/verification.md](docs/verification.md) | 逐条 AC 验收记录与截图（§v1.6 = 16/16 通过；§v1.5 = 9/9 + 5/5 通过；§v1.7 由验收脚本生成；**§v1.8 = CDP 运行时 42/43 通过 + 0 失败 + 1 手动项**） |
+| [docs/plan.md](docs/plan.md) | 技术方案与架构、IPC 契约（SDD 阶段 2，§12 为 v1.0 方案，§16、§17 为补丁方案，§18 为 v1.7 方案，§19 为 v1.8 方案，**§20 为 v1.9 方案**） |
+| [docs/tasks.md](docs/tasks.md) | 任务分解与状态（SDD 阶段 3，阶段 9–11 为 v1.0 任务，阶段 24 为 v1.4.1，阶段 25 为 v1.5，阶段 26 为 v1.6，阶段 27 为 v1.7，阶段 29 为 v1.8，**阶段 30 为 v1.9**） |
+| [docs/verification.md](docs/verification.md) | 逐条 AC 验收记录与截图（§v1.6 = 16/16 通过；§v1.5 = 9/9 + 5/5 通过；§v1.7 由验收脚本生成；§v1.8 = CDP 运行时 42/43 通过 + 0 失败 + 1 手动项；**§v1.9 = 静态门禁与 AC 映射，运行时证据见 `docs/verification/v1.9/report.json`**） |
 
 ## 目录结构
 
 ```
 src/
   shared/types.ts      # IPC 契约 + 配置模型 + 窗口注册表（唯一真源）
-  shared/wordBank.ts   # v1.8 词库共享契约：纯函数收敛 / 默认 59 词 / 窗口选项（唯一真源）
+  shared/wordBank.ts   # 词库共享契约：纯函数收敛 / 默认 59 词 / 窗口选项 / v1.9 遗忘曲线（简化 SM-2）与状态整理纯函数（唯一真源）
   main/                # 主进程：窗口/位置引擎、设置、应用、媒体桥
-    wordBank.ts        # v1.8 词库存储层：wordbank.json + wordbank-progress.json 双文件、原子写、损坏备份
+    wordBank.ts        # 词库存储层：wordbank.json + wordbank-progress.json 双文件、原子写、损坏备份；v1.9 进度 v2 自动迁移
     windowUtils.ts     # 窗口加固 / 崩溃自愈 / 显示恢复守卫（v1.7 新增）
     extraWindows.ts    # 附加窗口管理器：注册表驱动创建/布局/显隐/锁定（v1.7 新增）
     tray.ts            # 系统托盘（v1.5 新增）
@@ -320,18 +361,18 @@ src/
   renderer/dock/       # Dock 界面
   renderer/music/      # 音乐卡片
   renderer/clock/      # 桌面时钟（v1.1 新增）
-  renderer/wordstudy/  # v1.8 英语单词学习附加窗口（学习卡片 + 词库管理）
-  renderer/settings/   # 设置面板（v1.7 分内置窗口 / 附加窗口等分区；v1.8 附加窗口含词库管理）
+  renderer/wordstudy/  # 英语单词学习附加窗口（学习卡片 + 词库管理；v1.9 新增单词表视图 WordListView.tsx）
+  renderer/settings/   # 设置面板（v1.7 分内置窗口 / 附加窗口等分区；v1.8 附加窗口含词库管理；v1.9 增记忆曲线说明区）
   renderer/shared/     # 设计系统、通用 hooks、ErrorBoundary（v1.5）
 resources/             # 桥脚本与原生助手（smtc-bridge.ps1 / desktop-state.ps1 / desktop-state.cs + .exe，v1.7 协议含 minimized/visible）+ 托盘图标 tray-*.png
-tests/                 # 契约 / 接线单元测试（node --test，v1.5 新增；v1.8 共 41 项）
-scripts/               # 验收辅助脚本（截屏、CDP 验收、溢出压力测试等；v1.8 新增 v18-verify.mjs）
+tests/                 # 契约 / 接线单元测试（node --test，v1.5 新增；v1.9 共 54 项 = 24 + 22 + 8，v1.8 为 41 项）
+scripts/               # 验收辅助脚本（截屏、CDP 验收、溢出压力测试等；v1.8 新增 v18-verify.mjs、v1.9 新增 v19-verify.mjs）
 ```
 
 ## 配置与日志
 
-- 设置：`%APPDATA%\nexus-dock\settings.json`（删除即恢复默认；`schemaVersion` 当前 **11**（v1.8），v1.7 新增 `extraWindows` 字段，v1.8 起含 `kind=wordstudy` 配置）
+- 设置：`%APPDATA%\nexus-dock\settings.json`（删除即恢复默认；`schemaVersion` 当前 **11**（v1.9 未变），v1.7 新增 `extraWindows` 字段，v1.8 起含 `kind=wordstudy` 配置，v1.9 新增的 2 个学习选项缺失时自动回落默认）
 - 词库：`%APPDATA%\nexus-dock\wordbank.json`（`{ version, words }`，可直接编辑/整体替换）
-- 学习进度：`%APPDATA%\nexus-dock\wordbank-progress.json`（与词库分离，换词库不丢结构；删掉即清空进度）
+- 学习进度：`%APPDATA%\nexus-dock\wordbank-progress.json`（与词库分离，换词库不丢结构；删掉即清空进度；v1.9 起为 v2 结构，含 `dueAt / intervalDays / ease / streak / lapses` 遗忘曲线字段。v1 旧文件在**读取时**于内存中迁移，磁盘上的 `version` 仍为 1，直到下一次进度写入才落盘为 2）
 - 图标缓存：`%APPDATA%\nexus-dock\icons\`
 - 日志：`%APPDATA%\nexus-dock\logs\`

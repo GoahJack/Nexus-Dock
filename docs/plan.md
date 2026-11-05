@@ -849,3 +849,208 @@ IPC / preload（10 个 invoke 通道 + 1 个广播）：`wordbank:get / setWords
 - 外部删除 `wordbank.json` 后点「重新读取」：只读语义下不会重建文件，保留当前内存词库（下次启动才重新播种 59 词）；这是刻意设计——避免「重新读取」覆盖用户正在编辑的文件。
 - 导入词库只替换词条；导入文件若不含 `progress`，同名单词原有进度保留，不同名进度丢弃；导出文件只含词条（备份进度请直接备份两个 JSON 文件）。
 - 学习进度写入有约 1 次 IPC 往返的乐观更新：失败会回滚并显示错误条，但极端并发下以最后一次写入为准（`markSeq` 序号保护）。
+
+## 20. v1.9 方案：单词按认识状态整理 + 遗忘曲线复习
+
+> 状态：共享契约、卡片复习条、单词表视图与设置页已实现（进度文件 v2 + 简化 SM-2 + 单词窗口三视图）；运行时验收记录待补（`docs/verification.md` §v1.9，机器证据 `docs/verification/v1.9/report.json`，由验收脚本产出）。
+> 用户诉求：单词要能按「是否认识」整理，最好加遗忘曲线，方便复习前面没完全掌握的单词。
+> 接入方式：**不新增窗口、不新增 IPC 通道、不改设置字段形状**，全部在既有 wordstudy 窗口内扩展；数据仍走 v1.8 的 11 个 wordbank 通道（§19.1），主进程存储层零改动。
+
+### 20.1 数据模型：进度文件 v2（WordProgress）
+
+`wordbank-progress.json` 从 v1 升到 v2，增加 5 个排期字段；词库文件 `wordbank.json` 完全不变：
+
+```json
+wordbank-progress.json
+{ "version": 2,
+  "progress": {
+    "apple": {
+      "status": "mastered", "seen": 3, "remembered": 2,
+      "lastSeenAt": 1793770000000,
+      "dueAt": 1794030000000, "intervalDays": 3,
+      "ease": 2.6, "streak": 2, "lapses": 0
+    }
+  } }
+```
+
+| 字段 | 类型 | 默认 / 范围 | 语义 |
+|---|---|---|---|
+| `status` | `'new' \| 'learning' \| 'mastered'` | `'new'` | 未学 / 学习中 / 已掌握 |
+| `seen` | number | 0 | 出现（评级）次数 |
+| `remembered` | number | 0，且 `≤ seen` | 「认识」次数 |
+| `lastSeenAt` | number(ms) | 0 | 最近一次评级时间 |
+| `dueAt` | number(ms) | 0 = 未排期 | 下次复习到期时间，到期判定 `dueAt <= now` |
+| `intervalDays` | number | 0–365，0 = 10 分钟级 | 当前复习间隔（天） |
+| `ease` | number | 2.5，夹在 1.3–2.8 | 记忆难度系数，越大越容易记牢 |
+| `streak` | number | 0 | 连续「认识」次数，不认识/模糊清零 |
+| `lapses` | number | 0 | 「不认识」累计次数 |
+
+为什么把排期写进进度文件（而不是 `settings.json`）：
+
+| 设计点 | 理由 |
+|---|---|
+| 排期是「每个词」的状态 | settings 只放窗口级选项；每词 9 字段 × 最多 5000 词塞进 settings 会让配置不可读、迁移昂贵 |
+| `settings.schemaVersion` 不动（仍 11） | 旧配置无需迁移；新增的 2 个学习选项由注册表 `defaultOptions` 经 `sanitizeWindowOptions` 自动合并，缺字段也有默认值 |
+| 进度文件自带版本号 | 读取按字段探测 v1、写回统一 `version: 2`（`WORD_PROGRESS_VERSION`），磁盘格式演进不牵动主进程逻辑 |
+| 与词库文件解耦 | 换 `wordbank.json` 时同名 key 的进度与排期自动保留，删掉的词自动丢弃（沿用 §19.1 的 key 归一口径） |
+
+**v1 → v2 自动迁移**（`sanitizeWordProgress` / `sanitizeWordProgressMap`，`src/shared/wordBank.ts`）：
+
+- 探测：`const legacy = typeof r.dueAt !== 'number'` —— v1 条目没有 `dueAt` 即视为旧数据；
+- 旧条目补全：`dueAt = lastSeenAt`、`intervalDays = 0`、`ease = 2.5`、`streak = 0`、`lapses = 0` → **升级后所有已学词立即变为待复习**；
+- `status='new'`：`dueAt` 强制 0（不排期）；`remembered = min(remembered, seen)`；未知单词 key 仍丢弃；
+- `sanitizeWordProgressMap` 只丢 `seen===0 && status==='new'` 的条目；手动标为学习中/已掌握（即使 `seen=0`）的条目保留；
+- **迁移时机：读取时迁移，不是启动重写**。`src/main/wordBank.ts` 的 `combineWordBank` 调用共享 `sanitizeWordProgressMap`，旧 v1 条目在内存中被补全为 v2 形状（`dueAt=lastSeenAt`、`intervalDays=0`、`ease=2.5`、`streak=0`、`lapses=0`），所以升级后已学词**立即进入待复习**；磁盘上的 `wordbank-progress.json` 仍是 v1，直到下一次进度写入（标记单词 / 重置进度）才由 `{ version: WORD_PROGRESS_VERSION, progress }` 写成 `version: 2`。启动过程不会主动重写进度文件（避免只读启动产生无谓写盘）。
+- 写盘：`src/main/wordBank.ts` 的进度写入走 `{ version: WORD_PROGRESS_VERSION, progress }`，常量变为 2 后**自动写 v2，主进程零改动**；文件损坏仍走 §19.1 的 `.corrupt-<时间戳>.bak` 备份后回退空进度。
+
+### 20.2 记忆曲线算法（简化 SM-2）
+
+`reviewWord(prev, grade, now): WordProgress` 是纯函数：不读时钟、不写盘，`now` 由调用方传入（界面用 `Date.now()`，测试传固定时间戳，结果可复现）。
+
+| 评级 | 按钮文案 | 新 `status` | 下次复习 | `intervalDays` | `ease` | `streak` | `lapses` |
+|---|---|---|---|---|---|---|---|
+| `again` | 不认识 | `learning` | now + 10 分钟 | 0 | −0.2（≥1.3） | 0 | +1 |
+| `hard` | 模糊 | `learning` | now + 上次×60% 天（至少 1 天） | `max(1, round(上次×0.6))`（上次 <1 则 1） | −0.1（≥1.3） | 0 | 不变 |
+| `good` | 认识 | `mastered` | now + 阶梯 天 | 1 → 3 → 7 → `max(上次+1, round(上次×ease))`，上限 365 | +0.1（≤2.8） | +1 | 不变 |
+
+所有评级都会 `seen+1`、`lastSeenAt = now` 并写回 `dueAt`；`good` 另外 `remembered+1`。`ease` 按两位小数四舍五入后再夹到 1.3–2.8。伪代码（与 `src/shared/wordBank.ts` 一致）：
+
+```ts
+if (grade === 'again') {
+  status = 'learning'; dueAt = now + 600_000; intervalDays = 0
+  ease = clamp(round2(ease - 0.2)); streak = 0; lapses += 1
+} else if (grade === 'hard') {
+  intervalDays = prev < 1 ? 1 : max(1, round(prev * 0.6))
+  status = 'learning'; ease = clamp(round2(ease - 0.1)); streak = 0
+} else {
+  streak += 1
+  intervalDays = streak <= 1 ? 1 : streak === 2 ? 3 : streak === 3 ? 7
+                 : max(prev + 1, round(prev * ease))
+  intervalDays = clamp(intervalDays, 1, 365)
+  status = 'mastered'; remembered += 1; ease = clamp(round2(ease + 0.1))
+}
+```
+
+**手动改状态** `setWordStatus(prev, status, now)`（单词表行内下拉用，**不当作一次复习、不改 `seen`**）：
+
+| 选择 | 结果 |
+|---|---|
+| 未学 `new` | 清空该词进度（`applyWordStatus` 直接 `delete progress[key]`） |
+| 学习中 `learning` | `status='learning'`、`streak=0`、`intervalDays=0`、`dueAt=now`（立即到期，下一轮优先出现） |
+| 已掌握 `mastered` | `intervalDays=max(1, 上次)`、`streak=max(1, 上次)`、`dueAt=now+intervalDays 天` |
+
+**到期判定与文案**（卡片、单词表、设置页共用，保证口径一致）：
+
+- `isWordDue(progress, now)`：无进度或 `status==='new'` → `false`；否则 `dueAt <= now`。迁移数据 `dueAt=lastSeenAt` 天然到期。
+- `wordDueLabel(progress, now)`：未学 / 待复习 / `formatDueAt(dueAt, now)`。
+- `formatDueAt`：到期 →「待复习」；<1 小时 →「n 分钟后」；<1 天 →「n 小时后」；<30 天 →「n 天后」；<365 天 →「n 个月后」；否则「一年后」。
+- `formatReviewInterval(days)`（toast 用）：0 →「10 分钟后」；1 →「明天」；<30 →「n 天后」；<365 →「n 个月后」；否则「一年后」。
+
+### 20.3 共享契约新增（`src/shared/wordBank.ts`，零依赖，主进程 / preload / 渲染页 / 测试共用）
+
+| 函数 | 签名 | 用途 |
+|---|---|---|
+| `reviewWord` | `(prev: WordProgress \| null \| undefined, grade: WordReviewGrade, now: number) => WordProgress` | 三档评级 → 新进度（§20.2） |
+| `setWordStatus` | `(prev, status: WordStatus, now: number) => WordProgress` | 行内手改状态（不计复习） |
+| `isWordDue` | `(progress, now: number) => boolean` | 到期判定 |
+| `wordDueLabel` | `(progress, now: number) => string` | 未学 / 待复习 / n 天后 |
+| `formatReviewInterval` | `(days: number) => string` | 标记后 toast 的间隔文案 |
+| `formatDueAt` | `(dueAt: number, now: number) => string` | 计划条 / 单词表到期文案 |
+| `wordBankReviewStats` | `(bank: WordBank, now: number) => WordBankReviewStats` | 词库统计 + `due`（待复习数） |
+| `filterWordBank` | `(bank, filter: WordFilter, now: number, query?: string) => WordListItem[]` | 5 档筛选 + 单词/释义搜索 |
+| `sortWordList` | `(items: readonly WordListItem[], sort: WordSort) => WordListItem[]` | 3 档排序，返回新数组 |
+| `studyQueueKeys` | `(bank, options: Pick<WordStudyOptions, 'shuffle' \| 'reviewFirst'>, now: number, onlyDue?: boolean) => string[]` | 学习队列（归一化 key 列表） |
+| `applyWordReview` | `(bank: WordBank, key: string, grade: WordReviewGrade, now: number) => WordBank` | 在快照上应用一次评级，返回新快照 |
+| `applyWordStatus` | `(bank, key: string, status: WordStatus, now: number) => WordBank` | 同上（未学 = 删进度） |
+
+- 新类型：`WordStatus`、`WordReviewGrade`、`WordFilter`、`WordSort`、`WordListItem`（`key/entry/progress/status/due/dueLabel`）、`WordBankReviewStats`（`extends WordBankStats` + `due`）。
+- `WordProgress` 增加 5 字段；`WordStudyOptions` 由 5 项增至 7 项（新增 `reviewFirst`、`showSchedule`），`DEFAULT_WORD_STUDY_OPTIONS` 中除 `shuffle=false` 外全为 `true`。
+- 新常量：`WORD_PROGRESS_VERSION=2`、`WORD_REVIEW_GRADES` / `WORD_REVIEW_GRADE_LABELS`、`WORD_EASE_DEFAULT/MIN/MAX=2.5/1.3/2.8`、`WORD_AGAIN_DELAY_MS=600_000`、`WORD_MAX_INTERVAL_DAYS=365`、`WORD_FILTERS` / `WORD_FILTER_LABELS`、`WORD_SORTS` / `WORD_SORT_LABELS`。
+- 约定：所有函数不修改入参（`filterWordBank` / `sortWordList` / `orderWordsForStudy` 返回新数组，`apply*` 返回新快照）；渲染层先本地乐观更新，再 `wordBank.setProgress(next.progress)`，失败回滚并显示错误条。
+
+### 20.4 UI 结构：单词窗口三视图
+
+单词窗口仍是一个渲染页（`src/renderer/wordstudy/`），根节点 `.ws-root` 用 `data-view` 在三个视图间切换，切换后 `useOwnContentSize` 的依赖包含 `view`，用 `ResizeObserver` 重量测并上报 C7：
+
+| 视图 | `data-view` | 宽度档 | 内容 |
+|---|---|---|---|
+| 学习 | `study` | 360 | 单词 / 音标 / 释义 / 例句、三档评级、上一词/下一词、统计、记忆计划条 |
+| 词库管理 | `editor` | 480 | v1.8 的搜索 / 新增 / 编辑 / 删除 / 恢复默认（行为不变） |
+| 单词表 | `list` | 480 | 5 档筛选 + 搜索 + 排序 + 行内改状态 + 跳转学习 |
+
+**学习卡片（`WordStudyCard.tsx`）**：
+
+- 头部新增「待复习 n」按钮（`.ws-review-pill`，`due` 来自 `wordBankReviewStats`；`due=0` 时 `disabled`；点击切换 `dueOnly`，激活时加 `is-active`；30s 定时器刷新 `now`/计数）与「单词表」入口（`.ws-list-toggle`）；v1.8 的 `.ws-bank-toggle` / `.ws-hide` 保留。
+- 学习队列改为本地 `queue: string[]`（`studyQueueKeys(bank, options, Date.now(), dueOnly)`）。**只在词库内容 / `shuffle` / `reviewFirst` / `dueOnly` 变化时重排，标记单词后不重排**（否则当前词会跳位）；`dueOnly` 且队列清空时用现有 `.ws-empty` 显示「待复习已清空」+「回到全部」按钮。
+- 三档评级：旧 `markWord(kind)` 改为 `kind→grade` 映射（unknown→again、vague→hard、known→good），`applyWordReview` 得新快照 → 乐观 `setBank` → `wordBank.setProgress`；失败回滚并显示错误条（沿用 `markSeq` 防旧请求覆盖）。toast 文案：`已记录 · ${formatReviewInterval(intervalDays)}复习`。
+- 记忆计划条（释义下方、footer 上方，`showSchedule` 且当前词有进度且 `status!=='new'` 时渲染）：`.ws-schedule` > `.ws-schedule-text`（`下次复习 … · 连续 n`）+ `.ws-schedule-bar` > `.ws-schedule-fill`（宽度 = `clamp(intervalDays/30*100, 0, 100)`%）。
+- 键盘不变（仅 study 视图）：空格/Enter 显示释义、`←`/`→` 切词、`1`/`2`/`3` 三档标记，输入框聚焦时不拦截。
+
+**单词表（`WordListView.tsx`，新增）**：命名导出 `WordListView`，props 至少 `{ bank, now, onBack, onStudyWord(key), onBankChange(next), onError(msg), notify(text) }`。数据用 `filterWordBank` + `sortWordList`；筛选 chips 5 档带计数；搜索按 `word/meaning`；排序 `select` 3 档；每行右侧状态下拉（`applyWordStatus` 乐观更新/回滚）+ 「▶ 学习该词」（重建全量队列并把 `index` 定位到该 key）；`Esc` 返回 study。
+
+新增 **28 个契约 DOM class**（与 v1.8 的 28 个合计 56，`tests/wiring.test.mjs` 的 `WS_DOM_CONTRACT` 逐字断言）：
+
+```
+ws-review-pill ws-list-toggle ws-schedule ws-schedule-text ws-schedule-bar ws-schedule-fill
+ws-list ws-list-head ws-list-back ws-list-title ws-list-count ws-list-toolbar
+ws-list-filters ws-list-filter ws-list-search ws-list-sort ws-list-body ws-list-row
+ws-list-row-main ws-list-row-top ws-list-row-word ws-list-row-phonetic ws-list-row-status
+ws-list-row-meaning ws-list-row-due ws-list-status-select ws-list-study-btn ws-list-empty
+```
+
+样式沿用现有深浅主题变量（只用 `--nx-*` 令牌），`[data-view='list']` 宽度 480 级，列表 `max-height≈420px` 内部滚动；不删改 v1.8 的 28 个 class 规则。
+
+**设置页（`WordStudySettings.tsx`）**：概览行加「待复习 n」；开关 5 → 7（新增「优先复习到期单词」「显示复习计划」）；新增「记忆曲线」说明区（三档评级 + 间隔阶梯 + ease 范围）；写回 `settings.extraWindows[].options` 并即时广播，操作结果仍走 `.ws-settings-msg`。
+
+### 20.5 关键设计决策
+
+| 决策 | 选择 | 理由 |
+|---|---|---|
+| 排期存哪 | 进度文件 `wordbank-progress.json` v2 | settings 只放窗口级选项且要跨版本迁移；每词 9 字段塞进 settings 不可读、不可手工编辑 |
+| 算法取舍 | 简化 SM-2（三档评级 + 固定阶梯 1/3/7） | 用户只需要「哪些词该复习」，三档按钮比 0–5 难度更易用；固定阶梯让测试与文案可复现 |
+| 升级后是否立刻有复习内容 | 旧词 `dueAt=lastSeenAt`（立即到期） | 迁移后第一天就能用复习功能，而不是等下次逐个标记才排期 |
+| 队列重排时机 | 只在词库/选项/复习模式变化时重排，标记后不动 | 标记后立即重排会让当前词跳位、用户失去上下文 |
+| 手动改状态语义 | 不算复习（不改 `seen`/`remembered`），未学 = 删进度 | 「整理」与「学习」分离，避免手工整理污染学习统计与排期 |
+| 「待复习 n」入口 | 头部常驻按钮 + 一键 `dueOnly` | 对应用户痛点「复习没完全掌握的单词」，一步进入只复习到期词 |
+| 视图切换 | `data-view` + `useOwnContentSize` 重量测 | 复用 v1.8 的 C7 尺寸上报机制，不改窗口管理器 |
+| 数据通道 | 复用 11 个 wordbank IPC，零新增 | `get` 返回全量快照 + `setProgress` 全量写已足够；新增通道只会扩大失败面 |
+
+### 20.6 文件级改动与写作用域
+
+| 角色 | 文件 | 改动 |
+|---|---|---|
+| Lead | `src/shared/wordBank.ts` | `WordProgress` v2、简化 SM-2、单词表/队列纯函数、7 项默认选项、`WORD_PROGRESS_VERSION=2` |
+| Lead | `src/shared/types.ts` | 注册表 wordstudy `defaultOptions` 补齐 `reviewFirst: true`、`showSchedule: true`，与 `DEFAULT_WORD_STUDY_OPTIONS` 7 项一致（`schemaVersion` 仍 11、`IPC.wordBank*` 不变） |
+| ui-card | `src/renderer/wordstudy/WordStudyCard.tsx` | 待复习入口、三视图切换、队列重构、评级映射、记忆计划条、toast |
+| ui-card | `src/renderer/wordstudy/WordListView.tsx`（新增）、`wordstudy.css` | 单词表视图 + 28 个新 class 样式 |
+| ui-settings | `src/renderer/settings/sections/WordStudySettings.tsx`、`settings.css` | 待复习统计、7 个开关、记忆曲线说明 |
+| tests-gate | `tests/wordbank-contract.test.mjs`、`tests/shared-contract.test.mjs`、`tests/wiring.test.mjs` | SRS 契约用例 + 接线门禁同步 v1.9 |
+| docs-sdd | `docs/spec.md` §15、`docs/plan.md` §20、`docs/tasks.md` 阶段 30 | 需求 / 方案 / 任务 |
+| docs-user | `README.md`、`操作指南.md`、`docs/verification.md` §v1.9 | 用户文档与验收记录 |
+| verifier | `scripts/v19-verify.mjs`（新增）、`docs/verification/v1.9/**` | 运行时 CDP 验收与证据 |
+
+主进程、preload、`electron.vite.config.ts`、窗口管理器**均无改动**；`package.json` 仅版本号 1.8.0 → 1.9.0。
+
+### 20.7 测试与验收策略
+
+| 层次 | 内容 | 无 GUI 可跑 |
+|---|---|---|
+| 共享契约单测 | `tests/shared-contract.test.mjs`：v1 进度迁移、`good` 阶梯 1/3/7/`round(7×ease)`、`again`/`hard`、`setWordStatus` 三态、`ease` 上下界与 365 天上限、`filterWordBank`/`sortWordList`/`studyQueueKeys`、`apply*` 不修改入参、注册表 `defaultOptions` 与共享默认值 7 项一致 | ✅ |
+| 词库契约单测 | `tests/wordbank-contract.test.mjs`：v1 进度文件解析、迁移后 `dueAt=lastSeenAt`、`seen=0 && new` 丢弃规则、非法字段收敛 | ✅ |
+| 静态接线门禁 | `tests/wiring.test.mjs`：版本 1.9.0、`WORD_PROGRESS_VERSION=2`、注册表 `defaultOptions` 7 项、`WS_DOM_CONTRACT` 28 → 56、`WordListView` 入口、设置页 7 个选项与「记忆曲线」文案、UTF-8 无 BOM | ✅ |
+| 类型 / 构建 | `npx tsc --noEmit`、`npm run build` → `out/renderer/wordstudy/index.html` | ✅ |
+| 运行时 CDP | `scripts/v19-verify.mjs`：隔离 userData 写入 v1 进度种子 → `--launch` → `--check`（迁移 / 待复习计数 / 三档评级排期 / 单词表筛选搜索排序与改状态 / 设置页 7 开关与记忆曲线 / v1.8 回归）→ `--cleanup` | ❌ 需要真实 Electron |
+
+- 本轮文档**不预填通过数与运行时结论**：`npm run check`、`npm run build` 与 CDP 结果以实际报告为准（`docs/verification/v1.9/report.json`、`docs/verification.md` §v1.9），避免文档与实测漂移。
+- 无 GUI / CI 环境至少可跑：共享契约 + 词库契约 + 接线门禁 + typecheck；运行时项由交互式环境执行并如实标注。
+- 沿用 §19.4 的沙箱坑：仓库路径含空格要用单条带引号参数串；先 `Remove-Item Env:ELECTRON_RUN_AS_NODE`；只清理命令行含 `v19-verify` 的 Electron 进程；`out/` 由 Lead 预先构建，验收脚本不重建。
+
+### 20.8 已知限制
+
+- 简化 SM-2 不是严格 SM-2：没有 0–5 难度矩阵、没有每日新词/复习配额，「模糊」固定按 60% 缩短间隔，对个别词可能偏严或偏松。
+- 到期判定基于本地时钟：改系统时间会让词提前或推迟到期，跨时区同理；不做服务器校时。
+- 学习队列不持久化：关闭/重开单词窗口会按当前到期状态重新排，「待复习已清空」不跨会话记忆。
+- 「待复习 n」依赖 30s 定时刷新与 `wordbank:changed` 广播：长时间挂在后台不操作时，数字最多滞后约 30 秒。
+- 单词表一次渲染全部筛选结果，未做虚拟滚动；词库上限 5000 词时可能出现滚动卡顿。
+- 手动标「已掌握」不计为复习，因此 `seen` 很小的词也可能显示已掌握；统计口径以 `status` 为准，`remembered/seen` 只反映评级历史。
+- v1 迁移后所有已学词立即待复习，升级后首次打开可能出现较大的「待复习 n」，属预期行为。

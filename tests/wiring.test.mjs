@@ -1,12 +1,14 @@
 /**
- * v1.8 静态接线门禁（不需要 Electron / 不需要构建产物）。
+ * v1.9 静态接线门禁（不需要 Electron / 不需要构建产物）。
  *
  * 为什么需要这层测试：
- * 共享契约测试只钉「纯数据/纯函数」，但 v1.8 新增的是**跨进程跨文件的接线**——
+ * 共享契约测试只钉「纯数据/纯函数」，但 v1.8/v1.9 新增的是**跨进程跨文件的接线**——
  * 一个词库通道如果只改了 `IPC` 常量、忘了在 `ipc.ts` 注册、或在 preload 漏了 invoke，
  * 单测全绿、运行起来却是「按钮没反应」。这类错误只有在真实窗口里才暴露，成本高；
  * 这里用源码静态断言把「声明 ↔ handler ↔ preload」「注册表 ↔ 渲染页 ↔ vite 入口 ↔ 主进程加载」
  * 「DOM class 契约」「设置页注册」「版本与迁移」「词库文件结构」全部提前钉成回归门禁。
+ * v1.9 新增「单词表 / 复习计划」视图与记忆曲线设置，窗口 DOM 契约从 28 个扩到 56 个，
+ * 版本门禁同步到 1.9.0、进度文件格式版本升到 2。
  *
  * 说明：
  * - 断言刻意保持「宽松但稳定」：只钉关键 token / 结构，不逐字符比对实现，避免小改就红；
@@ -19,7 +21,12 @@ import { existsSync, readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
 import { DEFAULT_SETTINGS, EXTRA_WINDOW_KINDS, IPC, findWindowKind } from '../src/shared/types.ts'
-import { DEFAULT_WORD_STUDY_OPTIONS, WORD_STUDY_KIND } from '../src/shared/wordBank.ts'
+import {
+  DEFAULT_WORD_STUDY_OPTIONS,
+  WORD_BANK_VERSION,
+  WORD_PROGRESS_VERSION,
+  WORD_STUDY_KIND
+} from '../src/shared/wordBank.ts'
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), '..')
 const source = (relPath) => readFileSync(join(repoRoot, relPath), 'utf8')
@@ -39,7 +46,7 @@ const WORD_BANK_INVOKE_KEYS = [
   'wordBankPaths'
 ]
 
-/** 任务约定的窗口 DOM 契约：恰好 28 个稳定 `.ws-*` class（供 CDP / 后续改动做回归） */
+/** 任务约定的窗口 DOM 契约：恰好 56 个稳定 `.ws-*` class（v1.8 的 28 个 + v1.9 单词表/复习计划 28 个，供 CDP / 后续改动做回归） */
 const WS_DOM_CONTRACT = [
   'ws-root',
   'ws-study',
@@ -68,10 +75,40 @@ const WS_DOM_CONTRACT = [
   'ws-editor-head',
   'ws-editor-back',
   'ws-bank-toolbar',
-  'ws-bank-list'
+  'ws-bank-list',
+  // v1.9 记忆曲线：复习提示 / 复习计划 / 视图切换
+  'ws-review-pill',
+  'ws-list-toggle',
+  'ws-schedule',
+  'ws-schedule-text',
+  'ws-schedule-bar',
+  'ws-schedule-fill',
+  // v1.9 单词表视图
+  'ws-list',
+  'ws-list-head',
+  'ws-list-back',
+  'ws-list-title',
+  'ws-list-count',
+  'ws-list-toolbar',
+  'ws-list-filters',
+  'ws-list-filter',
+  'ws-list-search',
+  'ws-list-sort',
+  'ws-list-body',
+  'ws-list-row',
+  'ws-list-row-main',
+  'ws-list-row-top',
+  'ws-list-row-word',
+  'ws-list-row-phonetic',
+  'ws-list-row-status',
+  'ws-list-row-meaning',
+  'ws-list-row-due',
+  'ws-list-status-select',
+  'ws-list-study-btn',
+  'ws-list-empty'
 ]
 
-/** 验收脚本 / 设置页额外依赖的控件 class（不在 28 项窗口契约内，但同样不能改名） */
+/** 验收脚本 / 设置页额外依赖的控件 class（不在 56 项窗口契约内，但同样不能改名；含 v1.9 单词表可交互控件） */
 const WS_CONTROL_CLASSES = [
   'ws-bank-row',
   'ws-bank-count',
@@ -94,12 +131,21 @@ const WS_CONTROL_CLASSES = [
   'ws-toast',
   'ws-error',
   'ws-empty',
-  'ws-editor-loading'
+  'ws-editor-loading',
+  // v1.9 单词表 / 复习计划交互控件
+  'ws-review-pill',
+  'ws-list-toggle',
+  'ws-list-back',
+  'ws-list-filter',
+  'ws-list-search',
+  'ws-list-sort',
+  'ws-list-status-select',
+  'ws-list-study-btn'
 ]
 
 /** 读取 src/renderer/wordstudy 下所有 TSX 源码拼成一份（class 字符串可能出现在任一组件里） */
 function wordstudySource() {
-  return ['WordStudyCard.tsx', 'WordBankEditor.tsx', 'main.tsx']
+  return ['WordStudyCard.tsx', 'WordListView.tsx', 'WordBankEditor.tsx', 'main.tsx']
     .map((file) => source(`src/renderer/wordstudy/${file}`))
     .join('\n')
 }
@@ -183,8 +229,10 @@ test('注册表 ↔ 渲染页 ↔ vite 入口 ↔ 主进程加载路径一致（
   assert.match(extraSource, /loadRenderer\(win,\s*spec\.page\)/, 'extraWindows.ts 必须按注册表 page 调 loadRenderer')
 })
 
-test('窗口 DOM 契约：28 个 .ws-* class 全部存在（CDP 验收与后续改动的稳定锚点）', () => {
+test('窗口 DOM 契约：56 个 .ws-* class 全部存在（CDP 验收与后续改动的稳定锚点）', () => {
   const dom = wordstudySource()
+  assert.equal(WS_DOM_CONTRACT.length, 56, 'v1.9 窗口 DOM 契约必须恰好 56 个：v1.8 的 28 个 + 单词表/复习计划 28 个')
+  assert.equal(new Set(WS_DOM_CONTRACT).size, WS_DOM_CONTRACT.length, 'DOM 契约 class 不得重复（重复会让计数门禁虚高）')
   for (const className of WS_DOM_CONTRACT) {
     assert.ok(dom.includes(className), `窗口源码缺少约定 class：.${className}`)
   }
@@ -217,24 +265,39 @@ test('设置页接入：ExtraWindowsSection 注册 WORD_STUDY_KIND → WordStudy
     'ws-settings-actions',
     'ws-settings-msg',
     'ws-settings-path',
-    'ws-settings-switches'
+    'ws-settings-switches',
+    // v1.9 记忆曲线统计区 / 规则说明
+    'ws-settings-stat',
+    'ws-settings-review-stats',
+    'ws-settings-rules',
+    'ws-settings-hint'
   ]) {
     assert.ok(wordStudySource.includes(className), `WordStudySettings 缺少 class：.${className}`)
   }
-  // 5 个学习选项 + 6 个词库管理动作（文案与验收脚本 / 文档一致）
-  for (const label of ['显示音标', '显示例句', '先遮住释义', '随机顺序', '标记后自动下一词']) {
+  // 7 个学习选项 + 6 个词库管理动作（文案与验收脚本 / 文档一致）
+  for (const label of [
+    '显示音标',
+    '显示例句',
+    '先遮住释义',
+    '随机顺序',
+    '标记后自动下一词',
+    '优先复习到期单词',
+    '显示复习计划'
+  ]) {
     assert.ok(wordStudySource.includes(label), `WordStudySettings 缺少选项「${label}」`)
   }
   for (const label of ['导入词库', '导出词库', '打开词库文件', '重新读取文件', '恢复默认词库', '重置学习进度']) {
     assert.ok(wordStudySource.includes(label), `WordStudySettings 缺少动作按钮「${label}」`)
   }
+  // 待复习统计必须复用共享算法（sanitizeWordProgress / isWordDue），不在设置页重复实现
+  assert.ok(wordStudySource.includes('wordBankReviewStats'), '设置页必须引用共享 wordBankReviewStats 统计待复习数')
   assert.ok(wordStudySource.includes('window.nexus?.wordBank') || wordStudySource.includes('window.nexus.wordBank'), '设置页必须走 preload 暴露的 wordBank API')
 })
 
-test('版本与迁移：package.json=1.8.0、DEFAULT_SETTINGS.schemaVersion=11、settingsStore 有 v10→v11 说明', () => {
+test('版本与迁移：package.json=1.9.0、DEFAULT_SETTINGS.schemaVersion=11、settingsStore 有 v10→v11 说明', () => {
   const packageJson = JSON.parse(source('package.json'))
-  assert.equal(packageJson.version, '1.8.0', 'package.json 版本必须是 1.8.0')
-  assert.equal(DEFAULT_SETTINGS.schemaVersion, 11, 'DEFAULT_SETTINGS.schemaVersion 必须是 11（v1.8）')
+  assert.equal(packageJson.version, '1.9.0', 'package.json 版本必须是 1.9.0')
+  assert.equal(DEFAULT_SETTINGS.schemaVersion, 11, 'DEFAULT_SETTINGS.schemaVersion 必须是 11（v1.8 起未变，v1.9 只扩 wordstudy options）')
   assert.equal(findWindowKind(WORD_STUDY_KIND)?.kind, WORD_STUDY_KIND)
   assert.equal(
     DEFAULT_SETTINGS.extraWindows.some((item) => item.kind === WORD_STUDY_KIND),
@@ -242,13 +305,17 @@ test('版本与迁移：package.json=1.8.0、DEFAULT_SETTINGS.schemaVersion=11�
     '默认设置必须按注册表生成 wordstudy 配置'
   )
 
+  // v1.9 文件格式版本：词库文件仍为 v1，进度文件升到 v2（遗忘曲线字段）
+  assert.equal(WORD_BANK_VERSION, 1, 'WORD_BANK_VERSION 必须保持 1（词库文件结构未变）')
+  assert.equal(WORD_PROGRESS_VERSION, 2, 'WORD_PROGRESS_VERSION 必须是 2（v1.9 遗忘曲线字段）')
+
   const settingsStore = source('src/main/settingsStore.ts')
   assert.match(settingsStore, /v10\s*→\s*v11/, 'settingsStore 必须写明 v10 → v11 迁移')
   assert.match(settingsStore, /wordstudy/, '迁移注释必须说明新增 wordstudy 附加窗口')
   assert.match(settingsStore, /normalizeExtraWindows/, '迁移依赖注册表收敛（按 kind 补默认配置）')
 })
 
-test('源码编码：v1.8 关键文件均为 UTF-8 无 BOM', () => {
+test('源码编码：v1.9 关键文件均为 UTF-8 无 BOM', () => {
   const files = [
     'src/shared/types.ts',
     'src/shared/wordBank.ts',
@@ -257,6 +324,7 @@ test('源码编码：v1.8 关键文件均为 UTF-8 无 BOM', () => {
     'src/main/settingsStore.ts',
     'src/preload/index.ts',
     'src/renderer/wordstudy/WordStudyCard.tsx',
+    'src/renderer/wordstudy/WordListView.tsx',
     'src/renderer/wordstudy/WordBankEditor.tsx',
     'src/renderer/settings/sections/WordStudySettings.tsx',
     'src/renderer/settings/sections/ExtraWindowsSection.tsx',

@@ -3,37 +3,43 @@ import type { JSX } from 'react'
 import {
   WORD_STATUS_LABELS,
   WORD_STUDY_KIND,
+  applyWordReview,
+  formatReviewInterval,
   normalizeWordKey,
-  orderWordsForStudy,
   resolveWordStudyOptions,
+  studyQueueKeys,
+  wordBankReviewStats,
   wordBankStats,
+  wordDueLabel,
   type WordBank,
   type WordEntry,
-  type WordProgress,
+  type WordReviewGrade,
   type WordStatus
 } from '@shared/wordBank'
 import { patchExtraWindows, type Settings } from '@shared/types'
 import { useSettings } from '../shared/hooks'
 import { WordBankEditor } from './WordBankEditor'
+import { WordListView } from './WordListView'
 import { useOwnContentSize } from './useOwnContentSize'
 
 /**
- * Nexus Dock — v1.8「英语单词学习」附加窗口（透明浮窗卡片）。
+ * Nexus Dock — v1.9「英语单词学习」附加窗口（透明浮窗卡片）。
  *
- * 同一窗口两个视图：
- * - study：大号单词 + 音标 + 状态 +（可遮住的）释义 + 例句 + 认识度标记 + 上一词/下一词；
- * - editor：词库管理（搜索 / 新增 / 编辑 / 删除 / 导入导出 / 打开文件 / 重新读取 / 恢复默认 / 重置进度）。
+ * 同一窗口三个视图：
+ * - study：大号单词 + 音标 + 状态 +（可遮住的）释义 + 例句 + 记忆计划 + 认识度标记；
+ * - editor：词库管理（搜索 / 新增 / 编辑 / 删除 / 导入导出 / 打开文件 / 重新读取 / 恢复默认 / 重置进度）；
+ * - list：单词表（按状态筛选 / 搜索 / 排序 / 直接改状态 / 跳到某个词学习）。
  *
  * 关键约束（见 docs/window-conventions.md）：
  * - C7 内容尺寸：根节点 `.ws-root` 是量测对象，通过 useOwnContentSize 上报主进程；
- * - 两个视图宽度不同（360 / 480），切换后 ResizeObserver 会重新量测；
+ * - 三个视图宽度不同（360 / 480 / 480），切换后 ResizeObserver 会重新量测；
  * - 未锁定时仅标题栏可拖动（-webkit-app-region: drag），所有交互元素 no-drag；
  * - 所有 IPC 失败都必须有可见错误提示（错误条 / toast），不能静默；
  * - 动效只用 motion.css 的 --nx-* 令牌。
  */
 
 /** 当前视图 */
-type ViewMode = 'study' | 'editor'
+type ViewMode = 'study' | 'editor' | 'list'
 /** 认识度标记 */
 type MarkKind = 'unknown' | 'vague' | 'known'
 /** 卡片内提示（操作结果 / 失败） */
@@ -46,13 +52,21 @@ interface Notice {
   seq: number
 }
 
+/** 认识度标记 → v1.9 遗忘曲线评级（unknown=重来 / vague=困难 / known=认识） */
+const MARK_GRADES: Record<MarkKind, WordReviewGrade> = {
+  unknown: 'again',
+  vague: 'hard',
+  known: 'good'
+}
+
 /** 提示停留时长：足够读完一行带路径的结果，又不至于长期遮挡控件 */
 const NOTICE_MS = 4200
 
-/** 无进度记录的默认进度（不写入词库，仅用于计算 seen/remembered） */
-function emptyProgress(): WordProgress {
-  return { status: 'new', seen: 0, remembered: 0, lastSeenAt: 0 }
-}
+/** 「待复习」按钮的显示刷新间隔：跨过到期时刻后无需用户操作也能更新 */
+const CLOCK_TICK_MS = 30_000
+
+/** 记忆计划条满格对应的间隔天数（间隔越大条越满，仅作直观参考） */
+const SCHEDULE_FULL_DAYS = 30
 
 function describeError(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
@@ -99,17 +113,30 @@ export function WordStudyCard(): JSX.Element {
   /** 卡片内 toast（成功结果 / 取消） */
   const [notice, setNotice] = useState<Notice | null>(null)
   const [view, setView] = useState<ViewMode>('study')
-  /** 当前学习的单词（归一化 key）；词库变化时尽量保持在这个词上 */
-  const [currentKey, setCurrentKey] = useState<string | null>(null)
+  /** 学习队列（归一化 key），只在词条内容 / 选项 / 复习模式变化时重排 */
+  const [queue, setQueue] = useState<string[]>([])
+  /** 当前词在队列中的下标 */
+  const [index, setIndex] = useState(0)
+  /** 只学「到期待复习」的词（头部待复习按钮切换） */
+  const [dueOnly, setDueOnly] = useState(false)
+  /** 从单词表「学习该词」跳转时递增，强制重建队列并定位 */
+  const [queueNonce, setQueueNonce] = useState(0)
   /** 释义是否已显示（切词后重新遮住） */
   const [revealed, setRevealed] = useState(false)
   /** 词库 / 进度文件路径（词库管理页底部展示） */
   const [paths, setPaths] = useState<{ words: string; progress: string } | null>(null)
+  /** 当前时间（30s 刷新）：待复习数量 / 复习计划标签随到期时间自动变化 */
+  const [now, setNow] = useState<number>(() => Date.now())
 
   const rootRef = useRef<HTMLDivElement | null>(null)
   const noticeTimer = useRef<number | null>(null)
   /** 进度写入序号：只有最后一次写入的失败才回滚，避免旧请求覆盖新状态 */
   const markSeq = useRef(0)
+  /** 队列 / 下标的即时镜像：effect 与事件回调里读取最新值，避免闭包过期 */
+  const queueRef = useRef<string[]>([])
+  const indexRef = useRef(0)
+  /** 队列重建后要定位到的词（单词表「学习该词」） */
+  const pendingKeyRef = useRef<string | null>(null)
 
   const config = settings?.extraWindows.find((item) => item.kind === WORD_STUDY_KIND) ?? null
   const options = resolveWordStudyOptions(config?.options)
@@ -132,6 +159,8 @@ export function WordStudyCard(): JSX.Element {
 
   const showError = useCallback((text: string) => setError(text), [])
   const clearError = useCallback(() => setError(null), [])
+  /** 单词表只报成功文本：统一按 ok 类型走 toast */
+  const notifyOk = useCallback((text: string) => notify('ok', text), [notify])
 
   // 卸载时清理 toast 定时器
   useEffect(
@@ -175,7 +204,7 @@ export function WordStudyCard(): JSX.Element {
     }
   }, [])
 
-  /* ---------------------------- 学习顺序与当前词 ---------------------------- */
+  /* ---------------------------- 学习队列与当前词 ---------------------------- */
 
   // 词条「内容签名」：词库增删改（含改释义/例句）才重排学习顺序；
   // 只改学习进度（同一批词条）不重排，否则每标记一次顺序就乱跳。
@@ -188,14 +217,40 @@ export function WordStudyCard(): JSX.Element {
 
   const bankRef = useRef<WordBank | null>(bank)
   bankRef.current = bank
+  queueRef.current = queue
+  indexRef.current = index
 
-  const orderKeys = useMemo(() => {
+  // 队列重建：只在词条内容 / 随机与复习优先选项 / 待复习模式变化时重排（标记单词不重排）。
+  useEffect(() => {
     const current = bankRef.current
-    if (!current || current.words.length === 0) return [] as string[]
-    return orderWordsForStudy(current, options.shuffle).map((entry) => normalizeWordKey(entry.word))
-    // 只依赖词条内容签名与随机选项：进度更新不重排
+    if (!current) {
+      setQueue([])
+      setIndex(0)
+      return
+    }
+    const nextQueue = studyQueueKeys(current, options, Date.now(), dueOnly)
+    const jump = pendingKeyRef.current
+    pendingKeyRef.current = null
+    if (jump) {
+      const target = nextQueue.indexOf(jump)
+      setQueue(nextQueue)
+      setIndex(target >= 0 ? target : 0)
+      return
+    }
+    // 尽量保持在原来的词上；词被删掉 / 不在复习范围时才回到队首
+    const previousKey = queueRef.current[indexRef.current] ?? null
+    const keep = previousKey ? nextQueue.indexOf(previousKey) : -1
+    setQueue(nextQueue)
+    setIndex(keep >= 0 ? keep : 0)
+    // 只依赖内容签名与学习选项：progress 更新不应重排
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [contentSignature, options.shuffle])
+  }, [contentSignature, options.shuffle, options.reviewFirst, dueOnly, queueNonce])
+
+  // 每 30s 刷新一次「现在」：待复习计数 / 复习计划标签跟随到期时间
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), CLOCK_TICK_MS)
+    return () => window.clearInterval(timer)
+  }, [])
 
   const wordsByKey = useMemo(() => {
     const map = new Map<string, WordEntry>()
@@ -203,17 +258,9 @@ export function WordStudyCard(): JSX.Element {
     return map
   }, [bank])
 
+  const currentKey = queue[index] ?? null
   const currentWord = currentKey ? (wordsByKey.get(currentKey) ?? null) : null
-  const currentIndex = currentKey ? orderKeys.indexOf(currentKey) : -1
-
-  // 词库变化后确保当前选中词仍然存在；不存在则回到第一个词（「尽量保持在原词上」）
-  useEffect(() => {
-    if (orderKeys.length === 0) {
-      setCurrentKey(null)
-      return
-    }
-    setCurrentKey((previous) => (previous && orderKeys.includes(previous) ? previous : orderKeys[0]))
-  }, [orderKeys])
+  const currentPosition = queue.length === 0 ? 0 : Math.min(index + 1, queue.length)
 
   // 切词后重新遮住释义
   useEffect(() => {
@@ -230,65 +277,110 @@ export function WordStudyCard(): JSX.Element {
     [bank]
   )
 
+  const reviewStats = useMemo(
+    () =>
+      bank
+        ? wordBankReviewStats(bank, now)
+        : { total: 0, mastered: 0, learning: 0, untouched: 0, due: 0 },
+    [bank, now]
+  )
+
   const progress = currentKey && bank ? bank.progress[currentKey] : undefined
   const status: WordStatus = progress?.status ?? 'new'
   const meaningHidden = options.hideMeaning && !revealed
+  const schedulePercent = progress
+    ? Math.max(0, Math.min(100, Math.round((progress.intervalDays / SCHEDULE_FULL_DAYS) * 100)))
+    : 0
 
   /* ------------------------------ 交互逻辑 ------------------------------ */
 
-  const stepTo = useCallback(
-    (delta: number) => {
-      if (orderKeys.length === 0) return
-      const at = currentKey ? orderKeys.indexOf(currentKey) : 0
-      const base = at >= 0 ? at : 0
-      const next = (base + delta + orderKeys.length) % orderKeys.length
-      setCurrentKey(orderKeys[next])
+  const stepTo = useCallback((delta: number) => {
+    setIndex((previous) => {
+      const length = queueRef.current.length
+      if (length === 0) return 0
+      return (previous + delta + length) % length
+    })
+  }, [])
+
+  /**
+   * 进度持久化助手（学习标记 / 单词表改状态共用）：
+   * 乐观更新 → setProgress(整表) → 成功用服务端快照回填；失败回滚并显示错误条 + toast。
+   * markSeq 防止旧请求晚到把新状态覆盖掉。
+   */
+  const commitProgress = useCallback(
+    (nextBank: WordBank, previousBank: WordBank, toastText?: string) => {
+      const seq = markSeq.current + 1
+      markSeq.current = seq
+      setBank(nextBank)
+
+      const api = window.nexus?.wordBank
+      if (!api) {
+        setBank(previousBank)
+        const text = '词库接口未就绪，无法保存学习进度'
+        setError(text)
+        notify('err', text)
+        return
+      }
+      api
+        .setProgress(nextBank.progress)
+        .then((saved) => {
+          if (markSeq.current !== seq) return
+          setBank(saved)
+          setError(null)
+          if (toastText) notify('ok', toastText)
+        })
+        .catch((err: unknown) => {
+          if (markSeq.current !== seq) return
+          // 失败回滚到写入前，并显示可见错误（不静默）
+          setBank(previousBank)
+          const text = `保存学习进度失败：${describeError(err)}`
+          setError(text)
+          notify('err', text)
+        })
     },
-    [currentKey, orderKeys]
+    [notify]
   )
 
   const markWord = useCallback(
     (kind: MarkKind) => {
       const previousBank = bankRef.current
       if (!previousBank || !currentKey) return
-      const previous = previousBank.progress[currentKey] ?? emptyProgress()
-      const nextProgress: WordProgress = {
-        status: kind === 'known' ? 'mastered' : 'learning',
-        seen: previous.seen + 1,
-        remembered: kind === 'known' ? previous.remembered + 1 : previous.remembered,
-        lastSeenAt: Date.now()
-      }
-      const nextMap = { ...previousBank.progress, [currentKey]: nextProgress }
-      const seq = markSeq.current + 1
-      markSeq.current = seq
-
-      // 本地乐观更新（标记立即生效，统计同步变化）
-      setBank({ ...previousBank, progress: nextMap })
-      // 自动切下一个词（autoNext 默认开启）
+      const nextBank = applyWordReview(previousBank, currentKey, MARK_GRADES[kind], Date.now())
+      const nextProgress = nextBank.progress[currentKey]
+      const toastText = `已记录 · ${formatReviewInterval(nextProgress.intervalDays)}复习`
+      commitProgress(nextBank, previousBank, toastText)
+      // 自动切下一个词（autoNext 默认开启）；队列本身不重排
       if (options.autoNext) stepTo(1)
-
-      const api = window.nexus?.wordBank
-      if (!api) {
-        setBank(previousBank)
-        setError('词库接口未就绪，无法保存学习进度')
-        return
-      }
-      api
-        .setProgress(nextMap)
-        .then((next) => {
-          if (markSeq.current !== seq) return
-          setBank(next)
-          setError(null)
-        })
-        .catch((err: unknown) => {
-          if (markSeq.current !== seq) return
-          // 失败回滚到写入前，并显示可见错误（不静默）
-          setBank(previousBank)
-          setError(`保存学习进度失败：${describeError(err)}`)
-        })
     },
-    [currentKey, options.autoNext, stepTo]
+    [commitProgress, currentKey, options.autoNext, stepTo]
   )
+
+  /** 单词表里手动改状态：同一个持久化助手，失败会回滚 */
+  const handleListBankChange = useCallback(
+    (next: WordBank) => {
+      const previousBank = bankRef.current
+      if (!previousBank) return
+      commitProgress(next, previousBank)
+    },
+    [commitProgress]
+  )
+
+  /** 单词表「▶ 学习该词」：重建全量队列并把光标定位到该词 */
+  const startStudyWord = useCallback(
+    (key: string) => {
+      pendingKeyRef.current = key
+      setDueOnly(false)
+      setQueueNonce((nonce) => nonce + 1)
+      setView('study')
+      clearError()
+    },
+    [clearError]
+  )
+
+  const toggleDueOnly = useCallback(() => {
+    setDueOnly((previous) => !previous)
+    clearError()
+  }, [clearError])
 
   // 隐藏自己：settings.extraWindows 里对应实例 visible=false（不销毁窗口，可从设置/托盘重新显示）
   const hideSelf = useCallback(() => {
@@ -304,7 +396,8 @@ export function WordStudyCard(): JSX.Element {
     }
   }, [settings])
 
-  const handleBankChange = useCallback((next: WordBank) => setBank(next), [])
+  // 词库管理自身已负责持久化，服务端返回的快照就是权威状态
+  const handleEditorBankChange = useCallback((next: WordBank) => setBank(next), [])
 
   /* ------------------------------ 键盘快捷键 ------------------------------ */
   // 空格 / Enter = 显示释义；←/→ 切词；1/2/3 = 不认识/模糊/认识；输入框聚焦时不拦截。
@@ -350,6 +443,7 @@ export function WordStudyCard(): JSX.Element {
   const displayError = error ?? settingsError
   const revealLabel = !options.hideMeaning ? '释义常显' : revealed ? '遮住释义' : '显示释义'
   const meaningText = currentWord?.meaning?.trim() ?? ''
+  const dueOnlyEmpty = dueOnly && queue.length === 0 && (bank?.words.length ?? 0) > 0
 
   return (
     <div
@@ -375,6 +469,29 @@ export function WordStudyCard(): JSX.Element {
               </span>
             </div>
             <div className="ws-header-actions">
+              <button
+                type="button"
+                className={`ws-pill ws-review-pill${dueOnly ? ' is-active' : ''}`}
+                title={dueOnly ? '正在只看待复习单词（点击回到全部）' : '只看已到期待复习的单词'}
+                aria-label={`只看待复习单词，当前 ${reviewStats.due} 个`}
+                aria-pressed={dueOnly}
+                disabled={reviewStats.due === 0 && !dueOnly}
+                onClick={toggleDueOnly}
+              >
+                待复习 {reviewStats.due}
+              </button>
+              <button
+                type="button"
+                className="ws-pill ws-list-toggle nx-no-drag"
+                title="单词表：按学习状态筛选 / 搜索 / 排序"
+                aria-label="打开单词表"
+                onClick={() => {
+                  clearError()
+                  setView('list')
+                }}
+              >
+                单词表
+              </button>
               <button
                 type="button"
                 className="ws-pill ws-bank-toggle nx-no-drag"
@@ -421,11 +538,7 @@ export function WordStudyCard(): JSX.Element {
                 tabIndex={meaningHidden ? 0 : undefined}
                 aria-label={meaningHidden ? '点击显示释义' : undefined}
                 title={meaningHidden ? '点击显示释义（空格 / Enter）' : undefined}
-                onClick={
-                  meaningHidden
-                    ? () => setRevealed(true)
-                    : undefined
-                }
+                onClick={meaningHidden ? () => setRevealed(true) : undefined}
                 onKeyDown={
                   meaningHidden
                     ? (event) => {
@@ -449,15 +562,42 @@ export function WordStudyCard(): JSX.Element {
                 <div className="ws-example">{currentWord.example}</div>
               ) : null}
             </div>
+          ) : dueOnlyEmpty ? (
+            <div className="ws-empty">
+              <div className="ws-empty-title">待复习已清空</div>
+              <div className="ws-empty-hint">到期的单词都复习过了。可以回到全部单词继续学，或去单词表整理。</div>
+              <button
+                type="button"
+                className="ws-pill is-primary ws-empty-open nx-no-drag"
+                onClick={() => setDueOnly(false)}
+              >
+                回到全部
+              </button>
+            </div>
           ) : (
             <div className="ws-empty">
               <div className="ws-empty-title">词库为空，先添加几个单词吧</div>
               <div className="ws-empty-hint">在词库管理里新增词条，或导入一份 JSON 词库文件。</div>
-              <button type="button" className="ws-pill is-primary ws-empty-open nx-no-drag" onClick={() => setView('editor')}>
+              <button
+                type="button"
+                className="ws-pill is-primary ws-empty-open nx-no-drag"
+                onClick={() => setView('editor')}
+              >
                 打开词库管理
               </button>
             </div>
           )}
+
+          {options.showSchedule && progress && progress.status !== 'new' ? (
+            <div className="ws-schedule" title="按遗忘曲线排期的下次复习时间">
+              <span className="ws-schedule-text">
+                下次复习 {wordDueLabel(progress, now)} · 连续 {progress.streak}
+              </span>
+              <span className="ws-schedule-bar">
+                <span className="ws-schedule-fill" style={{ width: `${schedulePercent}%` }} />
+              </span>
+            </div>
+          ) : null}
 
           <div className="ws-study-foot">
             <div className="ws-nav">
@@ -467,12 +607,15 @@ export function WordStudyCard(): JSX.Element {
                 title="上一个单词（←）"
                 aria-label="上一个单词"
                 onClick={() => stepTo(-1)}
-                disabled={orderKeys.length === 0}
+                disabled={queue.length === 0}
               >
                 <IconChevron dir="prev" />
               </button>
-              <span className="ws-progress" aria-label={`第 ${Math.max(0, currentIndex + 1)} 个，共 ${orderKeys.length} 个`}>
-                {orderKeys.length === 0 ? '0 / 0' : `${currentIndex + 1} / ${orderKeys.length}`}
+              <span
+                className="ws-progress"
+                aria-label={`第 ${currentPosition} 个，共 ${queue.length} 个`}
+              >
+                {queue.length === 0 ? '0 / 0' : `${currentPosition} / ${queue.length}`}
               </span>
               <button
                 type="button"
@@ -480,7 +623,7 @@ export function WordStudyCard(): JSX.Element {
                 title="下一个单词（→）"
                 aria-label="下一个单词"
                 onClick={() => stepTo(1)}
-                disabled={orderKeys.length === 0}
+                disabled={queue.length === 0}
               >
                 <IconChevron dir="next" />
               </button>
@@ -531,15 +674,27 @@ export function WordStudyCard(): JSX.Element {
           </div>
         </div>
       ) : bank ? (
-        <WordBankEditor
-          bank={bank}
-          paths={paths}
-          onBack={() => setView('study')}
-          onBankChange={handleBankChange}
-          onError={showError}
-          onClearError={clearError}
-          notify={notify}
-        />
+        view === 'list' ? (
+          <WordListView
+            bank={bank}
+            now={now}
+            onBack={() => setView('study')}
+            onStudyWord={startStudyWord}
+            onBankChange={handleListBankChange}
+            onError={showError}
+            notify={notifyOk}
+          />
+        ) : (
+          <WordBankEditor
+            bank={bank}
+            paths={paths}
+            onBack={() => setView('study')}
+            onBankChange={handleEditorBankChange}
+            onError={showError}
+            onClearError={clearError}
+            notify={notify}
+          />
+        )
       ) : (
         <div className="ws-editor">
           <div className="ws-editor-head">
@@ -552,7 +707,7 @@ export function WordStudyCard(): JSX.Element {
             >
               <IconChevron dir="prev" />
             </button>
-            <div className="ws-editor-title">词库管理</div>
+            <div className="ws-editor-title">{view === 'list' ? '单词表' : '词库管理'}</div>
           </div>
           <div className="ws-editor-loading">词库加载中…</div>
         </div>
