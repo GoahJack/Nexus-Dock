@@ -157,3 +157,12 @@ body,
 
 /* hover 不改变任何尺寸/位移（只由光标与拖动手感反馈，禁止 transform 叠加）。
    减少动效：motion.css 的全局降级会把入场动画与锁定过渡收敛为瞬时，无需重复声明。 */
+
+.clock-fold { position: absolute; top: 6px; right: 6px; display: grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; -webkit-app-region: no-drag; color: var(--nx-text-dim); font-size: 18px; }
+.clock-fold:hover { background: var(--nx-accent-soft); color: var(--nx-text); }
+.clock-root { padding-right: max(58px, calc(var(--clock-font-size) * .44)); }
+.clock-root .clock-lock { right: 36px; }
+.clock-root[data-collapsed='true'] { padding: 12px 64px 12px 18px; border-radius: 999px; gap: 0; }
+.clock-root[data-collapsed='true'] .clock-time { font-size: 18px; }
+.clock-root[data-collapsed='true'] .clock-period { font-size: 11px; }
+.clock-root[data-collapsed='true'] .clock-fold { top: 50%; transform: translateY(-50%); }

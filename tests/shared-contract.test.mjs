@@ -40,6 +40,34 @@ import { DEFAULT_WORD_STUDY_OPTIONS, WORD_STUDY_KIND } from '../src/shared/wordB
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), '..')
 
+test('浮窗折叠配置：旧配置补齐，Dock 旧折叠字段被丢弃', () => {
+  const old = sanitizeSettings({ dock: { islandMode: true, freeX: 230, opacity: 0 }, apps: [] })
+  assert.equal('islandMode' in old.dock, false)
+  assert.equal('collapsed' in old.dock, false)
+  assert.equal(old.dock.freeX, 230)
+  assert.equal(old.dock.opacity, 0)
+  assert.equal(old.music.collapsed, false)
+  assert.equal(old.clock.collapsed, false)
+  assert.ok(old.extraWindows.every(w => w.collapsed === false))
+  const invalid = sanitizeSettings({ music: { collapsed: 'true' }, clock: { collapsed: 1 } })
+  assert.equal(invalid.music.collapsed, false)
+  assert.equal(invalid.clock.collapsed, false)
+})
+
+test('浮窗折叠配置：三窗口独立持久化，恢复展开不影响其它配置', () => {
+  let next = mergeSettings(DEFAULT_SETTINGS, { music: { collapsed: true }, clock: { collapsed: true } })
+  next = mergeSettings(next, { extraWindows: patchExtraWindows(next, 'wordstudy', { collapsed: true }) })
+  const saved = sanitizeSettings(JSON.parse(JSON.stringify(next)))
+  assert.equal(saved.music.collapsed, true)
+  assert.equal(saved.clock.collapsed, true)
+  assert.equal(saved.extraWindows.find(w => w.kind === 'wordstudy').collapsed, true)
+  const restored = mergeSettings(saved, { music: { collapsed: false } })
+  assert.equal(restored.music.collapsed, false)
+  assert.equal(restored.clock.collapsed, true)
+  assert.equal(restored.music.source, DEFAULT_SETTINGS.music.source)
+  assert.deepEqual(restored.apps, saved.apps)
+})
+
 test('sanitizeSettings：任意垃圾输入都能收敛为合法设置且不抛错', () => {
   for (const raw of [null, undefined, 0, 'x', [], {}, { dock: null }, { apps: 'nope' }]) {
     const settings = sanitizeSettings(raw)

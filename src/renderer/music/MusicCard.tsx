@@ -211,6 +211,7 @@ export function MusicCard(): JSX.Element {
   }, [])
 
   const music = settings?.music
+  const collapsed = music?.collapsed ?? false
   const width = music?.width ?? 330
   const progressStyle = music?.progressStyle ?? 'bar'
   const theme = music?.theme ?? 'dark'
@@ -231,7 +232,7 @@ export function MusicCard(): JSX.Element {
   // 进度插值：duration 未知时依然按真实 position 锚定，但不做上限钳制、不参与除法
   // trackKey 变化才重置；同曲目暂停再播放不会被播放器的「位置归零」带回去
   const trackKey = `${state.appId}|${state.title}|${state.artist}`
-  const smoothMs = useMediaProgress(state.positionMs, durationMs, status, trackKey)
+  const smoothMs = useMediaProgress(state.positionMs, durationMs, status, trackKey, !collapsed)
   const shownMs = dragging ? dragMs : smoothMs
   const ratio = durationMs > 0 ? Math.min(1, Math.max(0, shownMs / durationMs)) : 0
 
@@ -471,9 +472,13 @@ export function MusicCard(): JSX.Element {
       className="music-card nx-glass"
       data-locked={musicLocked ? 'true' : undefined}
       data-theme={theme}
+      data-collapsed={collapsed ? 'true' : undefined}
       title={musicLocked ? '位置已锁定（设置 → 系统 解锁）' : undefined}
       style={{ width }}
     >
+      <button type="button" className="music-fold nx-no-drag music-pressable" aria-label={collapsed ? '展开音乐卡片' : '收起音乐卡片'} aria-expanded={!collapsed} title={collapsed ? '展开音乐卡片' : '收起为迷你播放器'} onClick={() => void patch({ music: { collapsed: !collapsed } })}>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={collapsed ? 'm8 5 7 7-7 7' : 'm5 8 7 7 7-7'} /></svg>
+      </button>
       <button
         type="button"
         className="music-close nx-no-drag nx-ripple-host music-pressable"

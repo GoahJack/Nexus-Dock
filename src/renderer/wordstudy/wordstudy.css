@@ -1531,3 +1531,23 @@ body,
   color: #1c4fae;
 }
 
+
+/* 学习卡片沿用灵动岛的石墨材质，重点留给单词与复习动作。 */
+.ws-root.nx-glass { background: rgba(23,30,40,.96); border-color: rgba(210,230,250,.16); border-radius: 24px; box-shadow: inset 0 1px 0 rgba(255,255,255,.08); backdrop-filter: none; }
+.ws-study { padding: 14px 18px 16px; gap: 12px; }
+.ws-word { letter-spacing: -.8px; font-weight: 600; }
+.ws-main { padding-top: 10px; padding-bottom: 10px; }
+
+/* 保持完整内容挂载，编辑中的输入与选择不会因折叠丢失。 */
+.ws-content { display: contents; }
+.ws-content[hidden], .ws-mini[hidden] { display: none; }
+.ws-mini { display: flex; align-items: center; gap: 10px; padding: 10px 12px 10px 18px; min-height: 52px; -webkit-app-region: drag; }
+.ws-root[data-collapsed='true'] { width: 300px; border-radius: 999px; }
+.ws-mini-dot { width: 7px; height: 7px; background: var(--nx-accent); border-radius: 50%; flex: 0 0 auto; }
+.ws-mini-word { flex: 1; min-width: 0; font-weight: 600; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.ws-mini-due { color: var(--nx-text-dim); font-size: 11px; white-space: nowrap; }
+.ws-root[data-locked='true'] .ws-mini { -webkit-app-region: no-drag; }
+.ws-fold-full { position: absolute; top: 8px; right: 8px; z-index: 3; background: var(--nx-bg-elev); }
+.ws-content .ws-header, .ws-content .ws-editor-head { margin-right: 32px; }
+.ws-root[data-collapsed='true'] > .ws-toast.is-empty { display: none; }
+.ws-root[data-collapsed='true'] .ws-mini-word { animation: nx-fade-in var(--nx-dur-base) var(--nx-ease-out); }

@@ -1,0 +1,115 @@
+{
+  "at": "2026-11-14T11:17:19.217Z",
+  "executable": "E:\\Codex Work\\软件开发\\桌面doc栏\\dist\\win-unpacked\\Nexus Dock.exe",
+  "scope": "real Electron, isolated profile, real IPC",
+  "results": [
+    {
+      "name": "collapsed capsule and native viewport fit",
+      "pass": true,
+      "detail": {
+        "width": 186,
+        "height": 58,
+        "viewport": [
+          188,
+          60
+        ]
+      }
+    },
+    {
+      "name": "hover expands without clipping",
+      "pass": true,
+      "detail": {
+        "width": 535.3333740234375,
+        "height": 93.33333587646484,
+        "viewport": [
+          538,
+          96
+        ]
+      }
+    },
+    {
+      "name": "pointer exit collapses after delay",
+      "pass": true
+    },
+    {
+      "name": "pin holds toolbar and unpin restores collapse",
+      "pass": true
+    },
+    {
+      "name": "keyboard opens capsule and reaches first app",
+      "pass": true
+    },
+    {
+      "name": "all four edges, light theme and free placement",
+      "pass": true,
+      "detail": [
+        {
+          "edge": "top",
+          "width": 535.3333740234375,
+          "height": 93.33333587646484,
+          "viewport": [
+            538,
+            96
+          ]
+        },
+        {
+          "edge": "left",
+          "width": 93.33333587646484,
+          "height": 535.3333740234375,
+          "viewport": [
+            96,
+            538
+          ]
+        },
+        {
+          "edge": "right",
+          "width": 93.33333587646484,
+          "height": 535.3333740234375,
+          "viewport": [
+            96,
+            538
+          ]
+        },
+        {
+          "edge": "bottom",
+          "width": 535.3333740234375,
+          "height": 93.33333587646484,
+          "viewport": [
+            538,
+            96
+          ]
+        }
+      ]
+    },
+    {
+      "name": "overflow scroll keeps trailing controls inside viewport",
+      "pass": true,
+      "detail": {
+        "width": 1682,
+        "height": 93.33333587646484,
+        "viewport": [
+          1684,
+          96
+        ],
+        "scroll": "true"
+      }
+    },
+    {
+      "name": "reduced motion disables island CSS animation",
+      "pass": true
+    },
+    {
+      "name": "music card folds into usable mini player and restores",
+      "pass": true,
+      "detail": {
+        "before": 158.75,
+        "after": 61.333335876464844
+      }
+    },
+    {
+      "name": "settings and word study render with no runtime exception",
+      "pass": true
+    }
+  ],
+  "errors": []
+}

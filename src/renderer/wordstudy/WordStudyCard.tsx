@@ -104,7 +104,7 @@ function IconChevron(props: { dir: 'prev' | 'next' }): JSX.Element {
 }
 
 export function WordStudyCard(): JSX.Element {
-  const { settings, error: settingsError } = useSettings()
+  const { settings, patch, error: settingsError } = useSettings()
 
   /** 词库快照（null = 尚未加载） */
   const [bank, setBank] = useState<WordBank | null>(null)
@@ -142,9 +142,17 @@ export function WordStudyCard(): JSX.Element {
   const options = resolveWordStudyOptions(config?.options)
   const theme = config?.theme ?? 'dark'
   const locked = config?.locked === true
+  const collapsed = config?.collapsed === true
+  const toggleCollapsed = (): void => {
+    if (!settings) return
+    void patch({ extraWindows: patchExtraWindows(settings, WORD_STUDY_KIND, { collapsed: !collapsed }) })
+    window.requestAnimationFrame(() => {
+      rootRef.current?.querySelector<HTMLButtonElement>(collapsed ? '.ws-fold-full' : '.ws-mini .ws-fold')?.focus()
+    })
+  }
 
   // C7：透明窗口内容尺寸 = 根节点尺寸；视图切换（360 → 480）后重测
-  useOwnContentSize(rootRef, [view])
+  useOwnContentSize(rootRef, [view, collapsed])
 
   /* ------------------------------ 通用反馈 ------------------------------ */
 
@@ -402,11 +410,11 @@ export function WordStudyCard(): JSX.Element {
   /* ------------------------------ 键盘快捷键 ------------------------------ */
   // 空格 / Enter = 显示释义；←/→ 切词；1/2/3 = 不认识/模糊/认识；输入框聚焦时不拦截。
   useEffect(() => {
-    if (view !== 'study') return
+    if (view !== 'study' || collapsed) return
     const onKeyDown = (event: KeyboardEvent): void => {
       if (event.defaultPrevented) return
       if (event.ctrlKey || event.metaKey || event.altKey) return
-      if (isEditableTarget(event.target)) return
+      if (isEditableTarget(event.target) || (event.target instanceof HTMLElement && event.target.closest('button'))) return
       switch (event.key) {
         case ' ':
         case 'Enter':
@@ -436,7 +444,7 @@ export function WordStudyCard(): JSX.Element {
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [view, markWord, stepTo])
+  }, [view, collapsed, markWord, stepTo])
 
   /* -------------------------------- 渲染 -------------------------------- */
 
@@ -450,11 +458,20 @@ export function WordStudyCard(): JSX.Element {
       ref={rootRef}
       className="ws-root nx-glass"
       data-view={view}
+      data-collapsed={collapsed ? 'true' : undefined}
       data-theme={theme}
       data-locked={locked ? 'true' : undefined}
       aria-label="英语单词学习卡片"
       title={locked ? '位置已锁定：设置 → 窗口 → 附加窗口 解锁' : undefined}
     >
+      <div className="ws-mini" hidden={!collapsed}>
+        <span className="ws-mini-dot" aria-hidden="true" />
+        <span className="ws-mini-word" title={currentWord?.word}>{currentWord?.word ?? '英语单词'}</span>
+        <span className="ws-mini-due">待复习 {reviewStats.due}</span>
+        <button type="button" className="ws-icon-btn ws-fold nx-no-drag" aria-label="展开单词卡片" aria-expanded={false} onClick={toggleCollapsed}><IconChevron dir="next" /></button>
+      </div>
+      <div className="ws-content" hidden={collapsed}>
+      <button type="button" className="ws-icon-btn ws-fold ws-fold-full nx-no-drag" aria-label="收起单词卡片" aria-expanded={true} onClick={toggleCollapsed}>⌄</button>
       {view === 'study' ? (
         <div className="ws-study">
           <header className="ws-header">
@@ -713,6 +730,7 @@ export function WordStudyCard(): JSX.Element {
         </div>
       )}
 
+      </div>
       {displayError ? (
         <div className="ws-error" role="alert">
           <span className="ws-error-text">{displayError}</span>

@@ -994,13 +994,19 @@ async function collectRunning(): Promise<Record<string, boolean>> {
 }
 
 export function startRunningMonitor(emit: (running: Record<string, boolean>) => void): void {
+  let collecting = false
   const tick = async (): Promise<void> => {
+    // tasklist 在慢机器上可能超过轮询间隔，禁止同时启动多次进程采集。
+    if (collecting || !getSettings().dock.showIndicators || getSettings().apps.length === 0) return
+    collecting = true
     try {
       const running = await collectRunning()
       // 采集失败（空表）时跳过本次广播，避免把指示点全部误清空
       if (Object.keys(running).length > 0) emit(running)
     } catch (error) {
       console.warn('[apps] 运行态检测失败', error)
+    } finally {
+      collecting = false
     }
   }
   void tick()

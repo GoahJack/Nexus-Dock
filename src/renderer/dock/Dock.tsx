@@ -207,7 +207,6 @@ function DockView({ settings }: { settings: Settings }): JSX.Element {
   const [dockLimits, setDockLimits] = useState<DockLimits | null>(readDockLimits)
   /** roving tabindex 的「当前项」：工具栏内同一时刻只有一个图标能被 Tab 到 */
   const [focusedId, setFocusedId] = useState<string | null>(null)
-
   const horizontal = isHorizontalEdge(edge)
 
   const itemsRef = useRef(items)
@@ -372,7 +371,9 @@ function DockView({ settings }: { settings: Settings }): JSX.Element {
       return
     }
     // 主进程在受限环境下可能只上报「确定在运行」的条目，这里合并而不是整体替换
-    return window.nexus.apps.onRunning((next) => setRunning((previous) => ({ ...previous, ...next })))
+    return window.nexus.apps.onRunning((next) => setRunning((previous) =>
+      Object.keys(next).some((key) => next[key] !== previous[key]) ? { ...previous, ...next } : previous
+    ))
   }, [showIndicators])
 
   // 定时器 / FLIP 内联样式统一在卸载时回收
@@ -750,7 +751,7 @@ function DockView({ settings }: { settings: Settings }): JSX.Element {
   )
 
   const handleDockContextMenu = useCallback(
-    (event: ReactMouseEvent<HTMLDivElement>) => {
+    (event: ReactMouseEvent<HTMLElement>) => {
       event.preventDefault()
       void window.nexus.apps.dockMenu({ x: Math.round(event.clientX), y: Math.round(event.clientY) }).catch(() => {
         showError('无法打开右键菜单')
@@ -1014,6 +1015,7 @@ function DockView({ settings }: { settings: Settings }): JSX.Element {
             />
           </svg>
         </button>
+
       </div>
     </div>
   )

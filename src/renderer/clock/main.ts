@@ -38,6 +38,7 @@ interface ClockDom {
   date: HTMLSpanElement | null
   /** 锁定态图标：绝对定位不参与布局，不改变窗口尺寸 */
   lock: SVGSVGElement
+  fold: HTMLButtonElement
 }
 
 /** 挂载点必须存在；缺失说明 index.html 与入口不匹配 */
@@ -146,10 +147,19 @@ function ensureDom(): ClockDom {
   main.append(time)
 
   const lock = createLockIcon()
-  root.append(main, lock)
+  const fold = document.createElement('button')
+  fold.type = 'button'
+  fold.className = 'clock-fold'
+  fold.addEventListener('click', () => {
+    if (!settings) return
+    void window.nexus.settings.update({ clock: { collapsed: !settings.clock.collapsed } }).catch(() => {
+      fold.title = '保存失败，请重试或在设置中修改'
+    })
+  })
+  root.append(main, lock, fold)
   requireMountPoint().replaceChildren(root)
 
-  dom = { root, main, period, time, date: null, lock }
+  dom = { root, main, period, time, date: null, lock, fold }
 
   // 透明窗口内容尺寸回报：字号/日期/秒/制式变化都会触发布局 → ResizeObserver 重新量测
   // （同样经样式就绪检查，避免 CSS 未生效时把错误尺寸回报给主进程）
@@ -203,15 +213,15 @@ function renderNow(force: boolean): void {
   const clock = settings.clock
   const now = new Date()
   // 提交粒度：显示秒按秒，否则按分钟
-  const unitMs = clock.showSeconds ? 1000 : 60_000
+  const unitMs = clock.showSeconds && !clock.collapsed ? 1000 : 60_000
   const bucket = Math.floor(now.getTime() / unitMs)
   if (!force && bucket === lastBucket) return
   lastBucket = bucket
 
-  const { time, period } = splitTimeText(getTimeFormatter(clock.showSeconds, clock.hour12), now)
+  const { time, period } = splitTimeText(getTimeFormatter(clock.showSeconds && !clock.collapsed, clock.hour12), now)
   if (dom.time.textContent !== time) dom.time.textContent = time
   setPeriod(period)
-  if (clock.showDate) setDate(true, formatDateText(now))
+  if (clock.showDate && !clock.collapsed) setDate(true, formatDateText(now))
   else setDate(false, '')
 }
 
@@ -227,7 +237,7 @@ function scheduleTick(): void {
     window.clearInterval(tickTimer)
     tickTimer = null
   }
-  const showSeconds = settings?.clock.showSeconds ?? false
+  const showSeconds = settings?.clock.showSeconds && !settings.clock.collapsed
   tickTimer = window.setInterval(tick, showSeconds ? 250 : 1000)
 }
 
@@ -271,6 +281,12 @@ function applySettings(next: Settings): void {
   const current = ensureDom()
 
   current.root.dataset.theme = clock.theme
+  current.root.dataset.collapsed = String(clock.collapsed)
+  const foldLabel = clock.collapsed ? '展开桌面时钟' : '收起桌面时钟'
+  current.fold.textContent = clock.collapsed ? '›' : '⌄'
+  current.fold.setAttribute('aria-label', foldLabel)
+  current.fold.setAttribute('aria-expanded', String(!clock.collapsed))
+  current.fold.title = foldLabel
   // 位置锁定（US-14）：锁定才存在 data-locked，未锁定不输出 "false"
   if (locked) current.root.setAttribute('data-locked', 'true')
   else current.root.removeAttribute('data-locked')

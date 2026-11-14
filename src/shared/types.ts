@@ -133,6 +133,8 @@ export interface DockConfig {
 }
 
 export interface MusicConfig {
+  /** 手动收起为胶囊，设置与浮窗按钮共享并持久化 */
+  collapsed: boolean
   visible: boolean
   /** 音乐来源：system = Windows 系统媒体会话(SMTC)；local = 内置本地播放器 */
   source: MediaSource
@@ -156,6 +158,8 @@ export interface MusicConfig {
 
 /** v1.1 桌面时钟配置（v1.2 起所有悬浮窗口都必须提供 snapToEdge 吸附开关，见 docs/window-conventions.md） */
 export interface ClockConfig {
+  /** 手动收起为胶囊，设置与浮窗按钮共享并持久化 */
+  collapsed: boolean
   /** 显示桌面时钟窗口（默认隐藏） */
   visible: boolean
   /** 显示秒 */
@@ -223,6 +227,8 @@ export type WindowKindCategory = 'builtin' | 'extra'
  * 全部自动生效（见 docs/window-conventions.md「附加窗口接入」）。
  */
 export interface ExtraWindowConfig {
+  /** 手动收起为胶囊，设置与浮窗按钮共享并持久化 */
+  collapsed: boolean
   /** 注册表 kind，同时是实例唯一键 */
   kind: string
   visible: boolean
@@ -564,6 +570,7 @@ export function defaultExtraWindowConfig(kind: string): ExtraWindowConfig | null
   const b = DEFAULT_EXTRA_WINDOW_BEHAVIOR
   return {
     kind: spec.kind,
+    collapsed: false,
     visible: d.visible ?? b.visible,
     snapToEdge: d.snapToEdge ?? b.snapToEdge,
     edge: d.edge ?? spec.placement?.edge ?? b.edge,
@@ -631,6 +638,7 @@ export function normalizeExtraWindows(raw: unknown): ExtraWindowConfig[] {
     return [
       {
         kind: spec.kind,
+        collapsed: typeof r.collapsed === 'boolean' ? r.collapsed : fallback.collapsed,
         visible: typeof r.visible === 'boolean' ? r.visible : fallback.visible,
         snapToEdge: typeof r.snapToEdge === 'boolean' ? r.snapToEdge : fallback.snapToEdge,
         edge: pick(r.edge, EDGES, fallback.edge),
@@ -700,10 +708,11 @@ export const DEFAULT_SETTINGS: Settings = {
     showIndicators: true,
     alwaysOnTop: true,
     acrylic: false,
-    opacity: 0,
+    opacity: 0.94,
     theme: 'dark'
   },
   music: {
+    collapsed: false,
     visible: true,
     source: 'system',
     anchor: 'dock',
@@ -722,6 +731,7 @@ export const DEFAULT_SETTINGS: Settings = {
     theme: 'dark'
   },
   clock: {
+    collapsed: false,
     visible: false,
     showSeconds: false,
     showDate: true,
@@ -805,6 +815,7 @@ export function sanitizeSettings(raw: unknown): Settings {
     theme: pick(r.dock?.theme, ['dark', 'light'] as const, d.dock.theme)
   }
   const music: MusicConfig = {
+    collapsed: typeof r.music?.collapsed === 'boolean' ? r.music.collapsed : d.music.collapsed,
     visible: typeof r.music?.visible === 'boolean' ? r.music.visible : d.music.visible,
     source: pick(r.music?.source, ['system', 'local'] as const, d.music.source),
     anchor: pick(r.music?.anchor, ['dock', 'free'] as const, d.music.anchor),
@@ -820,6 +831,7 @@ export function sanitizeSettings(raw: unknown): Settings {
     theme: pick(r.music?.theme, ['dark', 'light'] as const, d.music.theme)
   }
   const clock: ClockConfig = {
+    collapsed: typeof r.clock?.collapsed === 'boolean' ? r.clock.collapsed : d.clock.collapsed,
     visible: typeof r.clock?.visible === 'boolean' ? r.clock.visible : d.clock.visible,
     showSeconds: typeof r.clock?.showSeconds === 'boolean' ? r.clock.showSeconds : d.clock.showSeconds,
     showDate: typeof r.clock?.showDate === 'boolean' ? r.clock.showDate : d.clock.showDate,

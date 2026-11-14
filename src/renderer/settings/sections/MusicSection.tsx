@@ -72,6 +72,7 @@ export function MusicSection({ settings, patch }: Props): JSX.Element {
         </div>
       ) : null}
       <Section title="音乐卡片" desc="桌面悬浮的音乐信息窗，可跟随 Dock 或自由摆放。">
+        <Switch label="收起为胶囊" hint="保留曲名和播放按钮，与卡片上的折叠按钮同步，重启后保留。" checked={m.collapsed} onChange={(collapsed) => apply({ music: { collapsed } })} />
         <Switch
           label="显示音乐卡片"
           hint="关闭后卡片隐藏，Dock 不受影响"

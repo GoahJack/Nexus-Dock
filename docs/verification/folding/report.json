@@ -1,0 +1,52 @@
+{
+  "at": "2026-11-14T12:25:31.346Z",
+  "executable": "E:\\Codex Work\\软件开发\\桌面doc栏\\dist\\win-unpacked\\Nexus Dock.exe",
+  "scope": "real Electron, isolated profile, real IPC",
+  "results": [
+    {
+      "name": "Dock remains expanded after pointer exit, with no capsule or folding setting",
+      "pass": true
+    },
+    {
+      "name": "music setting folds card; card button restores same persisted setting",
+      "pass": true,
+      "detail": {
+        "before": 158.75,
+        "after": 61.333335876464844
+      }
+    },
+    {
+      "name": "ring music mini keeps artwork and playback button visible",
+      "pass": true
+    },
+    {
+      "name": "clock folds to time capsule and restores seconds/date preferences",
+      "pass": true,
+      "detail": {
+        "before": 85.72917175292969,
+        "after": 44.22916793823242
+      }
+    },
+    {
+      "name": "word capsule preserves current word and ignores study grading shortcuts",
+      "pass": true
+    },
+    {
+      "name": "word editor draft survives folding and settings-driven unfold",
+      "pass": true
+    },
+    {
+      "name": "settings expose folding for music, clock and word study, never Dock",
+      "pass": true
+    },
+    {
+      "name": "fold state persists to disk and survives renderer reload",
+      "pass": true
+    },
+    {
+      "name": "all Dock edges remain usable; reduced motion and runtime errors",
+      "pass": true
+    }
+  ],
+  "errors": []
+}

@@ -71,7 +71,7 @@ function sanitizePoint(point: Point | undefined): Point {
   }
 }
 
-function showDockMenu(window: BrowserWindow | null): void {
+function showDockMenu(window: BrowserWindow | null): Promise<void> {
   // 每次打开菜单都实时读取设置，保证 checkbox 状态与实际配置一致
   const settings = getSettings()
   const locks = windowLockSummary(settings)
@@ -109,12 +109,12 @@ function showDockMenu(window: BrowserWindow | null): void {
     { label: '重载 Dock', click: () => getDockWindow()?.webContents.reload() },
     { label: '退出 Nexus Dock', click: () => app.quit() }
   ])
-  menu.popup(window ? { window } : {})
+  return new Promise((resolve) => menu.popup({ ...(window ? { window } : {}), callback: resolve }))
 }
 
-function showItemMenu(window: BrowserWindow | null, id: string): void {
+function showItemMenu(window: BrowserWindow | null, id: string): Promise<void> {
   const item = getSettings().apps.find((a) => a.id === id)
-  if (!item) return
+  if (!item) return Promise.resolve()
   const hasCustom = !!(item.customName || item.customIcon)
   const menu = Menu.buildFromTemplate([
     {
@@ -148,7 +148,7 @@ function showItemMenu(window: BrowserWindow | null, id: string): void {
     },
     { label: 'Dock 设置…', click: () => openSettingsWindow() }
   ])
-  menu.popup(window ? { window } : {})
+  return new Promise((resolve) => menu.popup({ ...(window ? { window } : {}), callback: resolve }))
 }
 
 function registerSettingsIpc(): void {
@@ -196,13 +196,13 @@ function registerAppIpc(): void {
   ipcMain.handle(IPC.appsPickIcon, (): Promise<PickIconResult> => pickCustomIcon())
   ipcMain.handle(IPC.appsRequestEdit, (_event, id: string): void => requestAppEditor(id))
   ipcMain.handle(IPC.appsConsumeEditRequest, (): string | null => consumePendingAppEditor())
-  ipcMain.handle(IPC.appsMenu, (event, id: string, point: Point): void => {
+  ipcMain.handle(IPC.appsMenu, (event, id: string, point: Point): Promise<void> => {
     sanitizePoint(point)
-    showItemMenu(BrowserWindow.fromWebContents(event.sender), id)
+    return showItemMenu(BrowserWindow.fromWebContents(event.sender), id)
   })
-  ipcMain.handle(IPC.appsContextMenuDock, (event, point: Point): void => {
+  ipcMain.handle(IPC.appsContextMenuDock, (event, point: Point): Promise<void> => {
     sanitizePoint(point)
-    showDockMenu(BrowserWindow.fromWebContents(event.sender))
+    return showDockMenu(BrowserWindow.fromWebContents(event.sender))
   })
 }
 

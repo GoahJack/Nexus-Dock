@@ -1,5 +1,7 @@
 # PLAN — 技术方案与架构（SDD 阶段 2）
 
+> 2026-11-14 增补：[浮窗折叠方案](island-design.md)。复用现有窗口与 IPC，collapsed 字段持久化到音乐、时钟和附加窗口配置；Dock 无折叠状态；依赖版本以 package-lock.json 为准。
+
 > 对应规格：`docs/spec.md` v0.1 + §7 v1.0
 > 技术栈：Electron 45 + electron-vite 6 + Vite 8 + React 19 + TypeScript 7（Windows only）
 > v1.0 动效方案见 §12，设计细则见 `docs/motion-spec.md`

@@ -29,6 +29,7 @@ export function ClockSection({ settings, patch }: Props): JSX.Element {
   return (
     <div className="nx-sections">
       <Section title="显示" desc="桌面悬浮数字时钟默认隐藏，打开后立即显示在桌面右上角。">
+        <Switch label="收起为胶囊" hint="缩小字号、隐藏秒与日期，展开后恢复原来的显示选项。" checked={c.collapsed} onChange={(collapsed) => void patch({ clock: { collapsed } })} />
         <Switch
           label="显示桌面时钟"
           hint="也可以点击 Dock 末端的时钟按钮快速开关，两处共享同一开关"

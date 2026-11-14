@@ -6,9 +6,9 @@
   color-scheme: dark;
 
   /* ------------------------------- 颜色 ------------------------------- */
-  --nx-bg: rgba(20, 21, 26, 0.78);
-  --nx-bg-solid: #14151a;
-  --nx-bg-elev: rgba(38, 40, 48, 0.94);
+  --nx-bg: rgba(23, 30, 40, 0.94);
+  --nx-bg-solid: #171e28;
+  --nx-bg-elev: rgba(34, 44, 58, 0.98);
   --nx-border: rgba(255, 255, 255, 0.13);
   --nx-border-strong: rgba(255, 255, 255, 0.22);
   --nx-text: #f3f4f8;
@@ -16,9 +16,9 @@
   /* 无障碍：11px 提示文字压在玻璃底上约 3.3:1（0.38）→ 0.55 后约 4.6:1，达到 WCAG AA 正文要求。
      该变量只用于 color（无背景/描边用途），提亮不会产生突兀的亮块。 */
   --nx-text-faint: rgba(243, 244, 248, 0.55);
-  --nx-accent: #6ea8fe;
-  --nx-accent-strong: #8abaff;
-  --nx-accent-soft: rgba(110, 168, 254, 0.16);
+  --nx-accent: #9ccdf5;
+  --nx-accent-strong: #c4e3fc;
+  --nx-accent-soft: rgba(156, 205, 245, 0.12);
   --nx-danger: #ff6b6b;
   --nx-success: #4ade80;
 
@@ -50,7 +50,7 @@
   /* ----------------------------- 动效基础 ----------------------------- */
   --nx-ease: cubic-bezier(0.22, 0.9, 0.3, 1.15);
   --nx-ease-out: cubic-bezier(0.25, 0.8, 0.3, 1);
-  --nx-blur: 22px;
+  --nx-blur: 14px;
 
   font-family: "Segoe UI Variable Text", "Segoe UI", "Microsoft YaHei UI", system-ui, sans-serif;
   font-synthesis: none;

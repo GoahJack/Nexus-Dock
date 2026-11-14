@@ -145,6 +145,7 @@ export function ExtraWindowsSection({ settings, patch }: Props): JSX.Element {
                         checked={config.locked}
                         onChange={(locked) => patchWindow(config.kind, { locked })}
                       />
+                      <Switch label="收起为胶囊" hint="保留当前单词摘要，展开后回到原来的学习或编辑位置。" checked={config.collapsed} onChange={(collapsed) => patchWindow(config.kind, { collapsed })} />
                       <div className="nx-inline-actions">
                         <Button
                           size="sm"

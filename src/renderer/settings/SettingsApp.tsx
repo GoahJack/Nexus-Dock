@@ -32,6 +32,15 @@ const NAV_ITEMS: NavItem[] = [
   { key: 'about', label: '关于' }
 ]
 
+const PAGE_COPY: Record<TabKey, [string, string]> = {
+  windows: ['你的桌面，恰到好处', '调整 Dock、音乐与时钟，让常用功能停在顺手的位置。'],
+  extra: ['多一点专注', '管理桌面小工具，把学习放进日常。'],
+  apps: ['常用应用，触手可及', '添加、排序，或换上你喜欢的图标。'],
+  appearance: ['找到舒适的节奏', '调整动效与反馈，让每一次操作都自然。'],
+  system: ['安静地陪伴', '管理启动方式与后台资源占用。'],
+  about: ['Nexus Dock', '为你的 Windows 桌面留一点空间。']
+}
+
 const ICON_PROPS = {
   width: 16,
   height: 16,
@@ -303,6 +312,7 @@ export function SettingsApp(): JSX.Element {
           ) : null}
           {/* key=tab：切换分组时重挂载，触发 220ms 淡入位移转场 */}
           <div key={tab} className="settings-page">
+            <div className="settings-page-heading"><h1>{PAGE_COPY[tab][0]}</h1><p>{PAGE_COPY[tab][1]}</p></div>
             {renderContent()}
           </div>
         </main>

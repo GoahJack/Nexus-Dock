@@ -26,7 +26,8 @@ export function useMediaProgress(
   positionMs: number,
   durationMs: number,
   status: PlaybackStatus,
-  trackKey = ''
+  trackKey = '',
+  active = true
 ): number {
   const [display, setDisplay] = useState<number>(() => Math.max(0, Math.round(positionMs)))
   const displayRef = useRef(display)
@@ -35,6 +36,7 @@ export function useMediaProgress(
   const statusRef = useRef(status)
   const durationRef = useRef(durationMs)
   const trackRef = useRef(trackKey)
+  const activeRef = useRef(active)
   /** 上一次进入 effect 时的播放状态（用于识别「暂停 → 播放」这个切换） */
   const prevStatusRef = useRef(status)
   durationRef.current = durationMs
@@ -55,7 +57,12 @@ export function useMediaProgress(
     const previousStatus = prevStatusRef.current
     prevStatusRef.current = status
     statusRef.current = status
-    const current = displayRef.current
+    // 迷你模式停止了帧循环，displayRef 会停在折叠时刻；暂停时从时间锚点
+    // 推算当前位置，避免展开已暂停的播放器后显示折叠前的旧进度。
+    const base = baseRef.current
+    const current = activeRef.current
+      ? displayRef.current
+      : Math.max(0, base.position + (previousStatus === 'playing' ? clock() - base.at : 0))
     const isPause = status === 'paused' || status === 'stopped'
 
     // 暂停/停止：冻结当前显示值（播放器此时常把 position 报成 0）
@@ -92,6 +99,11 @@ export function useMediaProgress(
   // tick 用 base.position + 真实经过时间推算，隐藏多久都会立即补齐当前进度。
   useEffect(() => {
     let raf = 0
+    let lastPaint = -Infinity
+    if (active && !activeRef.current) offsetRef.current = 0
+    activeRef.current = active
+    // 迷你播放器没有进度条，不需要任何逐帧 React 更新；展开时按时间锚点补齐。
+    if (!active) return
     const tick = (): void => {
       raf = 0
       if (document.visibilityState === 'hidden') return
@@ -110,7 +122,10 @@ export function useMediaProgress(
       }
 
       const next = Math.max(0, Math.round(raw + offset))
-      if (next !== displayRef.current) {
+      // 小面积进度显示以 30fps 更新 React；高刷屏也不把整张卡片刷新到 144/240fps。
+      const now = clock()
+      if (next !== displayRef.current && (now - lastPaint >= 1000 / 30 || !playing)) {
+        lastPaint = now
         displayRef.current = next
         setDisplay(next)
       }
@@ -130,7 +145,7 @@ export function useMediaProgress(
       if (raf !== 0) window.cancelAnimationFrame(raf)
       document.removeEventListener('visibilitychange', onVisibilityChange)
     }
-  }, [positionMs, status, durationMs])
+  }, [positionMs, status, durationMs, active])
 
   return display
 }

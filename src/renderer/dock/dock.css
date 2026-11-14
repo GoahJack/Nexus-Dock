@@ -569,7 +569,6 @@ body,
   display: grid;
   place-items: center;
   pointer-events: none;
-  will-change: transform;
   /* 基础曲线用于 hover 放大与松手回弹（spring 带轻微过冲） */
   transition:
     transform var(--nx-dur-base) var(--nx-spring),
@@ -697,7 +696,7 @@ body,
   box-shadow:
     0 0 6px var(--nx-accent),
     0 0 12px rgba(110, 168, 254, 0.5);
-  animation: nx-breath var(--dock-breath-dur) ease-in-out infinite;
+  /* 常驻指示点保持静态，避免后台持续重绘阴影。 */
 }
 
 /* AC-9.6 悬停图标时指示点增亮（filter 不被呼吸关键帧覆盖） */
@@ -945,3 +944,6 @@ body,
 :root[data-reduced-motion='true'] .dock-item {
   animation-delay: 0ms;
 }
+
+.dock-bar:not([data-transparent='true']) { border-radius: 28px; backdrop-filter: none; -webkit-backdrop-filter: none; }
+.dock-item-icon { filter: drop-shadow(0 3px 5px rgba(0,0,0,.24)); }
