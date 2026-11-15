@@ -1,0 +1,35 @@
+{
+  "tag": "v1.10.0",
+  "url": "https://github.com/GoahJack/Nexus-Dock/releases/tag/v1.10.0",
+  "publishedAt": "2026-11-15T04:12:06Z",
+  "targetCommit": "976fe271447ceff22d25cdf1c59ab4cd49775c25",
+  "draft": false,
+  "prerelease": false,
+  "workflowRun": "https://github.com/GoahJack/Nexus-Dock/actions/runs/43675395445",
+  "assets": [
+    {
+      "name": "latest.yml",
+      "size": 350,
+      "digest": "sha256:2d50cb24ecc2625d352df332a9b137263a05848d4725a3bc20a6f9d21d329560",
+      "url": "https://github.com/GoahJack/Nexus-Dock/releases/download/v1.10.0/latest.yml"
+    },
+    {
+      "name": "NexusDock-1.10.0-portable.exe",
+      "size": 109894630,
+      "digest": "sha256:61399b94fc4bf01981539f161e0a236fbbd095bbc7ffd60b6a2f81c967c8de49",
+      "url": "https://github.com/GoahJack/Nexus-Dock/releases/download/v1.10.0/NexusDock-1.10.0-portable.exe"
+    },
+    {
+      "name": "NexusDock-1.10.0-setup.exe",
+      "size": 120939729,
+      "digest": "sha256:61287d08a03e4773fdbf124f06ca06c3b9d1d950d5fc0e75dc10779b2e5f359d",
+      "url": "https://github.com/GoahJack/Nexus-Dock/releases/download/v1.10.0/NexusDock-1.10.0-setup.exe"
+    },
+    {
+      "name": "NexusDock-1.10.0-setup.exe.blockmap",
+      "size": 127946,
+      "digest": "sha256:ecfb4ad7a07822b7a1707e6f68e35b07dcbe3ddefe25be667bd553f6a9802a60",
+      "url": "https://github.com/GoahJack/Nexus-Dock/releases/download/v1.10.0/NexusDock-1.10.0-setup.exe.blockmap"
+    }
+  ]
+}

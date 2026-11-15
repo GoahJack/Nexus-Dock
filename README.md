@@ -4,7 +4,7 @@
 
 新增 Windows 安装版，保留便携版。安装版默认启动后自动检查并下载更新，下载完成后在 **设置 → 关于 → 软件更新** 点击「重启更新」才安装；普通退出不安装。可关闭自动检查，手动检查/下载仍可用。配置、窗口位置、词库与学习进度保留。
 
-本地安装包：`dist/NexusDock-1.10.0-setup.exe`；便携版：`dist/NexusDock-1.10.0-portable.exe`。首次从旧便携版迁移需退出旧程序并手动安装一次。构建 `npm run dist`，校验 `npm run verify:release`。GitHub 工作流生成 Release 草稿，公开后才提供在线更新；目前未发布首个 Release。详见 [自动更新、迁移与发布说明](docs/auto-update.md)。下方保留历史更新记录。
+**v1.10.0 已正式发布：**[下载安装版](https://github.com/GoahJack/Nexus-Dock/releases/download/v1.10.0/NexusDock-1.10.0-setup.exe) · [便携版](https://github.com/GoahJack/Nexus-Dock/releases/download/v1.10.0/NexusDock-1.10.0-portable.exe) · [完整 Release](https://github.com/GoahJack/Nexus-Dock/releases/tag/v1.10.0)。首次从旧便携版迁移需退出旧程序并手动安装一次；安装版之后可接收更高版本更新。正式更新源已用隔离客户端验证检查、下载和校验通过。构建 `npm run dist`，校验 `npm run verify:release`。详见 [自动更新、迁移与发布说明](docs/auto-update.md)。下方保留历史更新记录。
 
 ## 灵动岛形变与自动折叠修正
 

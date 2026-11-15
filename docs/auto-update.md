@@ -78,7 +78,7 @@ npm run verify:release      # 检查版本、安装包大小及 SHA-512
 
 也可在 GitHub 手动检查草稿后点击 **Publish release**。只有已公开、非 prerelease 的 Release 才进入自动更新源。以后发布：先递增 package/lock 中的版本，更新验证门禁与记录，再提交明确的发布请求，或用标签/手动工作流生成草稿。不要把源码 ZIP 当更新包，不要在同一版本名下重新上传不同字节的安装文件。
 
-**上线前置条件：**当前仓库尚无 Release；此轮新增代码、工作流与本地安装包，未代替维护者公开首个 Release。旧便携客户端没有更新代码，无法凭空自升级，首次需手动安装。首个公开版本提供基线；后续更高版本发布后，已安装的客户端才会下载它。
+**v1.10.0 已于 2026-11-15 正式发布：**[正式 Release](https://github.com/GoahJack/Nexus-Dock/releases/tag/v1.10.0)，由 [GitHub Actions](https://github.com/GoahJack/Nexus-Dock/actions/runs/43675395445) 完成 82 项测试、构建、校验和公开。四个附件均已可公开下载，`latest.yml` 指向正式安装包；上传摘要记录见 `verification/auto-update/published-release.json`。旧便携客户端首次仍需手动安装；v1.10.0 是自动更新基线，当前安装版检查时显示已是最新版，后续更高版本发布后才会下载它。
 
 ## 验证与边界
 
@@ -86,4 +86,5 @@ npm run verify:release      # 检查版本、安装包大小及 SHA-512
 - `npm run verify:release`：校验当前构建的 `latest.yml` 指向正确的 NSIS 包，文件大小、SHA-512 和 blockmap 均匹配。
 - `node scripts/update-verify.mjs`：隔离 userData 与更新缓存，真实打包 Electron + preload/IPC/React + electron-updater + 本地 HTTP。真实下载安装文件、观察进度、故意错误 SHA-512 验证拒绝、恢复正确校验后自动下载，最后拦截安装调用验证只由按钮触发。另验证便携版/开发态禁用更新。
 - 运行报告在 `docs/verification/auto-update/report.json`，截图在同目录。脚本不读取或写入用户真实配置，不运行安装器；只按自身实例 PID 收尾，不建立 Computer Use 采集会话。
+- `node scripts/release-live-verify.mjs`：连接正式 GitHub 更新源，确认四个公开下载地址与清单可用，真实 v1.10.0 客户端检查结果为最新版；仅将隔离更新引擎的比较版本模拟为 1.9.0 后，检测并实际下载正式 v1.10.0 安装包，SHA-512 与清单、SHA-256 与 GitHub 资产摘要均一致。结果见 `verification/auto-update/live-release-report.json`。没有执行安装器，不代表已验证实际安装版本替换。
 - 本地测试源用 1.10.1 元数据指向实际构建的 1.10.0 安装文件，仅用于验证传输、校验和界面链路。**不等于两个真实版本的安装替换验收。** 首次正式发布后，需在干净测试环境安装基线版本，再从下一版正式 GitHub Release 验证真实下载安装、版本号变化、快捷方式及数据保留。

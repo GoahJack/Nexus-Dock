@@ -1,5 +1,15 @@
 # VERIFICATION — 验收记录
 
+## v1.10.0 正式发布与线上更新源（2026-11-15）
+
+[正式 Release](https://github.com/GoahJack/Nexus-Dock/releases/tag/v1.10.0) 已于北京时间 **2026-11-15 12:12** 公开为最新版，`draft=false`、`prerelease=false`，目标提交 `976fe271447ceff22d25cdf1c59ab4cd49775c25`。[GitHub Actions 发布任务](https://github.com/GoahJack/Nexus-Dock/actions/runs/43675395445) 全部步骤成功：82/82 测试、双分发构建、SHA-512 清单校验、四个上传资产的大小/SHA-256 校验与正式发布。
+
+线上验证：`node scripts/release-live-verify.mjs` 已通过。四个附件公开下载均返回 200；真实隔离 v1.10.0 客户端从生产配置的 GitHub 源检查到当前为最新版。仅模拟更新引擎的比较版本为 1.9.0 后，检测并实际下载 **120,939,729 字节**的正式安装包，SHA-512 与公开 `latest.yml` 一致，SHA-256 与 GitHub 资产摘要一致。下载完成状态为 `downloaded`，未执行安装器、未修改用户现有安装或配置；实际两个版本的安装替换仍留待后续版本验收。
+
+证据：[published-release.json](verification/auto-update/published-release.json)、[live-release-report.json](verification/auto-update/live-release-report.json)。发布包来自 Windows CI，同版本的先前本地验证构建属于历史证据，大小/摘要可能不同；更新清单始终和其对应构建一起发布，不混用两份构建的文件。
+
+发布机制增补：`main` 的 `.github/release-request.json` 明确指定版本和 `publish: true` 才自动公开，普通代码提交不触发正式发布；标签构建及默认手动运行仍生成草稿。浏览器发布尝试因窗口状态失败，已按规则提交一次收尾摘要并重置本聊天 Computer Use 内核；正式发布最终由 GitHub Actions 完成。
+
 ## v1.10 自动更新（2026-11-15）
 
 当前版本 **1.10.0**，设置 schemaVersion **12**。以下旧版本章节与计数均为历史证据。功能、迁移及发布约束见 [auto-update.md](auto-update.md)。
@@ -13,7 +23,7 @@
 | 显式安装与数据保留 | 通过限定范围 | 按钮只调用一次 `quitAndInstall(true,true)`；调用被测试拦截，不执行安装器；schema v11→v12、窗口自定义坐标/自动更新开关保留，两份词库文件字节未变 |
 | 便携版 / 开发态 | 均通过 | 显示正确说明，不执行更新；测试源收到的请求数不增长 |
 | 更新设置页视觉复核 | 通过 | 真实 Electron 截图 `verification/auto-update/ready.png`，按钮、状态、开关与说明完整可见 |
-| 线上发布与两个真实版本的安装替换 | 尚未执行 | 源码与工作流按用户要求上传 GitHub；仓库暂无 Release，未公开安装包或替换用户当前安装 |
+| 线上发布与两个真实版本的安装替换 | 正式发布与线上更新源已通过；实际版本替换尚未执行 | 当前发布结果见上方记录；此表其余数值为初次本地验证构建，未替换用户当前安装 |
 
 运行脚本：`node scripts/update-verify.mjs`；结构化结果：[auto-update/report.json](verification/auto-update/report.json)，**3 个场景全部通过**。隔离目录和缓存位于 `.userdata/update-verify`。本地测试元数据 1.10.1 使用当前 1.10.0 安装文件，只验证传输/完整性/UI/安装请求；不宣称已验证真实版本替换。截图和下载缓存不纳入 Git。未操作用户真实配置，测试进程已退出；本轮未建立 Computer Use 采集连接。
 

@@ -1,0 +1,55 @@
+{
+  "version": "1.10.0",
+  "generatedAt": "2026-11-15T04:12:44.540Z",
+  "installerExecuted": false,
+  "release": {
+    "url": "https://github.com/GoahJack/Nexus-Dock/releases/tag/v1.10.0",
+    "tag": "v1.10.0",
+    "publishedAt": "2026-11-15T04:12:06Z",
+    "assets": [
+      {
+        "name": "latest.yml",
+        "size": 350,
+        "digest": "sha256:2d50cb24ecc2625d352df332a9b137263a05848d4725a3bc20a6f9d21d329560"
+      },
+      {
+        "name": "NexusDock-1.10.0-portable.exe",
+        "size": 109894630,
+        "digest": "sha256:61399b94fc4bf01981539f161e0a236fbbd095bbc7ffd60b6a2f81c967c8de49"
+      },
+      {
+        "name": "NexusDock-1.10.0-setup.exe",
+        "size": 120939729,
+        "digest": "sha256:61287d08a03e4773fdbf124f06ca06c3b9d1d950d5fc0e75dc10779b2e5f359d"
+      },
+      {
+        "name": "NexusDock-1.10.0-setup.exe.blockmap",
+        "size": 127946,
+        "digest": "sha256:ecfb4ad7a07822b7a1707e6f68e35b07dcbe3ddefe25be667bd553f6a9802a60"
+      }
+    ]
+  },
+  "baseline": {
+    "revision": 2,
+    "mode": "installer",
+    "phase": "idle",
+    "currentVersion": "1.10.0",
+    "checkedAt": 1794715980648
+  },
+  "simulatedOlderClient": {
+    "revision": 4,
+    "mode": "installer",
+    "phase": "available",
+    "currentVersion": "1.10.0",
+    "latestVersion": "1.10.0",
+    "checkedAt": 1794715982300
+  },
+  "download": {
+    "state": "downloaded",
+    "size": 120939729,
+    "sha512": "r/1DmbezBhTgN8VzgCns96tl1v4tb3qtGivniERXf9TGzOcw90jMPdCGxWJ4G36UEg0u8m9rP6CV9c70qv8hAA==",
+    "digest": "sha256:61287d08a03e4773fdbf124f06ca06c3b9d1d950d5fc0e75dc10779b2e5f359d"
+  },
+  "pass": true,
+  "limitation": "Only the comparison version was simulated for download testing; no installer was run and no installed-version replacement is claimed."
+}
