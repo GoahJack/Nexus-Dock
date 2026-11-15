@@ -7,6 +7,7 @@
  * `WORD_STUDY_KIND` / `DEFAULT_WORD_STUDY_OPTIONS` 保持一致（契约测试会校验）。
  */
 import type { WordBank, WordBankOpenResult, WordBankOpResult, WordEntry, WordProgress } from './wordBank'
+import type { UpdateApi } from './updates'
 
 export type DockEdge = 'bottom' | 'top' | 'left' | 'right'
 export type ThemeMode = 'dark' | 'light'
@@ -298,6 +299,8 @@ export interface LockConfig {
 export interface SystemConfig {
   /** 开机自启：写入 Windows 当前用户登录启动项（仅安装版生效，见 AutoStartResult） */
   autoStart: boolean
+  /** v1.10 安装版：自动检查并下载更新；安装必须由用户点击「重启更新」。 */
+  autoUpdate: boolean
 }
 
 /** v1.0 外观与动效配置（详见 docs/motion-spec.md） */
@@ -368,6 +371,13 @@ export const IPC = {
   settingsChanged: 'settings:changed',
   /* 系统 */
   systemSetAutoStart: 'system:setAutoStart',
+  /* 自动更新 */
+  updateGet: 'update:get',
+  updateCheck: 'update:check',
+  updateDownload: 'update:download',
+  updateInstall: 'update:install',
+  updateOpenReleases: 'update:openReleases',
+  updateChanged: 'update:changed',
   /* 应用 */
   appsList: 'apps:list',
   appsLaunch: 'apps:launch',
@@ -702,7 +712,7 @@ export function patchExtraWindows(
 
 export const DEFAULT_SETTINGS: Settings = {
   // v11（v1.8）：新增英语单词学习附加窗口（注册表登记 kind=wordstudy）与词库文件存储。
-  schemaVersion: 11,
+  schemaVersion: 12,
   dock: {
     edge: 'bottom',
     alongPercent: 50,
@@ -764,7 +774,8 @@ export const DEFAULT_SETTINGS: Settings = {
     clock: false
   },
   system: {
-    autoStart: false
+    autoStart: false,
+    autoUpdate: true
   },
   appearance: {
     motionIntensity: 'standard',
@@ -865,7 +876,8 @@ export function sanitizeSettings(raw: unknown): Settings {
     clock: typeof r.lock?.clock === 'boolean' ? r.lock.clock : d.lock.clock
   }
   const system: SystemConfig = {
-    autoStart: typeof r.system?.autoStart === 'boolean' ? r.system.autoStart : d.system.autoStart
+    autoStart: typeof r.system?.autoStart === 'boolean' ? r.system.autoStart : d.system.autoStart,
+    autoUpdate: typeof r.system?.autoUpdate === 'boolean' ? r.system.autoUpdate : d.system.autoUpdate
   }
   const appearance: AppearanceConfig = {
     motionIntensity: pick(r.appearance?.motionIntensity, ['light', 'standard', 'expressive'] as const, d.appearance.motionIntensity),
@@ -928,6 +940,7 @@ export function mergeSettings(base: Settings, patch: DeepPartial<Settings>): Set
 }
 
 export interface NexusApi {
+  updates: UpdateApi
   env: {
     platform: string
     isDev: boolean

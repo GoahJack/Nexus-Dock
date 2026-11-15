@@ -1,6 +1,6 @@
 {
   "name": "nexus-dock",
-  "version": "1.9.0",
+  "version": "1.10.0",
   "private": true,
   "description": "Nexus 风格 Windows 桌面美化：位置可调 Dock + 音乐显示",
   "main": "./out/main/index.js",
@@ -14,7 +14,10 @@
     "test": "node --test --disable-warning=MODULE_TYPELESS_PACKAGE_JSON \"tests/*.test.mjs\"",
     "check": "npm run typecheck && npm test",
     "install:local": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/install-local.ps1",
-    "dist": "electron-vite build && electron-builder --win"
+    "dist": "electron-vite build && electron-builder --win --publish never",
+    "dist:installer": "electron-vite build && electron-builder --win nsis --publish never",
+    "dist:portable": "electron-vite build && electron-builder --win portable --publish never",
+    "verify:release": "node scripts/verify-release.mjs --artifacts"
   },
   "devDependencies": {
     "@types/node": "^24.9.2",
@@ -49,18 +52,43 @@
     "win": {
       "target": [
         {
+          "target": "nsis",
+          "arch": ["x64"]
+        },
+        {
           "target": "portable",
           "arch": [
             "x64"
           ]
         }
       ],
-      "signAndEditExecutable": false,
-      "artifactName": "NexusDock-${version}-portable.${ext}"
+      "signAndEditExecutable": false
     },
     "portable": {
       "artifactName": "NexusDock-${version}-portable.${ext}"
-    }
+    },
+    "nsis": {
+      "artifactName": "NexusDock-${version}-setup.${ext}",
+      "oneClick": false,
+      "perMachine": false,
+      "allowElevation": false,
+      "allowToChangeInstallationDirectory": true,
+      "deleteAppDataOnUninstall": false,
+      "shortcutName": "Nexus Dock",
+      "runAfterFinish": true
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "GoahJack",
+        "repo": "Nexus-Dock",
+        "releaseType": "draft",
+        "vPrefixedTagName": true
+      }
+    ]
   },
-  "author": "Nexus Dock"
+  "author": "Nexus Dock",
+  "dependencies": {
+    "electron-updater": "6.8.12"
+  }
 }

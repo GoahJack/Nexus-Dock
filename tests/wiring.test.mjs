@@ -294,10 +294,10 @@ test('设置页接入：ExtraWindowsSection 注册 WORD_STUDY_KIND → WordStudy
   assert.ok(wordStudySource.includes('window.nexus?.wordBank') || wordStudySource.includes('window.nexus.wordBank'), '设置页必须走 preload 暴露的 wordBank API')
 })
 
-test('版本与迁移：package.json=1.9.0、DEFAULT_SETTINGS.schemaVersion=11、settingsStore 有 v10→v11 说明', () => {
+test('版本与迁移：package.json=1.10.0、DEFAULT_SETTINGS.schemaVersion=12、迁移说明完整', () => {
   const packageJson = JSON.parse(source('package.json'))
-  assert.equal(packageJson.version, '1.9.0', 'package.json 版本必须是 1.9.0')
-  assert.equal(DEFAULT_SETTINGS.schemaVersion, 11, 'DEFAULT_SETTINGS.schemaVersion 必须是 11（v1.8 起未变，v1.9 只扩 wordstudy options）')
+  assert.equal(packageJson.version, '1.10.0', 'package.json 版本必须是 1.10.0')
+  assert.equal(DEFAULT_SETTINGS.schemaVersion, 12, 'v1.10 新增 system.autoUpdate，schemaVersion 必须是 12')
   assert.equal(findWindowKind(WORD_STUDY_KIND)?.kind, WORD_STUDY_KIND)
   assert.equal(
     DEFAULT_SETTINGS.extraWindows.some((item) => item.kind === WORD_STUDY_KIND),
@@ -311,6 +311,7 @@ test('版本与迁移：package.json=1.9.0、DEFAULT_SETTINGS.schemaVersion=11�
 
   const settingsStore = source('src/main/settingsStore.ts')
   assert.match(settingsStore, /v10\s*→\s*v11/, 'settingsStore 必须写明 v10 → v11 迁移')
+  assert.match(settingsStore, /v11\s*→\s*v12/, 'settingsStore 必须写明 v11 → v12 迁移')
   assert.match(settingsStore, /wordstudy/, '迁移注释必须说明新增 wordstudy 附加窗口')
   assert.match(settingsStore, /normalizeExtraWindows/, '迁移依赖注册表收敛（按 kind 补默认配置）')
 })

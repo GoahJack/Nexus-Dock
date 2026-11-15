@@ -1,5 +1,11 @@
 # Nexus Dock
 
+## v1.10：安装版自动更新
+
+新增 Windows 安装版，保留便携版。安装版默认启动后自动检查并下载更新，下载完成后在 **设置 → 关于 → 软件更新** 点击「重启更新」才安装；普通退出不安装。可关闭自动检查，手动检查/下载仍可用。配置、窗口位置、词库与学习进度保留。
+
+本地安装包：`dist/NexusDock-1.10.0-setup.exe`；便携版：`dist/NexusDock-1.10.0-portable.exe`。首次从旧便携版迁移需退出旧程序并手动安装一次。构建 `npm run dist`，校验 `npm run verify:release`。GitHub 工作流生成 Release 草稿，公开后才提供在线更新；目前未发布首个 Release。详见 [自动更新、迁移与发布说明](docs/auto-update.md)。下方保留历史更新记录。
+
 ## 灵动岛形变与自动折叠修正
 
 **Dock 始终展开。** 音乐、时钟、单词窗口启用灵动岛后，靠近自动展开、移远后延迟收起，图钉可保持展开。外壳宽高与圆角以约 320ms 连续过渡，文字不再整体缩放。
@@ -10,7 +16,7 @@
 
 64 项测试与类型检查：`npm run check`。18 项隔离 Electron 运行验证及形变帧证据：`node scripts/island-hover-verify.mjs`，详见 [设计与验证说明](docs/island-design.md)。
 
-本次交付 `dist/NexusDock-1.9.0-motion-portable.exe`；先退出旧版再启动。`npm run dist` 默认包名仍为 `NexusDock-1.9.0-portable.exe`，独立名称用于避免覆盖正在运行的版本。下方是历史日志。
+此前交付 `dist/NexusDock-1.9.0-motion-portable.exe`；此记录中的版本号与验证结果属于 v1.9 阶段，当前分发方式见上方 v1.10 说明。下方是历史日志。
 
 Nexus 风格的 Windows 桌面美化工具：**位置可调的悬浮 Dock** + **音乐显示卡片**。
 

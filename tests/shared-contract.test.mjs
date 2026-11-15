@@ -291,8 +291,8 @@ function fakeExtraWindow(overrides = {}) {
   }
 }
 
-test('v1.8 契约：schemaVersion=11，extraWindows 默认值与注册表一致（含英语单词学习）', () => {
-  assert.equal(DEFAULT_SETTINGS.schemaVersion, 11)
+test('当前契约：schemaVersion=12，extraWindows 默认值与注册表一致（含英语单词学习）', () => {
+  assert.equal(DEFAULT_SETTINGS.schemaVersion, 12)
   const kinds = EXTRA_WINDOW_KINDS.map((spec) => spec.kind)
   assert.deepEqual(kinds, [WORD_STUDY_KIND], 'v1.8 注册表应注册英语单词学习窗口')
   assert.deepEqual(
@@ -311,7 +311,7 @@ test('v1.8 契约：schemaVersion=11，extraWindows 默认值与注册表一致�
   assert.equal(wordStudy.options.showSchedule, true, 'v1.9 新增：卡片显示复习计划')
   // 旧配置（schemaVersion 10，没有 wordstudy 配置）读入后自动补默认，不抛错
   const migrated = sanitizeSettings({ schemaVersion: 10, extraWindows: [] })
-  assert.equal(migrated.schemaVersion, 11)
+  assert.equal(migrated.schemaVersion, 12)
   assert.deepEqual(
     migrated.extraWindows.map((item) => item.kind),
     [WORD_STUDY_KIND]

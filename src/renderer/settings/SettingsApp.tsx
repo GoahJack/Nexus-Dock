@@ -229,7 +229,7 @@ export function SettingsApp(): JSX.Element {
       case 'system':
         return <SystemSection settings={settings} patch={safePatch} onNavigate={(next) => setTab(next)} />
       case 'about':
-        return <AboutSection reset={safeReset} />
+        return <AboutSection reset={safeReset} settings={settings} patch={safePatch} />
     }
   }
 

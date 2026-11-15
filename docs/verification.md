@@ -1,5 +1,24 @@
 # VERIFICATION — 验收记录
 
+## v1.10 自动更新（2026-11-15）
+
+当前版本 **1.10.0**，设置 schemaVersion **12**。以下旧版本章节与计数均为历史证据。功能、迁移及发布约束见 [auto-update.md](auto-update.md)。
+
+| 验证项 | 实跑结果 | 证据 / 边界 |
+| --- | --- | --- |
+| 类型检查 + 单元/契约回归 | 75/75 通过，0 失败 | `npm run check`；含 11 项更新流程测试 |
+| 安装版 + 便携版打包 | 成功 | `npm run dist`；electron-builder 26.18.0，Electron 44.7.0，updater 6.8.12 |
+| 更新资产一致性 | 通过 | `npm run verify:release`；安装包 120,939,792 字节，SHA-512 与 latest.yml 一致；blockmap 存在；latest.yml 只指向 setup |
+| 打包 Electron：网络失败 → 错误校验值 → 正确校验值 | 通过 | 真实 HTTP 下载共 **241,879,584 字节**；503 可重试；错误 SHA-512 阻止安装；正确文件自动下载并显示可用「重启更新」 |
+| 显式安装与数据保留 | 通过限定范围 | 按钮只调用一次 `quitAndInstall(true,true)`；调用被测试拦截，不执行安装器；schema v11→v12、窗口自定义坐标/自动更新开关保留，两份词库文件字节未变 |
+| 便携版 / 开发态 | 均通过 | 显示正确说明，不执行更新；测试源收到的请求数不增长 |
+| 更新设置页视觉复核 | 通过 | 真实 Electron 截图 `verification/auto-update/ready.png`，按钮、状态、开关与说明完整可见 |
+| 线上发布与两个真实版本的安装替换 | 尚未执行 | 源码与工作流按用户要求上传 GitHub；仓库暂无 Release，未公开安装包或替换用户当前安装 |
+
+运行脚本：`node scripts/update-verify.mjs`；结构化结果：[auto-update/report.json](verification/auto-update/report.json)，**3 个场景全部通过**。隔离目录和缓存位于 `.userdata/update-verify`。本地测试元数据 1.10.1 使用当前 1.10.0 安装文件，只验证传输/完整性/UI/安装请求；不宣称已验证真实版本替换。截图和下载缓存不纳入 Git。未操作用户真实配置，测试进程已退出；本轮未建立 Computer Use 采集连接。
+
+构建最初因沙箱网络无法访问 GitHub 失败；获准联网后完整打包成功。当前未配置 Windows 代码签名证书，未绕过更新组件默认签名校验。首次公开 Release 后，需在干净测试环境做基线安装→下一版本升级与快捷方式/配置保留验证。
+
 > 当前修正：64 项单元/契约测试、类型检查和构建通过；18 项运行验证见 [motion-island/report.json](verification/motion-island/report.json)。[baseline/report.json](verification/motion-island/baseline/report.json) 有意保留旧构建两个失败，供确认音乐/单词卡住修复。所有更早目录均为历史证据。
 
 > 环境：Windows 11 build 26200 · Node v24.21.0 · Electron 44.10.0（Chromium 152 / Node 24.22）· 2026-10-29

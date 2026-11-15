@@ -1,9 +1,13 @@
 import { useState } from 'react'
 import type { JSX } from 'react'
 import { Button, Row, Section } from '@renderer/shared/ui'
+import type { DeepPartial, Settings } from '@shared/types'
+import { UpdateSection } from './UpdateSection'
 
 interface Props {
   reset: () => Promise<void>
+  settings: Settings
+  patch: (patch: DeepPartial<Settings>) => Promise<void>
 }
 
 const PLATFORM_LABEL: Record<string, string> = {
@@ -13,7 +17,7 @@ const PLATFORM_LABEL: Record<string, string> = {
 }
 
 /** 关于分组：版本 / 运行环境 / 恢复全部默认 / 退出 */
-export function AboutSection({ reset }: Props): JSX.Element {
+export function AboutSection({ reset, settings, patch }: Props): JSX.Element {
   const env = window.nexus.env
   const [confirm, setConfirm] = useState(false)
   const [resetting, setResetting] = useState(false)
@@ -46,6 +50,8 @@ export function AboutSection({ reset }: Props): JSX.Element {
           </span>
         </Row>
       </Section>
+
+      <UpdateSection settings={settings} patch={patch} />
 
       <Section title="运行环境" desc="Electron / Chromium / Node 版本。">
         <Row label="Electron">

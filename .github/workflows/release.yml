@@ -1,0 +1,54 @@
+name: Build Windows release draft
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: windows-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - name: Ensure Electron runtime is present
+        run: node node_modules/electron/install.js
+      - name: Check release version and tag
+        run: node scripts/verify-release.mjs
+      - run: npm run check
+      - name: Build installer, portable app and update metadata
+        run: npm run dist
+      - name: Verify installer SHA-512 and manifest
+        run: npm run verify:release
+      - name: Upload verified files to a GitHub release draft
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: pwsh
+        run: |
+          $version = (Get-Content package.json -Raw | ConvertFrom-Json).version
+          $tag = "v$version"
+          $files = @("dist/NexusDock-$version-setup.exe", "dist/NexusDock-$version-setup.exe.blockmap", "dist/NexusDock-$version-portable.exe", "dist/latest.yml")
+          gh release view $tag --json isDraft --jq '.isDraft' 1> release-state.txt 2>$null
+          if ($LASTEXITCODE -ne 0) {
+            gh release create $tag --draft --title "Nexus Dock $tag" --generate-notes --target $env:GITHUB_SHA
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          } elseif ((Get-Content release-state.txt -Raw).Trim() -ne 'true') {
+            throw "Release $tag is already public; bump the version rather than replacing a live update."
+          }
+          gh release upload $tag @files --clobber
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Write-Output "Draft $tag is ready. Review all four assets, then publish the release to activate updates."

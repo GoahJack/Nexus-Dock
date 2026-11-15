@@ -20,6 +20,7 @@ import {
 } from './windowManager'
 import { setupUserDataDir } from './userData'
 import { initWordBank, subscribeWordBank } from './wordBank'
+import { setupUpdater } from './updater'
 
 // 渲染层/预加载通过 process.env 读取打包状态（沙箱 preload 无法直接访问 app），
 // 必须在创建任何窗口之前写入，子进程会继承该环境变量
@@ -104,6 +105,7 @@ if (!gotLock) {
     // 音乐 Hub：SMTC 桥按需启动（音乐卡片关闭时不再常驻 PowerShell）
     const hub = createMediaHub()
     registerIpc(hub)
+    const disposeUpdater = setupUpdater(broadcast)
     hub.start({ bridgeEnabled: needsMediaBridge(initialSettings) })
 
     // 桌面状态桥：前台窗口最大化/全屏时自动隐藏 Dock；
@@ -165,6 +167,7 @@ if (!gotLock) {
         bridgeSyncTimer = null
       }
       disposeIslandProximity()
+      disposeUpdater()
       stopMemoryReport()
       desktopMonitor.stop()
       unsubscribeSettings()

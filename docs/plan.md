@@ -1,5 +1,7 @@
 # PLAN — 技术方案与架构（SDD 阶段 2）
 
+> v1.10 当前方案增补：[自动更新架构、状态与发布流程](auto-update.md)。electron-builder 26 + electron-updater 6.8.12，NSIS/portable 双目标；主进程控制更新状态机，preload 提供固定动作，GitHub Release 草稿工作流负责构建与校验。settings schemaVersion 11 → 12，新增 system.autoUpdate。以下历史架构描述按版本保留；当前 Electron 锁定 44.7.0。
+
 > 当前增补：[形变方案](island-design.md)。IslandMorph 统一真实尺寸动画、可中断与清理；ResizeObserver 在短时动画中同步原生尺寸，布局守卫按版本保护位置。原生指针纠正 DOM 滞留状态，保留真正捕获和编辑保护。
 
 > 对应规格：`docs/spec.md` v0.1 + §7 v1.0

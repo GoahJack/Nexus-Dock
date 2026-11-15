@@ -1,10 +1,8 @@
 @echo off
 rem ============================================================
 rem  Nexus Dock launcher (ASCII only: cmd.exe cannot parse UTF-8)
-rem  Installs the portable build to %LOCALAPPDATA%\NexusDock and
-rem  starts it there. Running from LOCALAPPDATA is required because
-rem  executables inside the DSH workspace carry a Low integrity label,
-rem  and Windows then refuses UWP app activation / foreground activation.
+rem  Opens the current version's per-user NSIS setup wizard.
+rem  Build it first with npm run dist:installer.
 rem ============================================================
 setlocal
 cd /d "%~dp0"
@@ -19,18 +17,18 @@ if not exist "%~dp0scripts\install-local.ps1" (
   exit /b 1
 )
 
-echo [INFO] Installing / refreshing Nexus Dock and starting it...
+echo [INFO] Opening Nexus Dock setup...
 powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\install-local.ps1"
 if errorlevel 1 (
   echo.
-  echo [ERROR] Nexus Dock failed to start.
+  echo [ERROR] Nexus Dock setup did not complete.
   echo Tips:
-  echo   1. Make sure the portable build exists: dist\NexusDock-portable
-  echo   2. Rebuild with: npm run build
+  echo   1. Build the installer: npm run dist:installer
+  echo   2. Exit the old portable app before installing.
   echo   3. Logs: %%APPDATA%%\nexus-dock\logs\
   pause
   exit /b 1
 )
 
-echo [OK] Nexus Dock is running.
+echo [OK] Nexus Dock setup completed.
 exit /b 0

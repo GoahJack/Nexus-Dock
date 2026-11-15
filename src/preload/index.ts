@@ -17,6 +17,7 @@ import {
   type WindowTarget
 } from '@shared/types'
 import type { WordBank, WordBankOpenResult, WordBankOpResult, WordEntry, WordProgress } from '@shared/wordBank'
+import type { UpdateState } from '@shared/updates'
 
 /** 统一的「订阅 → 返回取消订阅函数」工具，保证渲染层不会泄漏监听器 */
 function subscribe<T>(channel: string, cb: (payload: T) => void): () => void {
@@ -28,6 +29,14 @@ function subscribe<T>(channel: string, cb: (payload: T) => void): () => void {
 }
 
 const api: NexusApi = {
+  updates: {
+    getState: () => ipcRenderer.invoke(IPC.updateGet) as Promise<UpdateState>,
+    check: () => ipcRenderer.invoke(IPC.updateCheck) as Promise<UpdateState>,
+    download: () => ipcRenderer.invoke(IPC.updateDownload) as Promise<UpdateState>,
+    install: () => ipcRenderer.invoke(IPC.updateInstall) as Promise<UpdateState>,
+    openReleases: () => ipcRenderer.invoke(IPC.updateOpenReleases) as Promise<void>,
+    onChanged: cb => subscribe<UpdateState>(IPC.updateChanged, cb)
+  },
   env: {
     platform: process.platform,
     isDev: !!process.env['ELECTRON_RENDERER_URL'],

@@ -104,6 +104,8 @@ function migrate(settings: Settings, fromVersion: number): Settings {
   // 其余字段（含旧 extraWindows 里已不存在的未知 kind）原样收敛，配置零丢失。
   // 词库文件在 initWordBank()（main/index.ts）里读取/首次播种，与本迁移互不影响。
 
+  // v11 → v12（v1.10）：新增 system.autoUpdate，缺失时默认 true。
+  // sanitizeSettings 保留明确的 false，其余设置和两份词库文件保持原样。
   return sanitizeSettings({ ...next, schemaVersion: DEFAULT_SETTINGS.schemaVersion })
 }
 

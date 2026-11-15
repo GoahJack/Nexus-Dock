@@ -1,0 +1,34 @@
+{
+  "version": "1.10.0",
+  "generatedAt": "2026-11-15T03:46:50.315Z",
+  "results": [
+    {
+      "name": "Packaged updater: real network error, SHA-512 rejection, automatic download, restart request and preserved data",
+      "pass": true,
+      "detail": {
+        "currentVersion": "1.10.0",
+        "advertisedTestVersion": "1.10.1",
+        "sha512": "3AqiPfwlI2U0BqOFdYI3iAHNBhjCD3bYgC7vENE7Jzzn8SRhGX7CLaFlFQaj9eixCpTkZOVhkN8LBTEMrX6Oag==",
+        "bytesServed": 241879584,
+        "installerExecuted": false
+      }
+    },
+    {
+      "name": "portable: updater disabled with correct guidance; no network work",
+      "pass": true
+    },
+    {
+      "name": "development: updater disabled with correct guidance; no network work",
+      "pass": true
+    }
+  ],
+  "requests": [
+    "/latest.yml?noCache=1k7el0gud",
+    "/latest.yml?noCache=1k7el0h19",
+    "/NexusDock-1.10.1-setup.exe",
+    "/latest.yml?noCache=1k7el0lq8",
+    "/NexusDock-1.10.1-setup.exe"
+  ],
+  "bytesServed": 241879584,
+  "limitation": "Installer execution is intercepted. The loopback 1.10.1 fixture uses built 1.10.0 installer bytes; actual installed-version replacement and live GitHub Release require release validation."
+}
