@@ -1,8 +1,9 @@
 import assert from 'node:assert/strict'
 import { createHash } from 'node:crypto'
-import { readFileSync, existsSync } from 'node:fs'
+import { readFileSync, existsSync, appendFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { resolve } from 'node:path'
+import { releasePolicy } from './release-policy.mjs'
 
 const root = process.cwd()
 const pkg = JSON.parse(readFileSync(resolve(root, 'package.json'), 'utf8'))
@@ -11,6 +12,20 @@ if (process.env.GITHUB_REF_TYPE === 'tag') {
   assert.equal(process.env.GITHUB_REF_NAME, `v${pkg.version}`, 'Release tag must match package.json')
 }
 assert.equal(pkg.dependencies?.['electron-updater'], '6.8.12', 'Keep the updater compatible with builder 26')
+if (process.argv.includes('--request')) {
+  const request = process.env.GITHUB_EVENT_NAME === 'push' && process.env.GITHUB_REF_TYPE === 'branch'
+    ? JSON.parse(readFileSync(resolve(root, '.github/release-request.json'), 'utf8')) : undefined
+  const publish = releasePolicy({
+    version: pkg.version,
+    eventName: process.env.GITHUB_EVENT_NAME,
+    refType: process.env.GITHUB_REF_TYPE,
+    refName: process.env.GITHUB_REF_NAME,
+    manualPublish: process.env.MANUAL_PUBLISH,
+    request
+  })
+  if (process.env.GITHUB_OUTPUT) appendFileSync(process.env.GITHUB_OUTPUT, `publish=${publish}\nversion=${pkg.version}\n`)
+  console.log(`Explicit publication requested: ${publish}`)
+}
 if (process.argv.includes('--artifacts')) {
   // Parse exactly as electron-updater does, resolving its own declared YAML dependency.
   const require = createRequire(import.meta.url)

@@ -1,15 +1,22 @@
-name: Build Windows release draft
+name: Build Windows release
 
 on:
   push:
     tags: ['v*']
+    branches: [main]
+    paths: ['.github/release-request.json']
   workflow_dispatch:
+    inputs:
+      publish:
+        description: Publish the verified release (otherwise keep a draft)
+        type: boolean
+        default: false
 
 permissions:
   contents: write
 
 concurrency:
-  group: windows-release-${{ github.ref }}
+  group: windows-release-${{ github.repository }}
   cancel-in-progress: false
 
 jobs:
@@ -27,8 +34,11 @@ jobs:
       - run: npm ci
       - name: Ensure Electron runtime is present
         run: node node_modules/electron/install.js
-      - name: Check release version and tag
-        run: node scripts/verify-release.mjs
+      - name: Check release version and explicit publication request
+        id: request
+        env:
+          MANUAL_PUBLISH: ${{ inputs.publish }}
+        run: node scripts/verify-release.mjs --request
       - run: npm run check
       - name: Build installer, portable app and update metadata
         run: npm run dist
@@ -42,13 +52,45 @@ jobs:
           $version = (Get-Content package.json -Raw | ConvertFrom-Json).version
           $tag = "v$version"
           $files = @("dist/NexusDock-$version-setup.exe", "dist/NexusDock-$version-setup.exe.blockmap", "dist/NexusDock-$version-portable.exe", "dist/latest.yml")
+          $notes = "docs/releases/v$version.md"
           gh release view $tag --json isDraft --jq '.isDraft' 1> release-state.txt 2>$null
           if ($LASTEXITCODE -ne 0) {
-            gh release create $tag --draft --title "Nexus Dock $tag" --generate-notes --target $env:GITHUB_SHA
+            $noteArgs = if (Test-Path -LiteralPath $notes) { @('--notes-file', $notes) } else { @('--generate-notes') }
+            gh release create $tag --draft --title "Nexus Dock $tag" @noteArgs --target $env:GITHUB_SHA
             if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           } elseif ((Get-Content release-state.txt -Raw).Trim() -ne 'true') {
             throw "Release $tag is already public; bump the version rather than replacing a live update."
           }
+          gh release edit $tag --target $env:GITHUB_SHA
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           gh release upload $tag @files --clobber
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          Write-Output "Draft $tag is ready. Review all four assets, then publish the release to activate updates."
+          if (Test-Path -LiteralPath $notes) {
+            gh release edit $tag --notes-file $notes
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          }
+          $releaseJson = gh api "repos/$env:GITHUB_REPOSITORY/releases?per_page=100"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $matches = @(($releaseJson | ConvertFrom-Json) | Where-Object tag_name -eq $tag)
+          if ($matches.Count -ne 1 -or -not $matches[0].draft) { throw "Expected one draft release for $tag" }
+          $release = $matches[0]
+          foreach ($file in $files) {
+            $name = Split-Path -Leaf $file
+            $asset = @($release.assets | Where-Object name -eq $name)
+            if ($asset.Count -ne 1 -or $asset[0].size -ne (Get-Item -LiteralPath $file).Length) {
+              throw "Uploaded asset missing or wrong size: $name"
+            }
+            $digest = 'sha256:' + (Get-FileHash -LiteralPath $file -Algorithm SHA256).Hash.ToLowerInvariant()
+            if ($asset[0].digest -ne $digest) { throw "Uploaded asset checksum mismatch: $name" }
+          }
+          Write-Output "All four draft assets match the verified build."
+      - name: Publish explicitly requested stable release
+        if: steps.request.outputs.publish == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_VERSION: ${{ steps.request.outputs.version }}
+        shell: pwsh
+        run: |
+          gh release edit "v$env:RELEASE_VERSION" --draft=false --prerelease=false --latest
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Write-Output "Published Nexus Dock v$env:RELEASE_VERSION as the latest stable release."

@@ -74,7 +74,9 @@ npm run verify:release      # 检查版本、安装包大小及 SHA-512
 
 `.github/workflows/release.yml` 可手动运行，或由 `v*` 标签触发。在 Windows + Node 24 上检查版本、运行测试、打包、校验资产，再通过仓库 `GITHUB_TOKEN` 上传到 **Release 草稿**。标签必须等于 `v${package.version}`；已公开的同版本 Release 拒绝覆盖，应递增版本号。无需向客户端植入令牌。
 
-维护者检查草稿中的四个文件后，在 GitHub 点击 **Publish release**。只有已公开、非 prerelease 的 Release 才进入自动更新源。以后发布：先递增 package/lock 中的版本，更新验证门禁与记录，推送对应标签或运行工作流，再审阅并公开草稿。不要把源码 ZIP 当更新包，不要在同一版本名下重新上传不同字节的安装文件。
+正式发布入口：在 `main` 提交 `.github/release-request.json`，明确填写与 package.json 一致的 `version` 和布尔型 `publish`。只有该文件发生变化才触发分支发布，普通源码提交不会触发；`publish: true` 表示已明确请求公开此版本。手动运行工作流也可选择 `publish`（默认 false）；标签触发仍保留草稿。所有发布串行执行，四个已上传资产的大小和 GitHub SHA-256 摘要均与构建文件一致后，才公开为最新正式版。版本专属说明优先读取 `docs/releases/v${version}.md`。规则由 `scripts/release-policy.mjs` 校验并有独立测试，拒绝版本不匹配、非 main 分支、字符串冒充布尔值及未知事件。
+
+也可在 GitHub 手动检查草稿后点击 **Publish release**。只有已公开、非 prerelease 的 Release 才进入自动更新源。以后发布：先递增 package/lock 中的版本，更新验证门禁与记录，再提交明确的发布请求，或用标签/手动工作流生成草稿。不要把源码 ZIP 当更新包，不要在同一版本名下重新上传不同字节的安装文件。
 
 **上线前置条件：**当前仓库尚无 Release；此轮新增代码、工作流与本地安装包，未代替维护者公开首个 Release。旧便携客户端没有更新代码，无法凭空自升级，首次需手动安装。首个公开版本提供基线；后续更高版本发布后，已安装的客户端才会下载它。
 
