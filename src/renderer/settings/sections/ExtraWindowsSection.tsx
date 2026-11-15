@@ -6,6 +6,7 @@ import { WORD_STUDY_KIND } from '@shared/wordBank'
 import { spawnRipple } from '@renderer/shared/motion'
 import { Button, Section, Switch } from '@renderer/shared/ui'
 import { WordStudySettings } from './WordStudySettings'
+import { IslandStatus } from '@renderer/shared/IslandStatus'
 
 interface Props {
   settings: Settings
@@ -145,7 +146,9 @@ export function ExtraWindowsSection({ settings, patch }: Props): JSX.Element {
                         checked={config.locked}
                         onChange={(locked) => patchWindow(config.kind, { locked })}
                       />
-                      <Switch label="收起为胶囊" hint="保留当前单词摘要，展开后回到原来的学习或编辑位置。" checked={config.collapsed} onChange={(collapsed) => patchWindow(config.kind, { collapsed })} />
+                      <Switch label="灵动岛：靠近时展开" hint="靠近展开、移开后收起；保留学习与编辑内容，输入期间保持展开。" checked={config.collapsed} onChange={(collapsed) => patchWindow(config.kind, { collapsed })} />
+                      <Switch label="保持展开" hint="与窗口上的图钉同步，再点一次恢复自动收起。" disabled={!config.collapsed} checked={config.pinned} onChange={(pinned) => patchWindow(config.kind, { pinned })} />
+                      <IslandStatus enabled={config.collapsed} pinned={config.pinned} />
                       <div className="nx-inline-actions">
                         <Button
                           size="sm"

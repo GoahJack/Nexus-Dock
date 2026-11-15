@@ -1,4 +1,5 @@
 import { useEffect } from 'react'
+import { ISLAND_MOTION_END } from '@shared/island'
 
 /** 根节点引用（结构类型，避免 RefObject 泛型协变问题） */
 interface ElementRef {
@@ -75,6 +76,7 @@ export function useOwnContentSize(ref: ElementRef, deps: readonly unknown[] = []
     observer.observe(element)
     window.addEventListener('resize', schedule)
     window.addEventListener('load', schedule)
+    element.addEventListener(ISLAND_MOTION_END, schedule)
 
     const onVisibilityChange = (): void => {
       if (document.visibilityState !== 'visible') return
@@ -89,6 +91,7 @@ export function useOwnContentSize(ref: ElementRef, deps: readonly unknown[] = []
       observer.disconnect()
       window.removeEventListener('resize', schedule)
       window.removeEventListener('load', schedule)
+      element.removeEventListener(ISLAND_MOTION_END, schedule)
       document.removeEventListener('visibilitychange', onVisibilityChange)
     }
     // deps 由调用方声明（视图切换后宽高不同，必须重新量测）

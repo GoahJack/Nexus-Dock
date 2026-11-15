@@ -65,6 +65,8 @@ const api: NexusApi = {
     onRunning: (cb) => subscribe<Record<string, boolean>>(IPC.appsRunning, cb)
   },
   window: {
+    getIslandProximity: () => ipcRenderer.invoke(IPC.islandProximityGet) as Promise<boolean>,
+    onIslandProximity: (cb) => subscribe<boolean>(IPC.islandProximityChanged, cb),
     setContentSize: (target: WindowTarget, size: Size) => ipcRenderer.send(IPC.windowSetContentSize, target, size),
     // v1.7：附加窗口上报自己的内容尺寸（主进程按发送者定位窗口）
     setOwnContentSize: (size: Size) => ipcRenderer.send(IPC.windowSetOwnContentSize, size),

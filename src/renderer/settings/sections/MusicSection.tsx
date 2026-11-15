@@ -2,6 +2,7 @@ import { useState } from 'react'
 import type { JSX } from 'react'
 import type { DeepPartial, MediaSource, MusicAnchor, ProgressStyle, Settings, ThemeMode } from '@shared/types'
 import { Button, Section, Segmented, Slider, Switch } from '@renderer/shared/ui'
+import { IslandStatus } from '@renderer/shared/IslandStatus'
 
 interface Props {
   settings: Settings
@@ -72,7 +73,9 @@ export function MusicSection({ settings, patch }: Props): JSX.Element {
         </div>
       ) : null}
       <Section title="音乐卡片" desc="桌面悬浮的音乐信息窗，可跟随 Dock 或自由摆放。">
-        <Switch label="收起为胶囊" hint="保留曲名和播放按钮，与卡片上的折叠按钮同步，重启后保留。" checked={m.collapsed} onChange={(collapsed) => apply({ music: { collapsed } })} />
+        <Switch label="灵动岛：靠近时展开" hint="鼠标靠近胶囊自动展开，移开 900 毫秒后收起；关闭后始终展开。" checked={m.collapsed} onChange={(collapsed) => apply({ music: { collapsed } })} />
+        <Switch label="保持展开" hint="与窗口上的图钉同步，再点一次恢复自动收起。" disabled={!m.collapsed} checked={m.pinned} onChange={(pinned) => apply({ music: { pinned } })} />
+        <IslandStatus enabled={m.collapsed} pinned={m.pinned} />
         <Switch
           label="显示音乐卡片"
           hint="关闭后卡片隐藏，Dock 不受影响"

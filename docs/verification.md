@@ -1,6 +1,6 @@
 # VERIFICATION — 验收记录
 
-> 2026-11-14 修正版：Dock 常驻展开，音乐/单词/时钟折叠设置持久化；类型检查、56 项单元/契约测试、生产构建通过。最新真实 Electron 检查见 [report.json](verification/folding/report.json)，范围与人工项见 [设计记录](island-design.md#验证)。旧 island 目录记录的是已被替换的首版方案。
+> 当前修正：64 项单元/契约测试、类型检查和构建通过；18 项运行验证见 [motion-island/report.json](verification/motion-island/report.json)。[baseline/report.json](verification/motion-island/baseline/report.json) 有意保留旧构建两个失败，供确认音乐/单词卡住修复。所有更早目录均为历史证据。
 
 > 环境：Windows 11 build 26200 · Node v24.21.0 · Electron 44.10.0（Chromium 152 / Node 24.22）· 2026-10-29
 > 本文件记录的是「实跑」结果，不是计划。证据截图在 `docs/verification/`。

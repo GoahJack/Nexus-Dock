@@ -1,3 +1,4 @@
+import { getOwnIslandProximity } from './islandProximity'
 import { BrowserWindow, Menu, app, dialog, ipcMain, shell } from 'electron'
 import { basename, extname } from 'node:path'
 import {
@@ -207,6 +208,7 @@ function registerAppIpc(): void {
 }
 
 function registerWindowIpc(): void {
+  ipcMain.handle(IPC.islandProximityGet, (event): boolean => getOwnIslandProximity(event.sender.id))
   ipcMain.on(IPC.windowSetContentSize, (event, target: WindowTarget, size: Size): void => {
     if (!size || typeof size.width !== 'number' || typeof size.height !== 'number') return
     // v1.7：附加窗口优先按发送者归属路由（附加窗口渲染页可以复用既有 useContentSize 写法），
@@ -372,6 +374,7 @@ export function registerIpc(mediaHub: MediaHub): void {
 }
 
 export function disposeIpc(): void {
+  ipcMain.removeHandler(IPC.islandProximityGet)
   ipcMain.removeHandler(IPC.settingsGet)
   ipcMain.removeHandler(IPC.settingsUpdate)
   ipcMain.removeHandler(IPC.settingsReset)

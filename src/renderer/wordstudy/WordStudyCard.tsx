@@ -21,6 +21,8 @@ import { useSettings } from '../shared/hooks'
 import { WordBankEditor } from './WordBankEditor'
 import { WordListView } from './WordListView'
 import { useOwnContentSize } from './useOwnContentSize'
+import { useIsland } from '../shared/useIsland'
+import { IslandPin } from '../shared/IslandPin'
 
 /**
  * Nexus Dock — v1.9「英语单词学习」附加窗口（透明浮窗卡片）。
@@ -142,13 +144,10 @@ export function WordStudyCard(): JSX.Element {
   const options = resolveWordStudyOptions(config?.options)
   const theme = config?.theme ?? 'dark'
   const locked = config?.locked === true
-  const collapsed = config?.collapsed === true
-  const toggleCollapsed = (): void => {
+  const collapsed = useIsland(rootRef, config?.collapsed === true, config?.pinned === true)
+  const togglePinned = (): void => {
     if (!settings) return
-    void patch({ extraWindows: patchExtraWindows(settings, WORD_STUDY_KIND, { collapsed: !collapsed }) })
-    window.requestAnimationFrame(() => {
-      rootRef.current?.querySelector<HTMLButtonElement>(collapsed ? '.ws-fold-full' : '.ws-mini .ws-fold')?.focus()
-    })
+    void patch({ extraWindows: patchExtraWindows(settings, WORD_STUDY_KIND, { pinned: !config?.pinned }) })
   }
 
   // C7：透明窗口内容尺寸 = 根节点尺寸；视图切换（360 → 480）后重测
@@ -468,10 +467,10 @@ export function WordStudyCard(): JSX.Element {
         <span className="ws-mini-dot" aria-hidden="true" />
         <span className="ws-mini-word" title={currentWord?.word}>{currentWord?.word ?? '英语单词'}</span>
         <span className="ws-mini-due">待复习 {reviewStats.due}</span>
-        <button type="button" className="ws-icon-btn ws-fold nx-no-drag" aria-label="展开单词卡片" aria-expanded={false} onClick={toggleCollapsed}><IconChevron dir="next" /></button>
+        <IslandPin className="ws-icon-btn ws-fold" pinned={config?.pinned === true} onClick={togglePinned} />
       </div>
       <div className="ws-content" hidden={collapsed}>
-      <button type="button" className="ws-icon-btn ws-fold ws-fold-full nx-no-drag" aria-label="收起单词卡片" aria-expanded={true} onClick={toggleCollapsed}>⌄</button>
+      {config?.collapsed ? <IslandPin className="ws-icon-btn ws-fold ws-fold-full" pinned={config.pinned} onClick={togglePinned} /> : null}
       {view === 'study' ? (
         <div className="ws-study">
           <header className="ws-header">

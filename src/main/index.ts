@@ -1,3 +1,4 @@
+import { disposeIslandProximity } from './islandProximity'
 import { app } from 'electron'
 import { IPC, hasOnlyOnDesktopWindow, type Settings } from '@shared/types'
 import { cleanupErrorDialogs, hydrateIcons, probeEnvironment, startRunningMonitor, stopRunningMonitor } from './apps'
@@ -163,6 +164,7 @@ if (!gotLock) {
         clearTimeout(bridgeSyncTimer)
         bridgeSyncTimer = null
       }
+      disposeIslandProximity()
       stopMemoryReport()
       desktopMonitor.stop()
       unsubscribeSettings()

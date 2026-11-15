@@ -3,6 +3,8 @@ import '@renderer/shared/ui.css'
 import './clock.css'
 import type { Settings } from '@shared/types'
 import { applyAppearanceToDocument } from '../shared/appearance'
+import { bindIsland } from '../shared/island'
+import { ISLAND_MOTION_END } from '@shared/island'
 
 /**
  * Nexus Dock — 桌面时钟窗口渲染层（v1.1 US-13 / AC-13.1~13.7）
@@ -61,6 +63,8 @@ let tickTimer: number | null = null
 let resizeObserver: ResizeObserver | null = null
 /** 上一次回报给主进程的内容尺寸，避免重复 IPC */
 let lastSentSize = ''
+let islandBehavior: ReturnType<typeof bindIsland> | null = null
+let collapsed = false
 
 /* ------------------------------ 时间文本 ------------------------------ */
 
@@ -150,9 +154,11 @@ function ensureDom(): ClockDom {
   const fold = document.createElement('button')
   fold.type = 'button'
   fold.className = 'clock-fold'
+  fold.dataset.islandPin = ''
+  fold.innerHTML = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m16 3 5 5-4 2-3 6-3-3-6 6-1-1 6-6-3-3 6-3z" /></svg>'
   fold.addEventListener('click', () => {
     if (!settings) return
-    void window.nexus.settings.update({ clock: { collapsed: !settings.clock.collapsed } }).catch(() => {
+    void window.nexus.settings.update({ clock: { pinned: !settings.clock.pinned } }).catch(() => {
       fold.title = '保存失败，请重试或在设置中修改'
     })
   })
@@ -160,11 +166,19 @@ function ensureDom(): ClockDom {
   requireMountPoint().replaceChildren(root)
 
   dom = { root, main, period, time, date: null, lock, fold }
+  islandBehavior = bindIsland(root, (compact) => {
+    collapsed = compact
+    root.dataset.collapsed = String(compact)
+    renderNow(true)
+    scheduleTick()
+    requestContentSizeReport()
+  })
 
   // 透明窗口内容尺寸回报：字号/日期/秒/制式变化都会触发布局 → ResizeObserver 重新量测
   // （同样经样式就绪检查，避免 CSS 未生效时把错误尺寸回报给主进程）
   resizeObserver = new ResizeObserver(() => requestContentSizeReport())
   resizeObserver.observe(root)
+  root.addEventListener(ISLAND_MOTION_END, requestContentSizeReport)
   window.addEventListener('resize', requestContentSizeReport)
   bindEnterAnimation(root)
 
@@ -213,15 +227,15 @@ function renderNow(force: boolean): void {
   const clock = settings.clock
   const now = new Date()
   // 提交粒度：显示秒按秒，否则按分钟
-  const unitMs = clock.showSeconds && !clock.collapsed ? 1000 : 60_000
+  const unitMs = clock.showSeconds && !collapsed ? 1000 : 60_000
   const bucket = Math.floor(now.getTime() / unitMs)
   if (!force && bucket === lastBucket) return
   lastBucket = bucket
 
-  const { time, period } = splitTimeText(getTimeFormatter(clock.showSeconds && !clock.collapsed, clock.hour12), now)
+  const { time, period } = splitTimeText(getTimeFormatter(clock.showSeconds && !collapsed, clock.hour12), now)
   if (dom.time.textContent !== time) dom.time.textContent = time
   setPeriod(period)
-  if (clock.showDate && !clock.collapsed) setDate(true, formatDateText(now))
+  if (clock.showDate && !collapsed) setDate(true, formatDateText(now))
   else setDate(false, '')
 }
 
@@ -237,7 +251,7 @@ function scheduleTick(): void {
     window.clearInterval(tickTimer)
     tickTimer = null
   }
-  const showSeconds = settings?.clock.showSeconds && !settings.clock.collapsed
+  const showSeconds = settings?.clock.showSeconds && !collapsed
   tickTimer = window.setInterval(tick, showSeconds ? 250 : 1000)
 }
 
@@ -281,11 +295,11 @@ function applySettings(next: Settings): void {
   const current = ensureDom()
 
   current.root.dataset.theme = clock.theme
-  current.root.dataset.collapsed = String(clock.collapsed)
-  const foldLabel = clock.collapsed ? '展开桌面时钟' : '收起桌面时钟'
-  current.fold.textContent = clock.collapsed ? '›' : '⌄'
+  current.root.dataset.collapsed = String(collapsed)
+  const foldLabel = clock.pinned ? '取消保持展开' : '保持展开'
+  current.fold.hidden = !clock.collapsed
   current.fold.setAttribute('aria-label', foldLabel)
-  current.fold.setAttribute('aria-expanded', String(!clock.collapsed))
+  current.fold.setAttribute('aria-pressed', String(clock.pinned))
   current.fold.title = foldLabel
   // 位置锁定（US-14）：锁定才存在 data-locked，未锁定不输出 "false"
   if (locked) current.root.setAttribute('data-locked', 'true')
@@ -296,6 +310,7 @@ function applySettings(next: Settings): void {
   // 外观：字号/透明度走内联 CSS 变量（与改造前一致），锁定时 CSS 改用 no-drag
   current.root.style.setProperty('--clock-font-size', `${clock.fontSize}px`)
   current.root.style.setProperty('--clock-opacity', String(Math.min(1, Math.max(0.2, clock.opacity))))
+  islandBehavior?.configure(clock.collapsed, clock.pinned)
 
   // 立即对齐当前时间（切 12/24 小时制、显示秒、显示日期后无需等下一次 tick）
   renderNow(true)
@@ -334,6 +349,7 @@ const onLoad = (): void => requestContentSizeReport()
 window.addEventListener('load', onLoad)
 
 window.addEventListener('beforeunload', () => {
+  islandBehavior?.dispose()
   if (tickTimer !== null) {
     window.clearInterval(tickTimer)
     tickTimer = null

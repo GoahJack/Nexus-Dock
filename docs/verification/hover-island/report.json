@@ -1,0 +1,56 @@
+{
+  "at": "2026-11-14T15:20:44.939Z",
+  "executable": "E:\\Codex Work\\软件开发\\桌面doc栏\\dist\\win-unpacked\\Nexus Dock.exe",
+  "scope": "real Electron + IPC + BrowserWindow bounds; synthetic cursor via isolated loopback main inspector; OS pointer untouched",
+  "results": [
+    {
+      "name": "Dock stays fully expanded and has no proximity/pin controls",
+      "pass": true
+    },
+    {
+      "name": "music: native proximity expands outside window, delays collapse and fits viewport",
+      "pass": true
+    },
+    {
+      "name": "music: pin holds open, click again resumes auto collapse",
+      "pass": true
+    },
+    {
+      "name": "clock: native proximity expands outside window, delays collapse and fits viewport",
+      "pass": true
+    },
+    {
+      "name": "clock: pin holds open, click again resumes auto collapse",
+      "pass": true
+    },
+    {
+      "name": "wordstudy: native proximity expands outside window, delays collapse and fits viewport",
+      "pass": true
+    },
+    {
+      "name": "wordstudy: pin holds open, click again resumes auto collapse",
+      "pass": true
+    },
+    {
+      "name": "word editor keeps draft and stays expanded while typing outside proximity zone",
+      "pass": true
+    },
+    {
+      "name": "keyboard focus opens capsule and transfers to visible pin without losing focus",
+      "pass": true
+    },
+    {
+      "name": "settings expose auto expansion and persistent pins; renderer reload preserves pin",
+      "pass": true
+    },
+    {
+      "name": "reduced motion disables content Web Animations during proximity expansion",
+      "pass": true
+    },
+    {
+      "name": "disabled/hidden/pinned widgets stop native cursor probing; Dock unaffected",
+      "pass": true
+    }
+  ],
+  "errors": []
+}

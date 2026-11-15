@@ -10,6 +10,8 @@ import { formatTime, useContentSize, useSettings } from '../shared/hooks'
 import { spawnRipple } from '../shared/motion'
 import { LocalPlayer } from './LocalPlayer'
 import { useMediaProgress } from './useMediaProgress'
+import { useIsland } from '../shared/useIsland'
+import { IslandPin } from '../shared/IslandPin'
 
 /** 环形进度几何（viewBox 72×72，圆环半径 33，封面约 60px） */
 const RING_SIZE = 72
@@ -187,7 +189,7 @@ interface NoticeState {
 }
 
 export function MusicCard(): JSX.Element {
-  const { settings, patch } = useSettings()
+  const { settings, patch, error: settingsError } = useSettings()
   const [systemState, setSystemState] = useState<MediaState>({ ...DEFAULT_MEDIA_STATE })
   const [localState, setLocalState] = useState<MediaState>({ ...DEFAULT_MEDIA_STATE, source: 'local' })
   const [dragging, setDragging] = useState(false)
@@ -211,7 +213,6 @@ export function MusicCard(): JSX.Element {
   }, [])
 
   const music = settings?.music
-  const collapsed = music?.collapsed ?? false
   const width = music?.width ?? 330
   const progressStyle = music?.progressStyle ?? 'bar'
   const theme = music?.theme ?? 'dark'
@@ -219,6 +220,8 @@ export function MusicCard(): JSX.Element {
   const isLocal = source === 'local'
   /** v1.1 位置锁定（US-14）：锁定后整卡拖动区失效，关闭 / 播放 / 进度等控件仍可操作 */
   const musicLocked = settings?.lock.music === true
+  const { ref } = useContentSize('music', [width, progressStyle])
+  const collapsed = useIsland(ref, music?.collapsed ?? false, music?.pinned ?? false)
 
   const state = isLocal ? localState : systemState
   const empty = state.title.trim().length === 0
@@ -236,7 +239,6 @@ export function MusicCard(): JSX.Element {
   const shownMs = dragging ? dragMs : smoothMs
   const ratio = durationMs > 0 ? Math.min(1, Math.max(0, shownMs / durationMs)) : 0
 
-  const { ref } = useContentSize('music', [width, progressStyle])
 
   /* ------------------------------- 本地播放器 ------------------------------- */
   useEffect(() => {
@@ -476,9 +478,7 @@ export function MusicCard(): JSX.Element {
       title={musicLocked ? '位置已锁定（设置 → 系统 解锁）' : undefined}
       style={{ width }}
     >
-      <button type="button" className="music-fold nx-no-drag music-pressable" aria-label={collapsed ? '展开音乐卡片' : '收起音乐卡片'} aria-expanded={!collapsed} title={collapsed ? '展开音乐卡片' : '收起为迷你播放器'} onClick={() => void patch({ music: { collapsed: !collapsed } })}>
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={collapsed ? 'm8 5 7 7-7 7' : 'm5 8 7 7 7-7'} /></svg>
-      </button>
+      {music?.collapsed ? <IslandPin className="music-fold" pinned={music.pinned} onClick={() => void patch({ music: { pinned: !music.pinned } })} /> : null}
       <button
         type="button"
         className="music-close nx-no-drag nx-ripple-host music-pressable"
@@ -618,6 +618,7 @@ export function MusicCard(): JSX.Element {
         </div>
       </div>
 
+      {settingsError ? <div className="music-toast is-err" role="alert">{settingsError}</div> : null}
       {notice ? (
         <div key={notice.seq} className={`music-toast is-${notice.kind}`} role="status" aria-live="polite">
           {notice.text}

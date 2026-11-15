@@ -1,3 +1,4 @@
+import { watchIslandWindow } from './islandProximity'
 import { BrowserWindow, screen } from 'electron'
 import {
   IPC,
@@ -64,6 +65,8 @@ const contentSizes: Record<'dock' | 'music' | 'clock', Size> = {
 let applyingDock = false
 let applyingMusic = false
 let applyingClock = false
+let musicLayoutVersion = 0
+let clockLayoutVersion = 0
 /**
  * 时钟窗口是否已收到渲染层首次内容尺寸回报。
  * 未回报前保持隐藏：初始 240×120 透明窗口若先显示，会有一块比内容大的「隐形点击区」。
@@ -306,6 +309,7 @@ export function createMusicWindow(): BrowserWindow {
     }
   })
   musicWin = win
+  watchIslandWindow(win, () => getSettings().music)
   win.setMenuBarVisibility(false)
   win.setAlwaysOnTop(settings.music.alwaysOnTop, 'floating')
   loadRenderer(win, 'music')
@@ -428,10 +432,11 @@ export function applyMusicLayout(): void {
     return
   }
   applyingMusic = true
+  const version = ++musicLayoutVersion
   win.setBounds(next)
   if (!isShown(win)) showRestored(win)
   setTimeout(() => {
-    applyingMusic = false
+    if (version === musicLayoutVersion) applyingMusic = false
   }, 80)
 }
 
@@ -502,6 +507,7 @@ export function createClockWindow(): BrowserWindow {
     }
   })
   clockWin = win
+  watchIslandWindow(win, () => getSettings().clock)
   win.setMenuBarVisibility(false)
   win.setAlwaysOnTop(settings.clock.alwaysOnTop, 'floating')
   loadRenderer(win, 'clock')
@@ -583,10 +589,11 @@ export function applyClockLayout(): void {
     return
   }
   applyingClock = true
+  const version = ++clockLayoutVersion
   win.setBounds(next)
   showClockIfReady(win)
   setTimeout(() => {
-    applyingClock = false
+    if (version === clockLayoutVersion) applyingClock = false
   }, 80)
 }
 

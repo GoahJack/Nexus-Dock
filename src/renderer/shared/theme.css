@@ -2,6 +2,11 @@
    v1.0 精细化：动效令牌统一由 motion.css 提供（时长/曲线/涟漪/降级），本文件只管视觉基础 */
 @import './motion.css';
 
+.island-pin { display: grid; place-items: center; width: 26px; height: 26px; border-radius: 50%; color: var(--nx-text-dim); }
+.island-pin:hover { background: var(--nx-accent-soft); color: var(--nx-text); }
+.island-pin[aria-pressed='true'], .clock-fold[aria-pressed='true'] { background: var(--nx-accent-soft); color: var(--nx-accent); }
+.clock-fold[hidden] { display: none; }
+
 :root {
   color-scheme: dark;
 

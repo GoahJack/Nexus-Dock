@@ -1,3 +1,4 @@
+import { watchIslandWindow } from './islandProximity'
 /**
  * 附加窗口管理器（v1.7 新增）。
  *
@@ -55,6 +56,7 @@ interface ExtraInstance {
   sized: boolean
   /** 程序化 setBounds 守卫：避免 moved 事件把布局坐标又写回设置 */
   applying: boolean
+  layoutVersion: number
   moveTimer: NodeJS.Timeout | null
   hiddenByDesktop: boolean
 }
@@ -138,10 +140,12 @@ function createInstance(spec: WindowKindSpec, config: ExtraWindowConfig): ExtraI
     contentSize: { ...spec.defaultSize },
     sized: false,
     applying: false,
+    layoutVersion: 0,
     moveTimer: null,
     hiddenByDesktop: false
   }
   instances.set(spec.kind, instance)
+  watchIslandWindow(win, () => configOf(getSettings(), spec.kind))
 
   loadRenderer(win, spec.page)
 
@@ -267,10 +271,11 @@ function applyExtraLayout(instance: ExtraInstance): void {
     return
   }
   instance.applying = true
+  const version = ++instance.layoutVersion
   instance.win.setBounds(next)
   if (firstShow) showRestored(instance.win)
   setTimeout(() => {
-    instance.applying = false
+    if (version === instance.layoutVersion) instance.applying = false
   }, 80)
 }
 

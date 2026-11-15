@@ -3,7 +3,7 @@
 
    ⚠ `.ws-root` 是被 useOwnContentSize 测量的根节点：
    - 宽度按视图锁定（study 360px / editor 480px），高度由内容决定；
-   - 禁止在根节点上做 transform / scale / 尺寸过渡，入场只做透明度淡入；
+   - 禁止在根节点上做 transform / scale；宽高形变统一由 IslandMorph 与尺寸上报协调；
    - 两个视图宽高不同，切换后由 ResizeObserver 重新上报内容尺寸（C7）。
 
    交互元素一律 -webkit-app-region: no-drag（透明窗口里拖拽区会吞掉点击）；

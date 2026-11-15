@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { DeepPartial, Settings, Size, WindowTarget } from '@shared/types'
 import { applyAppearanceToDocument } from './appearance'
+import { ISLAND_MOTION_END } from '@shared/island'
 
 // 保持既有导入路径可用（原实现在本文件，已抽到无 React 依赖的 appearance.ts）
 export { applyAppearanceToDocument }
@@ -190,16 +191,22 @@ export function useContentSize(target: WindowTarget, deps: unknown[] = []): {
       // 留 1px 余量吸收亚像素误差，避免窗口尺寸抖动
       const width = Math.ceil(rect.width) + 1
       const height = Math.ceil(rect.height) + 1
+      if (width < 2 || height < 2) return
       const key = `${width}x${height}`
-      if (key === lastSent.current || width < 2 || height < 2) return
+      // Still size the native surface each animation frame, but don't rerender the
+      // whole player just to publish a measurement nobody displays mid-morph.
+      if (el.dataset.islandAnimating !== 'true') {
+        setSize(previous => previous?.width === width && previous.height === height ? previous : { width, height })
+      }
+      if (key === lastSent.current) return
       lastSent.current = key
-      setSize({ width, height })
       window.nexus.window.setContentSize(target, { width, height })
     }
     push()
     const ro = new ResizeObserver(push)
     ro.observe(el)
     window.addEventListener('resize', push)
+    el.addEventListener(ISLAND_MOTION_END, push)
     // 隐藏窗口恢复默认节流后，隐藏期间的尺寸变化可能得不到 ResizeObserver 回调；
     // 重新可见时补量一次，保证透明窗口内容尺寸始终等于窗口尺寸（C7）
     const onVisibilityChange = (): void => {
@@ -209,6 +216,7 @@ export function useContentSize(target: WindowTarget, deps: unknown[] = []): {
     return () => {
       ro.disconnect()
       window.removeEventListener('resize', push)
+      el.removeEventListener(ISLAND_MOTION_END, push)
       document.removeEventListener('visibilitychange', onVisibilityChange)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps

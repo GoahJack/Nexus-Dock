@@ -1,6 +1,7 @@
 import type { JSX } from 'react'
 import type { DeepPartial, Settings, ThemeMode } from '@shared/types'
 import { Section, Segmented, Slider, Switch } from '@renderer/shared/ui'
+import { IslandStatus } from '@renderer/shared/IslandStatus'
 
 interface Props {
   settings: Settings
@@ -29,7 +30,9 @@ export function ClockSection({ settings, patch }: Props): JSX.Element {
   return (
     <div className="nx-sections">
       <Section title="显示" desc="桌面悬浮数字时钟默认隐藏，打开后立即显示在桌面右上角。">
-        <Switch label="收起为胶囊" hint="缩小字号、隐藏秒与日期，展开后恢复原来的显示选项。" checked={c.collapsed} onChange={(collapsed) => void patch({ clock: { collapsed } })} />
+        <Switch label="灵动岛：靠近时展开" hint="靠近恢复完整时钟，移开后收起；保留原来的秒与日期选项。" checked={c.collapsed} onChange={(collapsed) => void patch({ clock: { collapsed } })} />
+        <Switch label="保持展开" hint="与窗口上的图钉同步，再点一次恢复自动收起。" disabled={!c.collapsed} checked={c.pinned} onChange={(pinned) => void patch({ clock: { pinned } })} />
+        <IslandStatus enabled={c.collapsed} pinned={c.pinned} />
         <Switch
           label="显示桌面时钟"
           hint="也可以点击 Dock 末端的时钟按钮快速开关，两处共享同一开关"
